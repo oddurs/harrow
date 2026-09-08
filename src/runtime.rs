@@ -25,7 +25,15 @@ pub const QUEUE_DEPTH: usize = 64;
 pub enum Msg {
     Loading,
     Loaded(Box<Report>),
-    LoadFailed { detail: String, transient: bool },
+    LoadFailed {
+        detail: String,
+        transient: bool,
+    },
+    /// Read it, nothing had changed. The UI does nothing with this, and that is
+    /// the point: sending *something* every cycle is how the loop finds out its
+    /// receiver has gone away. Without it a backlog nobody is editing keeps a
+    /// thread alive after the interface it was feeding has stopped listening.
+    Idle,
 }
 
 enum Command {
@@ -154,7 +162,12 @@ fn run(
                 let print = fingerprint(&report);
                 let changed = last != Some(print);
                 last = Some(print);
-                if (changed || forced) && !emit(&out, Msg::Loaded(Box::new(report))) {
+                let sent = if changed || forced {
+                    emit(&out, Msg::Loaded(Box::new(report)))
+                } else {
+                    emit(&out, Msg::Idle)
+                };
+                if !sent {
                     return;
                 }
             }
@@ -313,6 +326,31 @@ mod tests {
         handle.shutdown();
     }
 
+    /// The failure this was written for: the first read succeeds, the interface
+    /// goes away, and nothing about the backlog ever changes again — so there is
+    /// no update to fail to send, and without `Msg::Idle` the loop spins on
+    /// forever with nobody listening.
+    #[test]
+    fn a_receiver_dropped_after_the_first_read_still_ends_the_loop() {
+        let (handle, rx) = spawn(
+            static_source(),
+            Settings {
+                auto_refresh: Duration::from_millis(50),
+            },
+        );
+        drain_until(&rx, |m| m.iter().any(|m| matches!(m, Msg::Loaded(_))));
+        drop(rx);
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while handle.is_alive() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(
+            !handle.is_alive(),
+            "the loop outlived the interface it was feeding"
+        );
+    }
+
     #[test]
     fn shutdown_is_prompt_even_mid_wait() {
         let (mut handle, _rx) = spawn(
@@ -341,6 +379,9 @@ mod tests {
         drop(handle); // Hangs here if shutdown-on-drop regresses.
     }
 
+    /// The loop must not outlive the interface it is feeding, and the case that
+    /// gets this wrong is the quiet one: a backlog nobody is editing produces
+    /// no update to fail to send.
     #[test]
     fn a_dropped_receiver_ends_the_loop() {
         let (handle, rx) = spawn(

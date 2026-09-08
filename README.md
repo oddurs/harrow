@@ -1,5 +1,6 @@
 # harrow
 
+[![ci](https://github.com/oddurs/harrow/actions/workflows/ci.yml/badge.svg)](https://github.com/oddurs/harrow/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Work a [cairn](https://oddurs.github.io/cairn) backlog from the terminal.

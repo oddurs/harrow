@@ -42,9 +42,9 @@ parallel work safe rather than merely discouraged.
 
 ## `main` only advances through a merged pull request
 
-Not by convention — the local `pre-push` hook refuses a push to `main`, and
-branch protection on GitHub refuses it again if you get past the hook. This
-holds for the maintainer too.
+Not by convention — the local `pre-push` hook refuses a push to `main`, and a
+repository ruleset refuses it again on the server if you get past the hook. This
+holds for the maintainer too: the ruleset has no bypass actors.
 
 Required approvals are set to **0**, deliberately: this is a solo project and a
 review requirement would deadlock the only person who can review. Everything

@@ -448,6 +448,10 @@ fn event_loop(
     loop {
         for msg in msgs.try_iter() {
             match msg {
+                // Read, and nothing had changed. Deliberately not a redraw: a
+                // screen that repainted every three seconds whether or not
+                // anything happened is a screen you stop trusting.
+                Msg::Idle => continue,
                 Msg::Loading => app.loading = true,
                 Msg::Loaded(report) => app.ingest(*report),
                 Msg::LoadFailed { detail, transient } => app.load_failed(detail, transient),
