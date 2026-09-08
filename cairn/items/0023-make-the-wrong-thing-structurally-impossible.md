@@ -52,3 +52,32 @@ takes.
 - [x] Every branch gets its own worktree, created and removed by script
 - [x] Hooks need nothing installed beyond git and the toolchain
 - [x] No commit, pull request or release note attributes work to an assistant
+
+## Branch protection, 2026-09-08
+
+Classic branch protection alone did not hold, and it is worth writing down
+before somebody sets a repository up the same way again.
+
+With `required_pull_request_reviews` present and
+`required_approving_review_count: 0` — the setting a solo project needs, so the
+only person who can review is not deadlocked — a fast-forward ref update
+straight to `main` through the REST API was **accepted**:
+
+    gh api -X PATCH repos/OWNER/REPO/git/refs/heads/main -f sha=<branch head>
+
+`enforce_admins` was on. The local `pre-push` hook refused the same push, so the
+first line of defence held; the second did not, which is exactly the one that
+matters for anything that never touches this machine.
+
+A repository **ruleset** refuses it:
+
+    Repository rule violations found
+    Changes must be made through a pull request.
+
+So `main` is protected by a ruleset — `pull_request`, `required_status_checks`
+on the `required` context, `deletion`, `non_fast_forward`, `required_linear_history`,
+with no bypass actors — and classic protection is left in place beside it as a
+second, visible layer. Verified by re-running the push that got through.
+
+The lesson generalises: a protection setting is not configured until the thing
+it forbids has been attempted and refused.

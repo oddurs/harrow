@@ -46,8 +46,8 @@ scripts/agent done feat/short-slug
 Rules that are not negotiable:
 
 - **Never commit to `main`.** It advances only through a merged pull request.
-  The `pre-push` hook and branch protection both refuse; do not look for a way
-  around either.
+  The `pre-push` hook and the server-side ruleset both refuse, and the ruleset
+  has no bypass actors. Do not look for a way around either.
 - **Never use `--no-verify`**, `continue-on-error`, or `|| true` to make a check
   pass. If a check is wrong, fix the check in its own pull request.
 - **Never edit `ROADMAP.md`.** It is generated from `cairn/items/` by a cairn
