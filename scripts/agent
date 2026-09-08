@@ -216,7 +216,12 @@ cmd_pr() {
   say "pushing $branch"
   git push --quiet -u origin "$branch"
 
-  if url=$(gh pr view --json url --jq .url 2>/dev/null); then
+  # State, not existence: `gh pr view` happily returns a closed or merged pull
+  # request for this branch, and treating one of those as open leaves the work
+  # pushed with nothing to review it.
+  state=$(gh pr view --json state --jq .state 2>/dev/null || echo 'NONE')
+  if [ "$state" = 'OPEN' ]; then
+    url=$(gh pr view --json url --jq .url)
     say "pull request already open: $url"
   else
     say 'opening the pull request'
