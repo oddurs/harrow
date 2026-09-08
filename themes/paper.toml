@@ -1,0 +1,39 @@
+# A light theme, because a dark-only tool is unreadable in sunlight.
+name = "Paper"
+dark = false
+
+background   = "#fbf9f4"
+surface      = "#f2efe6"
+overlay      = "#ffffff"
+
+text         = "#2b2a26"
+muted        = "#6a675e"
+faint        = "#a8a496"
+heading      = "#131210"
+
+border       = "#d9d5c8"
+border_focus = "#2a6f9e"
+selection    = "#e6e1d2"
+
+accent       = "#2a6f9e"
+secondary    = "#0f7a6a"
+
+# Darkened from their dark-theme counterparts: the same hue at the same
+# lightness disappears against paper.
+open         = "#6a675e"
+active       = "#9a6410"
+done         = "#2f7a34"
+dropped      = "#a8a496"
+
+blocked      = "#b0261f"
+ready        = "#2f7a34"
+
+ok           = "#2f7a34"
+warn         = "#9a6410"
+error        = "#b0261f"
+
+milestone    = "#7a3f9e"
+label        = "#0f6f8a"
+person       = "#2a6f9e"
+
+ranks        = ["#b0261f", "#9a6410", "#0f6f8a", "#a8a496"]

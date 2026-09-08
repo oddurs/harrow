@@ -1,0 +1,32 @@
+ harrow  sample  4 items · 2 ready · 1 blocked                                                       starting
+──────────────────╭ Keys ──────────────────────────────────────────────────────────────────╮──────────────────
+╭ Backlog · by mil│                                                                        │─────────────────╮
+│ ▾ v0.1  First us│  ↑/k, ↓/j      move between items                                      │past its pane    │
+│  ○ 0005 ! The de│  home/g, end/G jump to the first or last                               │                 │
+│  ⊘ 0004 + Draw t│  ←, →          previous or next group — a column, on the board         │                 │
+│  ◐ 0003 + Draw t│  space         collapse or expand a group                              │                 │
+│ ▾ no milestone  │  tab           switch between the list and the board                   │                 │
+│  ○ 0006 ~ Write │  v             group by something else                                 │                 │
+│                 │  ↵/o           read the item in full                                   │                 │
+│                 │  e             open the item in your editor                            │                 │
+│                 │  c             claim it — assign it to you and start it                │                 │
+│                 │  C             give it back                                            │                 │
+│                 │  s             set the status                                          │                 │
+│                 │  h/<, l/>      move it back or forward through the statuses            │                 │
+│                 │  p             set the priority                                        │ bottom.         │
+│                 │  M             set the milestone                                       │                 │
+│                 │  x             close it, with a confirm                                │                 │
+│                 │  u             reopen it                                               │                 │
+│                 │  n             new item                                                │                 │
+│                 │  y             copy the item's reference                               │                 │
+│                 │  /             filter, in cairn's own grammar                          │                 │
+│                 │  a             show finished and dropped items too                     │                 │
+│                 │  esc           back out — clear the filter, close an overlay           │                 │
+│                 │  r             re-read the backlog now                                 │                 │
+│                 │  D             diagnostics — what failed, and why                      │                 │
+│                 │  ?             this help                                               │                 │
+│                 │  q/ctrl-c      quit                                                    │                 │
+│                 │  click         select a row, or fold a group                           │                 │
+│                 │                                                                        │                 │
+╰─────────────────╰────────────────────────────────────────────────────────────────────────╯─────────────────╯
+ ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab board  ? help

@@ -1,0 +1,41 @@
+# Night — a dark theme that does not assume your terminal is one.
+#
+# Where `auto` inherits whatever palette is on screen, this one commits: the
+# panes sit above the page, and the selection is a colour rather than reverse
+# video.
+name = "Night"
+dark = true
+
+background   = "#1a1b26"
+surface      = "#1f2233"
+overlay      = "#24283b"
+
+text         = "#c0caf5"
+muted        = "#9aa5ce"
+faint        = "#565f89"
+heading      = "#ffffff"
+
+border       = "#2a2e42"
+border_focus = "#7aa2f7"
+selection    = "#2f3549"
+
+accent       = "#7aa2f7"
+secondary    = "#7dcfff"
+
+open         = "#9aa5ce"
+active       = "#e0af68"
+done         = "#9ece6a"
+dropped      = "#565f89"
+
+blocked      = "#f7768e"
+ready        = "#9ece6a"
+
+ok           = "#9ece6a"
+warn         = "#e0af68"
+error        = "#f7768e"
+
+milestone    = "#bb9af7"
+label        = "#7dcfff"
+person       = "#7aa2f7"
+
+ranks        = ["#f7768e", "#e0af68", "#7dcfff", "#565f89"]

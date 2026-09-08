@@ -1,0 +1,56 @@
+name: Feature request
+description: Something harrow should do and does not
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Anything that becomes work becomes a [cairn
+        item](https://github.com/oddurs/harrow/tree/main/cairn/items) — a record
+        of the reasoning, not a title. This form asks for the same things an
+        item asks for, so the two are one step apart.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: >
+        What you cannot do today, or what is tedious. Not the feature — the
+        situation that makes you want one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What you think should happen. A rough shape is fine.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: >
+        Existing keys, a filter, `cairn` on the command line. If something
+        already does this and it is just hard to find, that is a docs bug and
+        worth knowing.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - read — cairn.toml, item files, the derived set
+        - filter — the grammar, sorting, saved views
+        - chrome — the list, the board, the detail pane, overlays
+        - write — anything that changes an item
+        - theme — colours and theme files
+        - config — config.toml and keybindings
+        - cli — flags, --plain, --doctor, --screenshot
+        - not sure
+    validations:
+      required: false

@@ -1,0 +1,15 @@
+# Build output
+/target
+
+# Worktrees created by scripts/agent live beside the repository, but a stray
+# one inside it must never be committed.
+.worktrees/
+
+# Editors
+.idea/
+*.swp
+*.swo
+.vscode/
+
+# macOS
+.DS_Store

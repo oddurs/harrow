@@ -1,0 +1,47 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: ./scripts/task check
+
+  release:
+    name: release
+    needs: [check]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          tag="${GITHUB_REF_NAME}"
+          gh release create "$tag" --title "$tag" --generate-notes --verify-tag
+
+          # Generated notes list contributors, and a bot or an assistant that
+          # ended up in the history must not be credited in a release.
+          notes=$(gh release view "$tag" --json body --jq .body)
+          cleaned=$(printf '%s\n' "$notes" | grep -Eiv \
+            '(claude|anthropic|copilot|chatgpt|\[bot\]|generated (with|by) +(claude|chatgpt|copilot|an? (ai|assistant|llm)))' || true)
+          if [ "$notes" != "$cleaned" ]; then
+            printf '%s\n' "$cleaned" | gh release edit "$tag" --notes-file -
+          fi

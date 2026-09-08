@@ -1,0 +1,64 @@
+name: Bug report
+description: Something harrow does that it should not
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. A screen is hard to describe in prose, and
+        `harrow --screenshot 120x40` renders one as text with no terminal
+        involved — pasting that is usually worth more than a description.
+
+  - type: textarea
+    id: what-happens
+    attributes:
+      label: What happens
+      description: What you did, and what harrow did about it.
+      placeholder: |
+        Pressed `l` on a done item and the status went to `dropped`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-should-happen
+    attributes:
+      label: What should happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: The screen
+      description: Output of `harrow --screenshot 120x40`, if the problem is visible.
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `harrow --version`.
+      placeholder: harrow 0.1.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: harrow --doctor
+      description: >
+        Says what harrow can see: the project, the schema, whether cairn agrees
+        with it, your terminal size.
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform and terminal
+      placeholder: macOS 15.2, Ghostty 1.1
+    validations:
+      required: true

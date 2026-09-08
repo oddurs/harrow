@@ -1,0 +1,5 @@
+# Pinned so a contributor, an agent and CI all compile with the same compiler.
+# Bumping it is a `chore:` commit of its own, with CI green on the new version.
+[toolchain]
+channel = "1.98"
+components = ["rustfmt", "clippy"]
