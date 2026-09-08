@@ -221,7 +221,11 @@ cmd_pr() {
   else
     say 'opening the pull request'
     template="$(primary)/.github/PULL_REQUEST_TEMPLATE.md"
-    title=$(git log -1 --pretty=%s)
+    # The first commit on the branch, not the last: a branch usually opens with
+    # the change it is named after and ends with the housekeeping, and titling
+    # the pull request after the housekeeping buries the point of it.
+    title=$(git log --reverse --format=%s "origin/$base..HEAD" | head -1)
+    [ -n "$title" ] || title=$(git log -1 --pretty=%s)
     if [ -f "$template" ]; then
       gh pr create --base "$base" --head "$branch" --title "$title" \
         --body-file "$template" $draft >/dev/null
