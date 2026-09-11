@@ -24,6 +24,6 @@ what a change is about to touch.
 
 ## Acceptance criteria
 
-- [ ] Marking is visible without reading a count
-- [ ] A change to a marked set is confirmed, with the number in the prompt
-- [ ] Where the marks correspond to a filter, one `cairn set --filter` does it
+- [x] Marking is visible without reading a count
+- [x] A change to a marked set is confirmed, with the number in the prompt
+- [x] Where the marks correspond to a filter, one `cairn set --filter` does it

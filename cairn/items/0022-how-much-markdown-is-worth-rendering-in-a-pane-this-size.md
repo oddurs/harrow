@@ -5,7 +5,7 @@ type: spike
 status: backlog
 milestone: later
 created: 2026-09-08
-updated: 2026-09-08
+updated: 2026-09-11
 priority: p2
 area: chrome
 ---

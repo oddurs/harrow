@@ -2,10 +2,10 @@
 id: 17
 title: Watch the directory instead of re-reading it
 type: feature
-status: backlog
+status: done
 milestone: v0.2
 created: 2026-09-08
-updated: 2026-09-08
+updated: 2026-09-11
 priority: p2
 area: runtime
 ---
@@ -29,6 +29,6 @@ Whether three seconds is actually noticeable in use. It has not been yet.
 
 ## Acceptance criteria
 
-- [ ] A change made in another window shows up without pressing `r`
-- [ ] The poll is still there and still works where the watcher does not
-- [ ] No busy loop when something rewrites the directory continuously
+- [x] A change made in another window shows up without pressing `r`
+- [x] The poll is still there and still works where the watcher does not
+- [x] No busy loop when something rewrites the directory continuously

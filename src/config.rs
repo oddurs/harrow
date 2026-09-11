@@ -36,6 +36,9 @@ pub struct Config {
     pub pane: String,
     /// Seconds between checks for a changed backlog.
     pub refresh_secs: u64,
+    /// Watch the filesystem as well as polling it, so a change made elsewhere
+    /// shows up at once.
+    pub watch: bool,
     /// How long to give `cairn` to carry out a change before giving up on it.
     pub write_ms: u64,
     /// The `cairn` to run for writes. A path, if it is not on `PATH`.
@@ -57,6 +60,7 @@ impl Default for Config {
             show_all: false,
             pane: "list".to_string(),
             refresh_secs: 3,
+            watch: true,
             write_ms: 8000,
             cairn: "cairn".to_string(),
             editor: String::new(),
@@ -75,6 +79,7 @@ const KNOWN: &[&str] = &[
     "show_all",
     "pane",
     "refresh_secs",
+    "watch",
     "write_ms",
     "cairn",
     "editor",
@@ -238,7 +243,12 @@ show_all = {show_all}
 # Which pane to open on: list, board or stats.
 pane = "{pane}"
 
-# Seconds between checks for a backlog that has changed underneath you.
+# Watch the filesystem, so a change made in another window shows up at once
+# rather than on the next poll. The poll stays either way: it is what notices a
+# change on a network mount, where the operating system tells nobody anything.
+watch = {watch}
+
+# Seconds between those polls.
 refresh_secs = {refresh_secs}
 
 # How long to give `cairn` to carry out a change before giving up on it.
@@ -267,6 +277,7 @@ editor = "{editor}"
             view = d.view,
             show_all = d.show_all,
             pane = d.pane,
+            watch = d.watch,
             refresh_secs = d.refresh_secs,
             write_ms = d.write_ms,
             cairn = d.cairn,
@@ -316,6 +327,9 @@ editor = "{editor}"
         }
         if self.refresh_secs != d.refresh_secs {
             out.push("refresh_secs");
+        }
+        if self.watch != d.watch {
+            out.push("watch");
         }
         if self.write_ms != d.write_ms {
             out.push("write_ms");

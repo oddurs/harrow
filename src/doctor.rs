@@ -52,6 +52,24 @@ pub fn run(config: &Config, config_path: Option<&Path>, theme: &Theme, start: &P
                     ),
                     fatal: false,
                 });
+                // Whether the operating system will tell us about a change, or
+                // whether this project is one the poll has to carry.
+                let dir = report.schema.items_dir();
+                checks.push(match crate::runtime::can_watch(&dir) {
+                    Ok(()) => Check {
+                        name: "watch",
+                        ok: true,
+                        detail: format!("{} — changes arrive at once", dir.display()),
+                        fatal: false,
+                    },
+                    Err(e) => Check {
+                        name: "watch",
+                        ok: false,
+                        detail: format!("{e}; falling back to the {}s poll", config.refresh_secs),
+                        fatal: false,
+                    },
+                });
+
                 let problems = report.schema.problems();
                 checks.push(Check {
                     name: "schema",
