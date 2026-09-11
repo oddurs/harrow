@@ -54,6 +54,35 @@ impl Pane {
     }
 }
 
+/// Something on screen you can click.
+///
+/// The drawing code records where each of these ended up as it draws, and the
+/// mouse handler looks up what is under the pointer. Keeping the map in one
+/// place is what makes the interface mouse-first rather than mouse-tolerant:
+/// anything drawn can be made clickable where it is drawn, instead of every
+/// region's geometry being recomputed by hand in the input handler.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Hit {
+    /// One of the three panes, in the header.
+    Tab(Pane),
+    /// A cell of the status strip. Clicking filters by it.
+    Status(String),
+    /// A row of the list, by index into `rows`.
+    Row(usize),
+    /// A board column heading.
+    Column(usize),
+    /// A card on the board: column, then position within it.
+    Card(usize, usize),
+    /// An option in the open picker.
+    Option(usize),
+    /// Yes or no, in the open confirmation.
+    Answer(bool),
+    /// A key hint in the footer, or a button in an overlay.
+    Run(Command),
+    /// The body of the detail pane, which scrolls on its own.
+    Detail,
+}
+
 /// A row in the list. The board has its own geometry.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Row {
@@ -231,6 +260,13 @@ pub struct App {
     pub now: u64,
     pub theme: Theme,
     pub keymap: Keymap,
+    /// Where everything clickable ended up, in the order it was drawn. Later
+    /// entries win, so an overlay covers what is beneath it.
+    pub hits: Vec<(Rect, Hit)>,
+    /// The last click, for telling a double-click from two single ones.
+    last_click: Option<(u16, u16, Instant)>,
+    /// The card being dragged, and where it started.
+    pub dragging: Option<(usize, Hit)>,
     /// When harrow last asked cairn to change something.
     pub wrote: Option<Instant>,
     pub list_area: Rect,
@@ -286,6 +322,9 @@ impl App {
             now: unix_seconds(),
             theme: Theme::auto(true),
             keymap: Keymap::default(),
+            hits: Vec::new(),
+            last_click: None,
+            dragging: None,
             wrote: None,
             list_area: Rect::default(),
             board_area: Rect::default(),
@@ -1512,46 +1551,197 @@ impl App {
         Action::None
     }
 
-    /// Which row a click landed on, if any.
-    pub fn row_at(&self, column: u16, row: u16) -> Option<usize> {
-        let area = self.list_area;
-        let inside = column > area.x
-            && column < area.x + area.width.saturating_sub(1)
-            && row > area.y
-            && row < area.y + area.height.saturating_sub(1);
-        if !inside {
-            return None;
+    /// Record where something clickable was drawn.
+    pub fn hit(&mut self, area: Rect, what: Hit) {
+        if area.width > 0 && area.height > 0 {
+            self.hits.push((area, what));
         }
-        let idx = self.offset + usize::from(row - area.y - 1);
-        (idx < self.rows.len()).then_some(idx)
     }
 
-    /// Clicking an item selects it; clicking a group header folds it.
-    pub fn click_row(&mut self, idx: usize) {
-        match self.rows.get(idx) {
-            Some(Row::Item(_)) => self.selected = idx,
-            Some(Row::Group(_)) => {
-                self.selected = idx;
-                self.toggle_group();
-            }
-            None => {}
-        }
+    /// What is under the pointer. Last drawn wins, so an overlay takes the
+    /// click rather than the list behind it.
+    pub fn hit_at(&self, column: u16, row: u16) -> Option<&Hit> {
+        self.hits
+            .iter()
+            .rev()
+            .find(|(area, _)| {
+                column >= area.x
+                    && column < area.x + area.width
+                    && row >= area.y
+                    && row < area.y + area.height
+            })
+            .map(|(_, what)| what)
+    }
+
+    /// Two clicks in the same place, close enough together to mean one gesture.
+    fn is_double(&mut self, column: u16, row: u16) -> bool {
+        let double = self.last_click.is_some_and(|(x, y, at)| {
+            x == column && y == row && at.elapsed() < Duration::from_millis(400)
+        });
+        self.last_click = if double {
+            None // A third click starts again rather than reading as a second.
+        } else {
+            Some((column, row, Instant::now()))
+        };
+        double
     }
 
     pub fn handle_mouse(&mut self, m: MouseEvent) -> Action {
         match m.kind {
-            MouseEventKind::ScrollDown => self.move_by(1),
-            MouseEventKind::ScrollUp => self.move_by(-1),
+            MouseEventKind::ScrollDown => self.scroll(3),
+            MouseEventKind::ScrollUp => self.scroll(-3),
             MouseEventKind::Down(MouseButton::Left) => {
-                if self.pane == Pane::List
-                    && let Some(idx) = self.row_at(m.column, m.row)
-                {
-                    self.click_row(idx);
-                }
+                let double = self.is_double(m.column, m.row);
+                return self.click(m.column, m.row, double);
             }
+            MouseEventKind::Drag(MouseButton::Left) => self.drag(m.column, m.row),
+            MouseEventKind::Up(MouseButton::Left) => return self.drop(m.column, m.row),
             _ => {}
         }
         Action::None
+    }
+
+    /// Scrolling moves the view, and takes the cursor with it only when the
+    /// cursor would otherwise leave. Scrolling a list and watching the
+    /// selection run away from the pointer is the thing that makes a terminal
+    /// interface feel unlike everything else on the screen.
+    fn scroll(&mut self, delta: isize) {
+        if self.reading {
+            self.read_scroll = self
+                .read_scroll
+                .saturating_add_signed(delta.clamp(-32, 32) as i16);
+            return;
+        }
+        match self.pane {
+            Pane::Stats => {}
+            Pane::Board => self.move_by(delta.signum()),
+            Pane::List => {
+                let height = self.list_area.height.saturating_sub(2) as usize;
+                let max = self.rows.len().saturating_sub(height);
+                self.offset = self.offset.saturating_add_signed(delta).min(max);
+                if self.selected < self.offset {
+                    self.selected = self.offset;
+                } else if height > 0 && self.selected >= self.offset + height {
+                    self.selected = self.offset + height - 1;
+                }
+                self.clamp();
+            }
+        }
+    }
+
+    fn click(&mut self, column: u16, row: u16, double: bool) -> Action {
+        let Some(what) = self.hit_at(column, row).cloned() else {
+            return Action::None;
+        };
+        match what {
+            Hit::Tab(pane) => {
+                let id = self.selected_item().map(|i| i.id);
+                self.pane = pane;
+                if let Some(id) = id {
+                    self.select_id(id);
+                }
+                self.clamp();
+            }
+            // Clicking a status is the fastest way to ask the only question a
+            // strip invites: show me those.
+            Hit::Status(name) => {
+                let filter = format!("status={name}");
+                self.filter = if self.filter == filter {
+                    String::new()
+                } else {
+                    filter
+                };
+                self.reparse_filter();
+                self.rebuild();
+                let message = if self.filter.is_empty() {
+                    "filter cleared".to_string()
+                } else {
+                    format!("filtered to {name}")
+                };
+                self.toast(message, ToastKind::Info);
+            }
+            Hit::Row(idx) => match self.rows.get(idx) {
+                Some(Row::Group(_)) => {
+                    self.selected = idx;
+                    self.toggle_group();
+                }
+                Some(Row::Item(_)) => {
+                    self.selected = idx;
+                    if double {
+                        self.reading = true;
+                        self.read_scroll = 0;
+                    }
+                }
+                None => {}
+            },
+            Hit::Column(index) => {
+                self.column = index.min(self.columns.len().saturating_sub(1));
+                self.column_row = 0;
+                self.clamp();
+            }
+            Hit::Card(col, at) => {
+                self.column = col;
+                self.column_row = at;
+                self.clamp();
+                self.dragging = Some((at, Hit::Card(col, at)));
+                if double {
+                    self.reading = true;
+                    self.read_scroll = 0;
+                }
+            }
+            Hit::Option(index) => {
+                if let Some(picker) = self.picker.as_mut() {
+                    picker.selected = index.min(picker.options.len().saturating_sub(1));
+                }
+                return self.resolve_picker(true);
+            }
+            Hit::Answer(yes) => return self.resolve_confirm(yes),
+            Hit::Run(command) => return self.run(command),
+            Hit::Detail => {}
+        }
+        Action::None
+    }
+
+    /// Dragging a card marks the column it is over, so the drop is predictable.
+    fn drag(&mut self, column: u16, row: u16) {
+        if self.dragging.is_none() || self.pane != Pane::Board {
+            return;
+        }
+        if let Some(Hit::Card(col, _) | Hit::Column(col)) = self.hit_at(column, row).cloned() {
+            self.column = col.min(self.columns.len().saturating_sub(1));
+        }
+    }
+
+    /// A card dropped in another column is a status change, which is the one
+    /// gesture a board exists for.
+    fn drop(&mut self, column: u16, row: u16) -> Action {
+        let Some((_, Hit::Card(from, at))) = self.dragging.take() else {
+            return Action::None;
+        };
+        let Some(Hit::Card(to, _) | Hit::Column(to)) = self.hit_at(column, row).cloned() else {
+            return Action::None;
+        };
+        if to == from {
+            return Action::None;
+        }
+        let Some(item) = self
+            .columns
+            .get(from)
+            .and_then(|c| c.items.get(at))
+            .and_then(|i| self.items.get(*i))
+        else {
+            return Action::None;
+        };
+        let Some(status) = self.columns.get(to).map(|c| c.status.clone()) else {
+            return Action::None;
+        };
+        if !self.writable {
+            self.refuse_readonly();
+            return Action::None;
+        }
+        let id = item.id;
+        self.select_id(id);
+        self.set_field("status", &status)
     }
 
     /// Everything that must be true of the state after any sequence of inputs.

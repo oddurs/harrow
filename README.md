@@ -126,6 +126,23 @@ harrow --fix-terminal         # undo a terminal left in mouse-reporting mode
 
 The help overlay is generated from your bindings, not from that table.
 
+### Mouse
+
+It is meant to be usable without learning any of the above.
+
+| | |
+|---|---|
+| click a tab | switch between the list, the board and the stats |
+| click a status | filter to it; click it again to clear |
+| click a row | select it; a group heading folds |
+| double-click | read the item |
+| drag a card | to another column, which sets its status |
+| click a hint | run it — the footer is a row of buttons |
+| scroll | move the view, which takes the cursor along only when it must |
+
+`m` turns mouse capture off when you want your terminal's own text selection
+back.
+
 ### Filtering
 
 `/` takes cairn's grammar, so anything that works after `--filter` works here:

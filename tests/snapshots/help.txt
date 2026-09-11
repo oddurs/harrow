@@ -1,32 +1,32 @@
  harrow  sample    list  board  stats                                                                starting
- ◐ 1 in progress  ╭ Keys ──────────────────────────────────────────────────────────────────╮
-──────────────────│                                                                        │──────────────────
-╭ Backlog · by mil│  ↑/k, ↓/j      move between items                                      │─────────────────╮
-│ ▾ v0.1  First us│  home/g, end/G jump to the first or last                               │st its pane      │
-│  ○ 0005 The deta│  ←, →          previous or next group — a column, on the board         │                 │
-│  ⊘ 0004 Draw the│  space         collapse or expand a group                              │                 │
-│  ◐ 0003 Draw the│  tab           switch between the list, the board and the stats        │───────────────  │
-│ ▾ no milestone  │  v             group by something else                                 │                 │
-│  ○ 0006 Write th│  ↵/o           read the item in full                                   │                 │
-│                 │  e             open the item in your editor                            │                 │
-│                 │  c             claim it — assign it to you and start it                │                 │
-│                 │  C             give it back                                            │                 │
-│                 │  s             set the status                                          │───────────────  │
-│                 │  h/<, l/>      move it back or forward through the statuses            │                 │
-│                 │  p             set the priority                                        │                 │
-│                 │  M             set the milestone                                       │ottom.           │
-│                 │  x             close it, with a confirm                                │                 │
-│                 │  u             reopen it                                               │                 │
-│                 │  n             new item                                                │                 │
-│                 │  y             copy the item's reference                               │                 │
-│                 │  /             filter, in cairn's own grammar                          │                 │
-│                 │  a             show everything — finished, dropped, and milestones     │                 │
-│                 │  esc           back out — clear the filter, close an overlay           │                 │
-│                 │  r             re-read the backlog now                                 │                 │
-│                 │  D             diagnostics — what failed, and why                      │                 │
-│                 │  ?             this help                                               │                 │
-│                 │  q/ctrl-c      quit                                                    │                 │
-│                 │  click         select a row, or fold a group                           │                 │
-│                 │                                                                        │                 │
-╰─────────────────╰────────────────────────────────────────────────────────────────────────╯─────────────────╯
+ ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭ Backlog · by milestone ────────────────────────────────────╮╭ 0005 ────────────────────────────────────────╮
+│ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  3 left ││ ○ The detail pane scrolls past its pane      │
+│  ○ 0005 The detail pane scrolls past its pane           p1 ││   backlog · bug · v0.1                       │
+│  ⊘ 00╭ Keys ────────────────────────────────────────────────────────────────────────────────────────╮      │
+│  ◐ 00│                                                                                              │────  │
+│ ▾ no │  ↑/k, ↓/j      move between items              u             reopen it                       │      │
+│  ○ 00│  home/g, end/G jump to the first or last       n             new item                        │      │
+│      │  ←, →          previous or next group — a co…  y             copy the item's reference       │      │
+│      │  space         collapse or expand a group      /             filter, in cairn's own grammar  │      │
+│      │  tab           switch between the list, the …  a             show everything — finished, d…  │      │
+│      │  v             group by something else         esc           back out — clear the filter, …  │────  │
+│      │  ↵/o           read the item in full           r             re-read the backlog now         │      │
+│      │  e             open the item in your editor    D             diagnostics — what failed, an…  │      │
+│      │  c             claim it — assign it to you a…  ?             this help                       │      │
+│      │  C             give it back                    q/ctrl-c      quit                            │      │
+│      │  s             set the status                                                                │      │
+│      │  h/<, l/>      move it back or forward throu…  click         a tab, a status, a row, a foo…  │      │
+│      │  p             set the priority                double-click  read the item                   │      │
+│      │  M             set the milestone               drag          a card to another column, whi…  │      │
+│      │  x             close it, with a confirm        scroll        move the view                   │      │
+│      │                                                                                              │      │
+│      ╰──────────────────────────────────────────────────────────────────────────────────────────────╯      │
+│                                                            ││                                              │
+│                                                            ││                                              │
+│                                                            ││                                              │
+│                                                            ││                                              │
+│                                                            ││                                              │
+╰────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help
