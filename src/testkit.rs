@@ -14,7 +14,7 @@ use crate::item::Item;
 use crate::schema::Schema;
 
 pub const CAIRN_TOML: &str = r#"
-format = 2
+format = 3
 
 [project]
 name = "sample"
@@ -40,6 +40,8 @@ color = "gray"
 
 [[type]]
 name = "milestone"
+groups = "one"
+inverse = "scheduled"
 
 [[status]]
 name = "backlog"
@@ -62,13 +64,6 @@ name = "dropped"
 category = "dropped"
 color = "gray"
 board = false
-
-[[field]]
-name = "milestone"
-kind = "ref"
-target = "milestone"
-by = "key"
-rollup = true
 
 [[field]]
 name = "depends_on"

@@ -22,7 +22,7 @@ use crate::diag;
 /// The on-disk format harrow knows how to read. A project written in a later
 /// one still opens — every key harrow does not know is skipped — but it says so,
 /// because a silently half-read backlog is worse than a warning.
-pub const KNOWN_FORMAT: u32 = 2;
+pub const KNOWN_FORMAT: u32 = 3;
 
 /// What a project allows a tool to do with a field or a status.
 ///
@@ -112,6 +112,21 @@ impl Status {
     }
 }
 
+/// Whether a type is a kind of work, or a thing work is filed under.
+///
+/// Declared on the type since format 3. It used to be derived from the other
+/// end — a type was a container because some field named it as a `target` —
+/// which meant adding a field silently changed another type's behaviour and
+/// you could not read the answer off the type at all.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Groups {
+    /// Work belongs to exactly one: a release.
+    One,
+    /// Work may belong to several: an epic, a theme.
+    Many,
+}
+
 #[derive(Clone, Debug)]
 pub struct ItemType {
     pub name: String,
@@ -119,6 +134,8 @@ pub struct ItemType {
     pub icon: Option<String>,
     pub color: Option<String>,
     pub description: Option<String>,
+    /// Set when this type groups work rather than being some of it.
+    pub groups: Option<Groups>,
 }
 
 impl ItemType {
@@ -282,6 +299,7 @@ impl Schema {
                 icon: t.icon,
                 color: t.color,
                 description: t.description,
+                groups: t.groups,
             })
             .collect();
 
@@ -301,6 +319,31 @@ impl Schema {
                 agent: f.agent.unwrap_or_default(),
             })
             .collect();
+
+        // A type that groups work declares the field rather than the file
+        // spelling it out: `groups = "one"` on a type called `milestone` is
+        // what gives every item a `milestone:` key, by the target's own key,
+        // with the rollup and the acyclicity implied. Synthesised here so
+        // everything downstream meets one vocabulary.
+        let mut fields = fields;
+        for kind in &types {
+            let Some(groups) = kind.groups else { continue };
+            if fields.iter().any(|f| f.name == kind.name) {
+                continue;
+            }
+            fields.push(Field {
+                name: kind.name.clone(),
+                kind: FieldKind::Ref,
+                values: Vec::new(),
+                default: None,
+                description: kind.description.clone(),
+                column: false,
+                target: Some(kind.name.clone()),
+                many: groups == Groups::Many,
+                rollup: true,
+                agent: Agent::default(),
+            });
+        }
 
         let views: Vec<View> = file
             .view
@@ -374,10 +417,17 @@ impl Schema {
     /// piece of work, and listing it beside the work it contains reads as a
     /// duplicate. They come back with `--all`, or when asked for by type.
     pub fn is_container(&self, kind: &str) -> bool {
-        self.fields.iter().any(|f| {
-            matches!(f.kind, FieldKind::Ref)
-                && f.target.as_deref().is_some_and(|t| t != "*" && t == kind)
-        })
+        // Declared, since format 3.
+        if let Some(kind) = self.item_type(kind) {
+            return kind.groups.is_some();
+        }
+        // Derived, for a project still written in format 2 — the old rule,
+        // read from the wrong end but still the answer there.
+        self.format < 3
+            && self.fields.iter().any(|f| {
+                matches!(f.kind, FieldKind::Ref)
+                    && f.target.as_deref().is_some_and(|t| t != "*" && t == kind)
+            })
     }
 
     pub fn container_types(&self) -> Vec<&str> {
@@ -516,6 +566,7 @@ struct TypeFile {
     icon: Option<String>,
     color: Option<String>,
     description: Option<String>,
+    groups: Option<Groups>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -562,7 +613,7 @@ mod tests {
     use super::*;
 
     const SAMPLE: &str = r#"
-format = 2
+format = 3
 
 [project]
 name = "quarry"
@@ -599,13 +650,7 @@ board = false
 
 [[type]]
 name = "milestone"
-
-[[field]]
-name = "milestone"
-kind = "ref"
-target = "milestone"
-by = "key"
-rollup = true
+groups = "one"
 
 [[field]]
 name = "priority"

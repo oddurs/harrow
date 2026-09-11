@@ -2,7 +2,7 @@
 id: 18
 title: Multi-select, for triage that is actually bulk
 type: feature
-status: doing
+status: done
 milestone: v0.2
 created: 2026-09-08
 updated: 2026-09-11

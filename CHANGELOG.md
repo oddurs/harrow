@@ -13,6 +13,12 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ### Changed
 
+- cairn format 3 is read: a type declares `groups = "one"` or `"many"` rather
+  than being called a container because some field happened to name it as a
+  target. The declaration creates the field work uses to name one, so nothing
+  downstream changes. A format 2 project still opens and still knows what a
+  milestone is.
+
 - The layout drops the detail pane below ninety-six columns rather than halving
   the list, and the rows keep fixed columns that degrade in a defined order.
 - `tab` cycles three panes rather than toggling two. The config key is `pane`,

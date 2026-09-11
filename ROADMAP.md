@@ -25,7 +25,7 @@ Enough to dogfood in a real project.
 
 ## v0.2 — Triage that scales past one item at a time
 
-`##········` 20% · 1 of 5 done · due 2027-01-15
+`####······` 40% · 2 of 5 done · due 2027-01-15
 
 Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
@@ -35,13 +35,10 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 - [ ] `0020` Answer proposals without leaving the board <sup>feature · p2 · write</sup>
 - [ ] `0021` Package it: crates.io and a tap <sup>chore · p1 · packaging</sup>
 
-### in progress
-
-- [ ] `0018` Multi-select, for triage that is actually bulk <sup>feature · p1 · chrome</sup>
-
 ### done
 
 - [x] `0017` Watch the directory instead of re-reading it <sup>feature · p2 · runtime</sup>
+- [x] `0018` Multi-select, for triage that is actually bulk <sup>feature · p1 · chrome</sup>
 
 ## later — Someday
 
