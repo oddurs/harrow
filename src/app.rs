@@ -1152,13 +1152,17 @@ impl App {
     /// it is what somebody would have typed, and it stays correct if the set
     /// moves underneath between the decision and the write.
     fn bulk_args(&self, command: &str, targets: &[u32], assignment: Option<String>) -> Vec<String> {
-        let visible: Vec<u32> = self
+        // What the filter is *showing*, which is not the same as what passes
+        // it: a milestone is the heading its items sit under rather than a row.
+        let heading = self.heading_type().map(str::to_string);
+        let showing: Vec<u32> = self
             .items
             .iter()
             .filter(|i| self.visible(i))
+            .filter(|i| heading.as_deref() != Some(i.kind.as_str()))
             .map(|i| i.id)
             .collect();
-        let same = visible.len() == targets.len() && visible.iter().all(|id| targets.contains(id));
+        let same = showing.len() == targets.len() && showing.iter().all(|id| targets.contains(id));
 
         let mut args = vec![command.to_string()];
         if same && !self.filter.trim().is_empty() {
