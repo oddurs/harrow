@@ -21,13 +21,17 @@ static TERMINATE: AtomicBool = AtomicBool::new(false);
 
 pub type Tui = Terminal<CrosstermBackend<Stdout>>;
 
-/// Button presses and scrolling, reported in SGR encoding.
+/// Button presses, drag and scrolling, reported in SGR encoding.
 ///
-/// Deliberately *not* crossterm's `EnableMouseCapture`, which also turns on
-/// `?1002` and `?1003` — drag and any-motion tracking. Those make the terminal
-/// send a report for every pixel of mouse movement, which harrow has no use for
-/// and which turns a failure to disable them into an unusable shell.
-const MOUSE_ON: &[u8] = b"\x1b[?1000h\x1b[?1006h";
+/// `?1002` is button-event tracking: motion is reported only while a button is
+/// held. harrow needs it, because dragging a card between columns is the one
+/// gesture a board exists for.
+///
+/// `?1003` — any-motion tracking — is still refused. The difference is not a
+/// detail: `?1002` is bounded by how long somebody holds a button, while
+/// `?1003` sends a report for every pixel the pointer crosses, forever, and
+/// turns a failure to disable it into an unusable shell.
+const MOUSE_ON: &[u8] = b"\x1b[?1000h\x1b[?1002h\x1b[?1006h";
 
 /// Every mouse mode, including the ones we never turn on: a terminal we
 /// inherited may already have them set, and leaving one on is the failure we
@@ -530,13 +534,18 @@ mod tests {
     }
 
     #[test]
-    fn we_never_enable_motion_tracking() {
+    fn we_ask_for_drag_but_never_for_every_pixel() {
         let on = String::from_utf8_lossy(MOUSE_ON);
         assert!(on.contains("?1000h"), "clicks must be reported");
         assert!(on.contains("?1006h"), "SGR encoding must be requested");
         assert!(
-            !on.contains("?1002h") && !on.contains("?1003h"),
-            "motion tracking floods the terminal and harrow does not use it: {on:?}"
+            on.contains("?1002h"),
+            "dragging a card between columns needs button-event tracking: {on:?}"
+        );
+        assert!(
+            !on.contains("?1003h"),
+            "any-motion tracking reports every pixel forever and harrow has no \
+             use for it: {on:?}"
         );
     }
 

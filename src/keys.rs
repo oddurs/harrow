@@ -398,12 +398,22 @@ impl Keymap {
             };
             rows.push((keys, describe));
         }
-        rows.push(("click".to_string(), "select a row, or fold a group"));
+        // The pointer is not a second-class way to drive this, so the help
+        // says what it does rather than leaving it to be discovered.
+        rows.push((String::new(), ""));
+        rows.push(("click".to_string(), "a tab, a status, a row, a footer hint"));
+        rows.push(("double-click".to_string(), "read the item"));
+        rows.push((
+            "drag".to_string(),
+            "a card to another column, which sets its status",
+        ));
+        rows.push(("scroll".to_string(), "move the view"));
         rows
     }
 
-    /// The short hints along the bottom of the screen.
-    pub fn footer_hints(&self) -> Vec<(String, &'static str)> {
+    /// The short hints along the bottom of the screen, each with the command
+    /// it advertises so it can be clicked as well as read.
+    pub fn footer_hints(&self) -> Vec<(String, &'static str, Command)> {
         let wanted = [
             (Command::Down, "move"),
             (Command::Read, "read"),
@@ -422,7 +432,7 @@ impl Keymap {
                 } else {
                     self.keys_for(command).into_iter().next()
                 };
-                key.map(|k| (k, label))
+                key.map(|k| (k, label, command))
             })
             .collect()
     }

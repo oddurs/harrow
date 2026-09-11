@@ -17,7 +17,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Padding, Paragraph};
 
-use crate::app::{App, Pane, Row, ToastKind};
+use crate::app::{App, Hit, Pane, Row, ToastKind};
 use crate::diag;
 use crate::item::Item;
 use crate::schema::{Category, Schema};
@@ -63,6 +63,9 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     // taking `&mut App` for its own bookkeeping.
     let t = app.theme.clone();
     let area = f.area();
+    // Where everything clickable lands is recorded as it is drawn, so the two
+    // can never disagree about what is where.
+    app.hits.clear();
     let strip = u16::from(area.height >= 12 && !app.status_counts().is_empty());
 
     let chunks = Layout::default()
@@ -121,8 +124,9 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
 
 // ── The header ───────────────────────────────────────────────────────────────
 
-fn draw_header(f: &mut Frame, app: &App, t: &Theme, area: Rect, tick: usize) {
+fn draw_header(f: &mut Frame, app: &mut App, t: &Theme, area: Rect, tick: usize) {
     let roomy = area.width >= ROOMY;
+    let mut tabs: Vec<(Rect, Pane)> = Vec::new();
     let mut left = vec![Span::raw(" ")];
     if roomy {
         left.push(Span::styled("harrow", Style::default().fg(t.faint)));
@@ -133,13 +137,30 @@ fn draw_header(f: &mut Frame, app: &App, t: &Theme, area: Rect, tick: usize) {
         Style::default().fg(t.heading).bold(),
     ));
 
-    // Tabs, because there are two views and one of them was a key nobody knew
-    // about.
+    // Tabs, because there are three views and two of them were keys nobody
+    // knew about. They are clickable, which is the point of drawing them.
     left.push(Span::raw("   "));
+    let mut x = area.x
+        + left
+            .iter()
+            .map(|s| s.content.chars().count() as u16)
+            .sum::<u16>();
     for pane in Pane::ALL {
         let active = pane == app.pane;
+        let label = format!(" {} ", pane.name());
+        let width = label.chars().count() as u16;
+        tabs.push((
+            Rect {
+                x,
+                y: area.y,
+                width,
+                height: 1,
+            },
+            pane,
+        ));
+        x += width;
         left.push(Span::styled(
-            format!(" {} ", pane.name()),
+            label,
             if active {
                 Style::default().bg(t.selection).fg(t.text).bold()
             } else {
@@ -185,6 +206,9 @@ fn draw_header(f: &mut Frame, app: &App, t: &Theme, area: Rect, tick: usize) {
         }
     };
 
+    for (rect, pane) in tabs {
+        app.hit(rect, Hit::Tab(pane));
+    }
     f.render_widget(Line::from(left), area);
     let right_style = if app.is_stale() {
         Style::default().fg(t.error).bold()
@@ -201,10 +225,11 @@ fn draw_header(f: &mut Frame, app: &App, t: &Theme, area: Rect, tick: usize) {
 ///
 /// The reason to keep this open in a pane beside the work: how much is moving,
 /// how much is stuck, how much is done, without reading a single row.
-fn draw_strip(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+fn draw_strip(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let mut spans = vec![Span::raw(" ")];
     let mut used = 1usize;
     let room = area.width as usize;
+    let mut cells: Vec<(Rect, String)> = Vec::new();
 
     for (status, count) in app.status_counts() {
         if status.category == Category::Dropped && !app.show_all {
@@ -225,6 +250,15 @@ fn draw_strip(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
             spans.push(Span::raw("   "));
             used += 3;
         }
+        cells.push((
+            Rect {
+                x: area.x + used as u16,
+                y: area.y,
+                width: cell.chars().count() as u16,
+                height: 1,
+            },
+            status.name.clone(),
+        ));
         used += cell.chars().count();
         spans.push(Span::styled(
             format!("{} ", category_glyph(status.category)),
@@ -238,6 +272,10 @@ fn draw_strip(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
             format!(" {}", status.display()),
             Style::default().fg(t.muted),
         ));
+    }
+
+    for (rect, name) in cells {
+        app.hit(rect, Hit::Status(name));
     }
 
     let blocked = app
@@ -298,7 +336,7 @@ fn draw_list(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     // scales with the size of the window rather than the size of the backlog.
     app.offset = scroll_to(app.offset, app.selected, app.rows.len(), inner_height);
     let end = (app.offset + inner_height).min(app.rows.len());
-    let window = &app.rows[app.offset.min(end)..end];
+    let window: Vec<Row> = app.rows[app.offset.min(end)..end].to_vec();
 
     let items: Vec<ListItem> = window
         .iter()
@@ -307,6 +345,18 @@ fn draw_list(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             Row::Item(i) => item_line(app, &app.items[*i], t, inner_width),
         })
         .collect();
+
+    for n in 0..window.len() {
+        app.hit(
+            Rect {
+                x: area.x + 1,
+                y: area.y + 1 + n as u16,
+                width: area.width.saturating_sub(2),
+                height: 1,
+            },
+            Hit::Row(app.offset + n),
+        );
+    }
 
     let list = List::new(items).block(block).highlight_style(t.selected());
     let mut state =
@@ -579,6 +629,7 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         .constraints(constraints)
         .split(area);
 
+    let mut regions: Vec<(Rect, Hit)> = Vec::new();
     for (index, cell) in cells.iter().enumerate() {
         let column = &app.columns[index];
         let focused = index == app.column;
@@ -614,6 +665,21 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             .map(|i| card_line(app, &app.items[*i], t, inner_width))
             .collect();
 
+        // The whole column takes a drop, so a card let go of anywhere in it
+        // lands there; the cards themselves are registered after, and win.
+        regions.push((*cell, Hit::Column(index)));
+        for n in 0..cards.len() {
+            regions.push((
+                Rect {
+                    x: cell.x + 1,
+                    y: cell.y + 1 + n as u16,
+                    width: cell.width.saturating_sub(2),
+                    height: 1,
+                },
+                Hit::Card(index, offset + n),
+            ));
+        }
+
         let list = List::new(cards).block(block).highlight_style(if focused {
             t.selected()
         } else {
@@ -623,6 +689,9 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             (focused && !column.items.is_empty()).then(|| app.column_row.saturating_sub(offset)),
         );
         f.render_stateful_widget(list, *cell, &mut state);
+    }
+    for (rect, hit) in regions {
+        app.hit(rect, hit);
     }
 }
 
@@ -697,6 +766,7 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let inner = block.inner(area);
     let lines = detail_lines(app, item, t, inner.width as usize, inner.height as usize);
     f.render_widget(Paragraph::new(lines).block(block), area);
+    app.hit(area, Hit::Detail);
 }
 
 /// The body of the detail pane.
@@ -1403,7 +1473,7 @@ fn draw_reader(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     );
 }
 
-fn draw_picker(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+fn draw_picker(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let Some(picker) = &app.picker else { return };
     let width = 54u16.min(area.width.saturating_sub(4));
     let height = ((picker.options.len() + 2) as u16).min(area.height.saturating_sub(2));
@@ -1435,6 +1505,7 @@ fn draw_picker(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         })
         .collect();
 
+    let count = picker.options.len();
     let mut state = ListState::default().with_selected(Some(picker.selected));
     f.render_widget(Clear, popup);
     f.render_stateful_widget(
@@ -1454,14 +1525,36 @@ fn draw_picker(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         popup,
         &mut state,
     );
+    for n in 0..count {
+        app.hit(
+            Rect {
+                x: popup.x + 1,
+                y: popup.y + 1 + n as u16,
+                width: popup.width.saturating_sub(2),
+                height: 1,
+            },
+            Hit::Option(n),
+        );
+    }
 }
 
 fn draw_help(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     // Generated from the active bindings. A help screen that lists the defaults
     // while the user runs something else is worse than no help screen.
     let rows = app.keymap.help_rows();
-    let width = 74u16.min(area.width.saturating_sub(4));
-    let height = (rows.len() as u16 + 4).min(area.height.saturating_sub(2));
+
+    // Two columns where there is room, because the list is now long enough to
+    // run off a short terminal and a help screen you have to scroll is one
+    // nobody finishes reading.
+    let columns = if area.width >= 100 && rows.len() > 14 {
+        2
+    } else {
+        1
+    };
+    let per_column = rows.len().div_ceil(columns);
+    let column_width = 46usize;
+    let width = ((column_width * columns + 4) as u16).min(area.width.saturating_sub(4));
+    let height = ((per_column + 4) as u16).min(area.height.saturating_sub(2));
     let popup = centered(area, width, height);
 
     let key_col = rows
@@ -1469,20 +1562,36 @@ fn draw_help(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         .map(|(k, _)| k.chars().count())
         .max()
         .unwrap_or(8)
-        .clamp(8, 18);
-    let room = (width as usize).saturating_sub(key_col + 5);
+        .clamp(8, 14);
+    let room = column_width.saturating_sub(key_col + 3);
 
-    let mut lines = vec![Line::from("")];
-    for (keys, description) in rows {
-        lines.push(Line::from(vec![
+    let cell = |(keys, description): &(String, &'static str)| {
+        if keys.is_empty() {
+            return vec![Span::raw(" ".repeat(column_width))];
+        }
+        let description = truncate(description, room);
+        let pad = column_width.saturating_sub(key_col + 3 + description.chars().count());
+        vec![
             Span::raw("  "),
             Span::styled(
                 format!("{keys:<key_col$}"),
                 Style::default().fg(t.accent).bold(),
             ),
             Span::raw(" "),
-            Span::styled(truncate(description, room), Style::default().fg(t.muted)),
-        ]));
+            Span::styled(description, Style::default().fg(t.muted)),
+            Span::raw(" ".repeat(pad)),
+        ]
+    };
+
+    let mut lines = vec![Line::from("")];
+    for n in 0..per_column {
+        let mut spans = cell(&rows[n]);
+        if columns == 2
+            && let Some(right) = rows.get(n + per_column)
+        {
+            spans.extend(cell(right));
+        }
+        lines.push(Line::from(spans));
     }
 
     f.render_widget(Clear, popup);
@@ -1598,9 +1707,30 @@ fn draw_diagnostics(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     );
 }
 
-fn draw_confirm(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+fn draw_confirm(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let Some(c) = &app.confirm else { return };
     let popup = centered(area, 60.min(area.width.saturating_sub(4)), 7);
+    // The two answers, where they are drawn on the last line of the box.
+    let answers = [
+        (
+            Rect {
+                x: popup.x + 2,
+                y: popup.y + 5,
+                width: 10,
+                height: 1,
+            },
+            true,
+        ),
+        (
+            Rect {
+                x: popup.x + 14,
+                y: popup.y + 5,
+                width: 14,
+                height: 1,
+            },
+            false,
+        ),
+    ];
     let lines = vec![
         Line::from(""),
         Line::from(vec![
@@ -1632,11 +1762,14 @@ fn draw_confirm(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         ),
         popup,
     );
+    for (rect, yes) in answers {
+        app.hit(rect, Hit::Answer(yes));
+    }
 }
 
 // ── The footer ───────────────────────────────────────────────────────────────
 
-fn draw_footer(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     use crate::app::Editing;
     if let Some(editing) = &app.editing {
         let (label, hint) = match editing {
@@ -1697,11 +1830,23 @@ fn draw_footer(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     // needs them, so a narrow pane keeps the useful end.
     let mut spans = vec![Span::raw(" ")];
     let mut used = 1usize;
-    for (key, label) in app.keymap.footer_hints() {
+    let mut buttons: Vec<(Rect, crate::keys::Command)> = Vec::new();
+    for (key, label, command) in app.keymap.footer_hints() {
         let cost = key.chars().count() + label.chars().count() + 3;
         if used + cost > area.width as usize {
             break;
         }
+        // A hint is a button. Somebody who reaches for the mouse should not
+        // have to learn the key it is advertising first.
+        buttons.push((
+            Rect {
+                x: area.x + used as u16,
+                y: area.y,
+                width: cost as u16,
+                height: 1,
+            },
+            command,
+        ));
         used += cost;
         spans.push(Span::styled(key, Style::default().fg(t.accent).bold()));
         spans.push(Span::styled(
@@ -1711,6 +1856,9 @@ fn draw_footer(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     }
     if !app.writable && used + 12 <= area.width as usize {
         spans.push(Span::styled(" read-only", Style::default().fg(t.warn)));
+    }
+    for (rect, command) in buttons {
+        app.hit(rect, Hit::Run(command));
     }
     f.render_widget(Line::from(spans), area);
 }

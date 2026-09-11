@@ -31,6 +31,12 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ### Added
 
+- A mouse interface. Tabs, statuses, rows, group headings, board columns,
+  picker options, the confirmation and the footer hints are all clickable;
+  double-click reads an item; a card dragged between columns sets its status.
+  The map of what is clickable is built as the screen is drawn, so what you can
+  see is what you can hit.
+
 - A statistics pane, on `tab` or `--stats`: how much is closed, what is ready,
   blocked or claimed, what closed in the last week, what has waited longest,
   what is in the way of the most other things, how each milestone stands, and
