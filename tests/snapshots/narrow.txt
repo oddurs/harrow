@@ -1,18 +1,22 @@
- harrow  sample  4 items                     starting
-──────────────────────────────────────────────────────
-╭ Backlog · by milestone ─────╮╭ 0005 bug ───────────╮
-│ ▾ v0.1  First us…⊘1  3 of 4 ││ ○ The detail pane   │
-│  ○ 0005 ! The detail … # p1 ││ scrolls past its    │
-│  ⊘ 0004 + Draw the board p2 ││ pane                │
-│  ◐ 0003 + Draw th… @ 1/2 p1 ││   backlog · v0.1    │
-│ ▾ no milestone      0%    1 ││                     │
-│  ○ 0006 ~ Write the rea… p3 ││ FIELDS              │
-│                             ││   priority p1       │
-│                             ││   area     ui       │
-│                             ││   labels   chrome   │
-│                             ││   created           │
-│                             ││ 2026-09-04          │
-│                             ││                     │
-│                             ││ BODY                │
-╰─────────────────────────────╯╰─────────────────────╯
+ sample    list  board  stats                        starting
+ ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+──────────────────────────────────────────────────────────────
+╭ Backlog · by milestone ────────────────────────────────────╮
+│ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  3 left │
+│  ○ 0005 The detail pane scrolls past its pane           p1 │
+│  ⊘ 0004 Draw the board                                  p2 │
+│  ◐ 0003 Draw the list                      1/2  @oddur  p1 │
+│ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left │
+│  ○ 0006 Write the readme                                p3 │
+│                                                            │
+│                                                            │
+│                                                            │
+│                                                            │
+│                                                            │
+│                                                            │
+│                                                            │
+│                                                            │
+│                                                            │
+│                                                            │
+╰────────────────────────────────────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  / filter

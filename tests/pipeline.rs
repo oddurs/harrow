@@ -176,7 +176,7 @@ fn grouping_cycles_through_what_the_project_actually_has() {
 fn the_board_deals_the_same_items_into_columns() {
     let dir = testkit::project();
     let mut app = app_for(dir.path());
-    app.board = true;
+    app.pane = harrow::app::Pane::Board;
     let on_board: usize = app.columns.iter().map(|c| c.items.len()).sum();
     let in_list = app
         .rows

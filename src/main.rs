@@ -61,6 +61,7 @@ fn main() -> Result<()> {
         "--all",
         "-b",
         "--board",
+        "--stats",
         "-p",
         "--plain",
         "--doctor",
@@ -128,7 +129,8 @@ fn print_usage() {
          OPTIONS:\n\
          \x20 -C, --directory <DIR>  start looking for the project here\n\
          \x20 -a, --all              show everything: finished, dropped, milestones\n\
-         \x20 -b, --board            open on the board rather than the list\n\
+         \x20 -b, --board            open on the board\n\
+         \x20     --stats            open on the statistics\n\
          \x20 -f, --filter <EXPR>    open filtered, in cairn's grammar\n\
          \x20     --view <NAME>      open in one of the project's saved views\n\
          \x20     --group-by <FIELD> milestone, status, type, or any field\n\
@@ -194,7 +196,13 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
     app.theme = startup.theme.clone();
     app.keymap = startup.keymap.clone();
     app.show_all = startup.config.show_all || args.iter().any(|a| a == "-a" || a == "--all");
-    app.board = startup.config.board || args.iter().any(|a| a == "-b" || a == "--board");
+    app.pane = if args.iter().any(|a| a == "-b" || a == "--board") {
+        harrow::app::Pane::Board
+    } else if args.iter().any(|a| a == "--stats") {
+        harrow::app::Pane::Stats
+    } else {
+        harrow::app::Pane::from_name(&startup.config.pane).unwrap_or_default()
+    };
     app.group_by =
         flag_value(args, "--group-by").unwrap_or_else(|| startup.config.group_by.clone());
     app.sort = flag_value(args, "--sort").unwrap_or_else(|| startup.config.sort.clone());
@@ -401,15 +409,36 @@ fn run_tui(mut startup: Startup, args: &[String]) -> Result<()> {
     // Asked once, in raw mode, before anything else reads stdin. `auto` is the
     // only theme whose choices depend on the answer.
     if startup.theme.source == harrow::theme::Source::Auto && startup.theme.name == "auto" {
-        let dark = term::background_is_dark(Duration::from_millis(120));
-        diag::info(
-            "theme",
-            format!(
-                "terminal background looks {}",
-                if dark { "dark" } else { "light" }
-            ),
-        );
-        startup.theme = Theme::auto(dark);
+        let palette = term::query_palette(Duration::from_millis(150));
+        match Theme::from_palette(&palette, "auto") {
+            Some(theme) => {
+                diag::info(
+                    "theme",
+                    format!(
+                        "terminal answered {} of 18 colour queries; palette read directly",
+                        palette.known()
+                    ),
+                );
+                startup.theme = theme;
+            }
+            None => {
+                // An older terminal that does not answer. Fall back to naming
+                // ANSI slots and letting it substitute, which is what `auto`
+                // always did.
+                let dark = palette
+                    .background
+                    .map(harrow::theme::is_dark)
+                    .unwrap_or_else(|| term::background_is_dark(Duration::from_millis(0)));
+                diag::info(
+                    "theme",
+                    format!(
+                        "terminal did not report its palette; using ANSI slots on a {} background",
+                        if dark { "dark" } else { "light" }
+                    ),
+                );
+                startup.theme = Theme::auto(dark);
+            }
+        }
     }
 
     let mut app = prepare(&startup, args);
@@ -573,6 +602,9 @@ fn run_change(app: &mut App, handle: &runtime::Handle, config: &Config, change: 
     let args: Vec<&str> = change.args.iter().map(String::as_str).collect();
     match harrow::exec::run(&config.cairn, &args, config.write_timeout()) {
         Ok(_) => {
+            // So the re-read this causes is not announced back as somebody
+            // else's news.
+            app.wrote();
             let message = match &change.undo {
                 Some(undo) => format!("{} · undo: {undo}", change.describe),
                 None => change.describe.clone(),

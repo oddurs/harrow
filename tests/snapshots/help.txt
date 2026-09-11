@@ -1,20 +1,20 @@
- harrow  sample  4 items · 2 ready · 1 blocked                                                       starting
-──────────────────╭ Keys ──────────────────────────────────────────────────────────────────╮──────────────────
-╭ Backlog · by mil│                                                                        │─────────────────╮
-│ ▾ v0.1  First us│  ↑/k, ↓/j      move between items                                      │past its pane    │
-│  ○ 0005 ! The de│  home/g, end/G jump to the first or last                               │                 │
-│  ⊘ 0004 + Draw t│  ←, →          previous or next group — a column, on the board         │                 │
-│  ◐ 0003 + Draw t│  space         collapse or expand a group                              │                 │
-│ ▾ no milestone  │  tab           switch between the list and the board                   │                 │
-│  ○ 0006 ~ Write │  v             group by something else                                 │                 │
-│                 │  ↵/o           read the item in full                                   │                 │
+ harrow  sample    list  board  stats                                                                starting
+ ◐ 1 in progress  ╭ Keys ──────────────────────────────────────────────────────────────────╮
+──────────────────│                                                                        │──────────────────
+╭ Backlog · by mil│  ↑/k, ↓/j      move between items                                      │─────────────────╮
+│ ▾ v0.1  First us│  home/g, end/G jump to the first or last                               │st its pane      │
+│  ○ 0005 The deta│  ←, →          previous or next group — a column, on the board         │                 │
+│  ⊘ 0004 Draw the│  space         collapse or expand a group                              │                 │
+│  ◐ 0003 Draw the│  tab           switch between the list, the board and the stats        │───────────────  │
+│ ▾ no milestone  │  v             group by something else                                 │                 │
+│  ○ 0006 Write th│  ↵/o           read the item in full                                   │                 │
 │                 │  e             open the item in your editor                            │                 │
 │                 │  c             claim it — assign it to you and start it                │                 │
 │                 │  C             give it back                                            │                 │
-│                 │  s             set the status                                          │                 │
+│                 │  s             set the status                                          │───────────────  │
 │                 │  h/<, l/>      move it back or forward through the statuses            │                 │
-│                 │  p             set the priority                                        │ bottom.         │
-│                 │  M             set the milestone                                       │                 │
+│                 │  p             set the priority                                        │                 │
+│                 │  M             set the milestone                                       │ottom.           │
 │                 │  x             close it, with a confirm                                │                 │
 │                 │  u             reopen it                                               │                 │
 │                 │  n             new item                                                │                 │
@@ -29,4 +29,4 @@
 │                 │  click         select a row, or fold a group                           │                 │
 │                 │                                                                        │                 │
 ╰─────────────────╰────────────────────────────────────────────────────────────────────────╯─────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab board  ? help
+ ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

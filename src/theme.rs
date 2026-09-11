@@ -220,6 +220,83 @@ impl Theme {
         }
     }
 
+    /// Build a theme out of what the terminal is actually using.
+    ///
+    /// `auto` maps roles onto ANSI slots and lets the terminal substitute; this
+    /// goes further and *reads* the substitution, which buys two things a slot
+    /// reference cannot. The greys between the background and the foreground —
+    /// pane surfaces, borders, the selection — can be computed instead of
+    /// approximated by whichever slot is conventionally dim. And every hue can
+    /// be checked for legibility before it is used.
+    ///
+    /// Both matter more than they sound. Gotham fills its bright slots with
+    /// *background* shades: slot 8 is #10151b against a #0a0f14 page, which is
+    /// the colour convention says to draw borders and dim text in and which is
+    /// invisible there. Measuring beats convention.
+    pub fn from_palette(palette: &crate::term::Palette, name: &str) -> Option<Theme> {
+        let background = palette.background.or(palette.slots[0])?;
+        let foreground = palette.foreground.or(palette.slots[7])?;
+        let dark = is_dark(background);
+
+        let slot = |n: usize| palette.slots[n];
+        // Hues are taken from the palette where they are legible against this
+        // page, and derived from the foreground where they are not.
+        let hue = |normal: usize, bright: usize, fallback: Color| {
+            readable(&[slot(normal), slot(bright)], background, 3.0).unwrap_or(fallback)
+        };
+
+        let muted = mix(foreground, background, 0.28);
+        let faint = mix(foreground, background, 0.55);
+        let error = hue(1, 9, mix(foreground, background, 0.1));
+        let warn = hue(3, 11, muted);
+        let ok = hue(2, 10, muted);
+        let secondary = hue(6, 14, muted);
+
+        Some(Theme {
+            name: name.to_string(),
+            source: Source::Auto,
+            dark,
+
+            background,
+            // A pane has to read as sitting above the page without becoming a
+            // second colour. A twentieth of the way to the text is enough to
+            // see and not enough to notice.
+            surface: mix(background, foreground, 0.05),
+            overlay: mix(background, foreground, 0.10),
+            border: mix(background, foreground, 0.16),
+            border_focus: secondary,
+            selection: mix(background, foreground, 0.14),
+            selection_reverse: false,
+
+            text: foreground,
+            muted,
+            faint,
+            heading: readable(&[slot(15)], background, 7.0)
+                .unwrap_or_else(|| mix(foreground, if dark { WHITE } else { BLACK }, 0.35)),
+
+            accent: warn,
+            secondary,
+
+            open: muted,
+            active: warn,
+            done: ok,
+            dropped: faint,
+            blocked: error,
+            ready: ok,
+            ok,
+            warn,
+            error,
+
+            milestone: hue(5, 13, secondary),
+            label: secondary,
+            person: hue(4, 12, secondary),
+            ranks: [error, warn, secondary, faint],
+
+            types: BTreeMap::new(),
+            statuses: BTreeMap::new(),
+        })
+    }
+
     /// No colour at all. Emphasis is carried by bold, dim and reverse, which is
     /// what `NO_COLOR`, `TERM=dumb` and a colour-blind reader all need.
     pub fn mono() -> Theme {
@@ -341,9 +418,15 @@ impl Theme {
     }
 
     /// Read a Ghostty theme file: `background`, `foreground`, `palette = N=#hex`.
+    ///
+    /// The file says exactly what the terminal would have been told, so it goes
+    /// through the same derivation as a live terminal. A theme you are wearing
+    /// and a theme you named on the command line are then the same theme, which
+    /// they were not when this mapped slots onto roles by convention.
     pub fn from_ghostty(body: &str, name: &str) -> Result<Theme, ThemeError> {
-        let mut palette: BTreeMap<u8, String> = BTreeMap::new();
-        let mut keys: BTreeMap<&str, String> = BTreeMap::new();
+        let mut palette = crate::term::Palette::default();
+        let mut selection = None;
+
         for line in body.lines() {
             let line = line.trim();
             // A leading '#' is a comment; a '#' inside a value is a colour.
@@ -354,78 +437,31 @@ impl Theme {
                 continue;
             };
             let (key, value) = (key.trim(), value.trim());
-            if key == "palette" {
-                if let Some((slot, colour)) = value.split_once('=')
-                    && let Ok(slot) = slot.trim().parse::<u8>()
-                {
-                    palette.insert(slot, colour.trim().to_string());
+            match key {
+                "palette" => {
+                    if let Some((slot, colour)) = value.split_once('=')
+                        && let Ok(slot) = slot.trim().parse::<usize>()
+                        && slot < 16
+                    {
+                        palette.slots[slot] = parse_color(colour.trim());
+                    }
                 }
-            } else {
-                let mapped = match key {
-                    "background" => "background",
-                    "foreground" => "foreground",
-                    "selection-background" => "selection",
-                    _ => continue,
-                };
-                keys.insert(mapped, value.to_string());
+                "background" => palette.background = parse_color(value),
+                "foreground" => palette.foreground = parse_color(value),
+                "selection-background" => selection = parse_color(value),
+                _ => {}
             }
         }
-        if !keys.contains_key("background") && palette.is_empty() {
-            return Err(ThemeError::NotGhostty {
-                name: name.to_string(),
-            });
+
+        let mut theme = Theme::from_palette(&palette, name).ok_or(ThemeError::NotGhostty {
+            name: name.to_string(),
+        })?;
+        theme.source = Source::Ghostty;
+        // The one role the file states outright rather than implying.
+        if let Some(selection) = selection {
+            theme.selection = selection;
         }
-
-        let slot = |n: u8| palette.get(&n).cloned();
-        // Bright first: the official Gotham port fills its bright slots with
-        // background shades, and a port that does that is exactly the one worth
-        // honouring rather than second-guessing.
-        let pick = |bright: u8, normal: u8| slot(bright).or_else(|| slot(normal));
-
-        let background = keys.get("background").cloned().or_else(|| slot(0));
-        let foreground = keys.get("foreground").cloned().or_else(|| slot(7));
-        let dark = background
-            .as_deref()
-            .and_then(parse_color)
-            .map(is_dark)
-            .unwrap_or(true);
-
-        let file = ThemeFile {
-            name: Some(name.to_string()),
-            dark: Some(dark),
-            background: background.clone(),
-            surface: slot(0).or_else(|| background.clone()),
-            overlay: slot(8).or_else(|| slot(0)),
-            border: slot(8),
-            border_focus: pick(12, 4),
-            selection: keys.get("selection").cloned().or_else(|| slot(8)),
-            selection_reverse: Some(false),
-            text: foreground.clone(),
-            muted: pick(15, 7),
-            faint: pick(8, 0),
-            heading: foreground,
-            accent: pick(11, 3),
-            secondary: pick(14, 6),
-            open: pick(15, 7),
-            active: pick(11, 3),
-            done: pick(10, 2),
-            dropped: slot(8),
-            blocked: pick(9, 1),
-            ready: pick(10, 2),
-            ok: pick(10, 2),
-            warn: pick(11, 3),
-            error: pick(9, 1),
-            milestone: pick(13, 5),
-            label: pick(14, 6),
-            person: pick(12, 4),
-            ranks: [pick(9, 1), pick(11, 3), pick(14, 6), slot(8)]
-                .into_iter()
-                .flatten()
-                .collect(),
-            types: BTreeMap::new(),
-            statuses: BTreeMap::new(),
-        };
-        Ok(Theme::auto(dark).apply(file, name.to_string(), Source::Ghostty))
+        Ok(theme)
     }
 
     /// Resolve a theme spec: `auto`, `mono`, a built-in name, `ghostty:<name>`,
@@ -722,6 +758,62 @@ fn scale(value: u16, digits: usize) -> u8 {
     }
 }
 
+const WHITE: Color = Color::Rgb(255, 255, 255);
+const BLACK: Color = Color::Rgb(0, 0, 0);
+
+fn rgb(color: Color) -> Option<(f32, f32, f32)> {
+    match color {
+        Color::Rgb(r, g, b) => Some((r as f32, g as f32, b as f32)),
+        _ => None,
+    }
+}
+
+/// Blend `t` of the way from `a` to `b`. Anything that is not a literal colour
+/// cannot be blended, and is returned unchanged.
+fn mix(a: Color, b: Color, t: f32) -> Color {
+    let (Some((ar, ag, ab)), Some((br, bg, bb))) = (rgb(a), rgb(b)) else {
+        return a;
+    };
+    let t = t.clamp(0.0, 1.0);
+    let lerp = |x: f32, y: f32| (x + (y - x) * t).round().clamp(0.0, 255.0) as u8;
+    Color::Rgb(lerp(ar, br), lerp(ag, bg), lerp(ab, bb))
+}
+
+/// Relative luminance, as WCAG defines it.
+fn relative_luminance(color: Color) -> f32 {
+    let Some((r, g, b)) = rgb(color) else {
+        return 0.5;
+    };
+    let channel = |c: f32| {
+        let c = c / 255.0;
+        if c <= 0.03928 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+}
+
+/// Contrast ratio between two colours, 1.0 (identical) to 21.0 (black on white).
+pub fn contrast(a: Color, b: Color) -> f32 {
+    let (x, y) = (relative_luminance(a), relative_luminance(b));
+    let (lighter, darker) = if x > y { (x, y) } else { (y, x) };
+    (lighter + 0.05) / (darker + 0.05)
+}
+
+/// The first candidate legible against `ground`, if any.
+///
+/// This is what keeps a theme honest on a palette that did not expect to be
+/// read this way. A colour nobody can see is not a colour.
+fn readable(candidates: &[Option<Color>], ground: Color, min: f32) -> Option<Color> {
+    candidates
+        .iter()
+        .flatten()
+        .copied()
+        .find(|c| contrast(*c, ground) >= min)
+}
+
 /// Perceived lightness, for deciding whether a background is dark.
 pub fn is_dark(color: Color) -> bool {
     match color {
@@ -898,6 +990,81 @@ mod tests {
         for bad in ["", "   ", "#12", "#1234567", "zzz", "rgb:1/2"] {
             assert_eq!(parse_color(bad), None, "accepted {bad:?}");
         }
+    }
+
+    fn gotham() -> Theme {
+        let body = include_str!("../tests/fixtures/ghostty-gotham");
+        Theme::from_ghostty(body, "gotham").expect("gotham parses")
+    }
+
+    /// The bug this derivation exists to make impossible. Gotham's slot 8 is
+    /// #10151b against a #0a0f14 page — the slot every convention says to draw
+    /// borders and dim text in, and a contrast ratio of about 1.1.
+    #[test]
+    fn every_colour_a_reader_has_to_see_is_visible() {
+        let t = gotham();
+        for (role, colour, min) in [
+            ("text", t.text, 7.0),
+            ("heading", t.heading, 7.0),
+            ("muted", t.muted, 4.0),
+            ("faint", t.faint, 2.0),
+            ("accent", t.accent, 3.0),
+            ("done", t.done, 3.0),
+            ("blocked", t.blocked, 3.0),
+            ("active", t.active, 3.0),
+            ("milestone", t.milestone, 3.0),
+            ("person", t.person, 3.0),
+        ] {
+            let ratio = contrast(colour, t.background);
+            assert!(
+                ratio >= min,
+                "{role} is {colour:?} on {:?} — contrast {ratio:.2}, needs {min}",
+                t.background
+            );
+        }
+    }
+
+    #[test]
+    fn the_selection_is_a_shade_of_the_page_rather_than_a_colour_reversal() {
+        let t = gotham();
+        assert!(!t.selection_reverse, "reverse video is the last resort");
+        assert_ne!(t.selection, t.background, "it has to be visible");
+        // Far enough to see the row, near enough that the text on it is still
+        // the text colour rather than a second theme.
+        let lift = contrast(t.selection, t.background);
+        assert!((1.1..2.5).contains(&lift), "selection lift is {lift:.2}");
+        assert!(
+            contrast(t.text, t.selection) >= 4.0,
+            "text on the selected row has to stay readable"
+        );
+    }
+
+    #[test]
+    fn the_panes_sit_above_the_page_without_becoming_a_second_colour() {
+        let t = gotham();
+        assert_ne!(t.surface, t.background);
+        assert!(contrast(t.surface, t.background) < 1.5);
+        assert!(contrast(t.overlay, t.background) > contrast(t.surface, t.background));
+    }
+
+    #[test]
+    fn a_terminal_that_answers_nothing_gets_nothing() {
+        // The caller falls back to `auto`; inventing a palette would be worse.
+        assert!(Theme::from_palette(&crate::term::Palette::default(), "x").is_none());
+    }
+
+    #[test]
+    fn a_light_terminal_is_recognised_as_one() {
+        let mut palette = crate::term::Palette {
+            background: Some(Color::Rgb(0xfb, 0xf9, 0xf4)),
+            foreground: Some(Color::Rgb(0x2b, 0x2a, 0x26)),
+            ..Default::default()
+        };
+        palette.slots[2] = Some(Color::Rgb(0x2f, 0x7a, 0x34));
+        let t = Theme::from_palette(&palette, "paper").expect("builds");
+        assert!(!t.dark);
+        assert!(contrast(t.text, t.background) >= 7.0);
+        assert!(contrast(t.muted, t.background) >= 4.0);
     }
 
     #[test]

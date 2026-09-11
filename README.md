@@ -31,7 +31,17 @@ Run it anywhere inside a repository that has a `cairn.toml`, the way you run
 
 ## What it is for
 
-Triage. `cairn next`, `cairn claim` and `cairn close` are three short commands
+Watching, and triage.
+
+It is built for a pane beside the work. Something else — an editor, an agent,
+another person — changes the backlog in the other one, and a status strip under
+the header says what is happening before you read a single row: how much is
+moving, how much is stuck, how much is done. An item that moved since the last
+reading carries a mark for forty-five seconds, so a glance back catches what
+happened while you were looking elsewhere. Below ninety-six columns the detail
+pane gets out of the way rather than halving the list.
+
+Then triage. `cairn next`, `cairn claim` and `cairn close` are three short commands
 and do not need a screen. What commands serve badly is moving through a backlog
 — reading forty items, deciding what matters, changing a status and seeing the
 columns rearrange — because every one of those decisions costs you an id typed
@@ -39,6 +49,16 @@ out again.
 
 So: one keystroke per decision, the cursor stays where it was, and the whole
 thing is read-mostly. Writing prose still belongs in `$EDITOR`, which `e` opens.
+
+## Three ways to look at it
+
+`tab` moves between them.
+
+**The list** groups by whatever the project has — milestone by default, and `v`
+cycles the axis. **The board** deals the same items into the columns the project
+declared. **The stats** is the backlog from a distance: how much is closed, what
+is ready, what is blocked, what is in the way of the most other things, how the
+milestones stand, and where the work is by type and priority.
 
 ## Everything is the project's
 
@@ -66,6 +86,7 @@ harrow --view now             # open in one of the project's saved views
 harrow -f 'priority=p0'       # open filtered
 harrow --group-by area        # grouped by something other than milestone
 harrow -b                     # open on the board
+harrow --stats                # open on the statistics
 harrow --plain                # one line per item, for scripts
 harrow --doctor               # check everything harrow depends on
 harrow --screenshot 120x40    # render one frame as text, no terminal needed
@@ -82,7 +103,7 @@ harrow --fix-terminal         # undo a terminal left in mouse-reporting mode
 | `←` `→` | previous or next group — a column, on the board |
 | `space` | collapse or expand a group |
 | `g` / `G` | first / last |
-| `tab` | switch between the list and the board |
+| `tab` | switch between the list, the board and the stats |
 | `v` | group by something else |
 | `enter` / `o` | read the item in full |
 | `e` | open it in your editor |
@@ -136,8 +157,8 @@ theme        = "auto"
 group_by     = "milestone"   # or status, type, area, assignee, none
 sort         = ""            # cairn's spelling: "priority,-updated"
 view         = ""            # open in a saved view from cairn.toml
-show_closed  = false
-board        = false
+show_all     = false         # finished, dropped and milestones too
+pane         = "list"        # or board, stats
 refresh_secs = 3
 cairn        = "cairn"       # a path, if it is not on PATH
 editor       = ""            # falls back to $VISUAL, $EDITOR, vi
@@ -165,6 +186,22 @@ Built in: `auto` (the default), `mono` (no colour at all), `gotham`, `night`,
 `paper`. Your own files go in `~/.config/harrow/themes/`. `NO_COLOR`,
 `--no-color` and `TERM=dumb` all select `mono`, where the glyphs carry what the
 colours would have. See [THEMES.md](THEMES.md).
+
+## Colour
+
+harrow reads the terminal's palette rather than naming ANSI slots and hoping.
+One batch of OSC queries at startup asks for the background, the foreground and
+all sixteen entries, and the shades in between — pane surfaces, borders, the
+selected row — are computed from them. So the selection is a lift of your own
+page colour rather than reverse video, and a pane sits above the page instead of
+being the same colour as it.
+
+Measuring also catches what convention gets wrong. Gotham fills its bright slots
+with background shades: slot 8 is `#10151b` against a `#0a0f14` page, which is
+where convention says to draw borders and dim text, and is invisible there.
+Every hue is checked against your background before it is used and derived from
+the foreground when it fails. A terminal that does not answer gets the old
+behaviour, which still works.
 
 ## How it works
 

@@ -11,7 +11,10 @@ pub fn app() -> App {
     let mut app = testkit::app();
     app.loading = false;
     app.last_load = None;
-    app.now = 0;
+    // A fixed day, so anything measured against the clock — how long the
+    // oldest item has waited, what closed this week — is the same every run.
+    // 2026-09-11, which is a few days after the fixture's own dates.
+    app.now = 1_789_084_800;
     app
 }
 

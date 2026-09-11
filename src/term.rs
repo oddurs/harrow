@@ -126,6 +126,131 @@ pub fn terminating() -> bool {
     TERMINATE.load(Ordering::SeqCst)
 }
 
+/// What the terminal was actually told to use.
+///
+/// Read rather than guessed. A theme built from this matches the terminal
+/// exactly — including palettes like Gotham, whose "bright" slots are darker
+/// than its normal ones and which every convention about slot 8 being a usable
+/// grey gets wrong.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Palette {
+    pub background: Option<ratatui::style::Color>,
+    pub foreground: Option<ratatui::style::Color>,
+    pub slots: [Option<ratatui::style::Color>; 16],
+}
+
+impl Palette {
+    pub fn is_empty(&self) -> bool {
+        self.background.is_none()
+            && self.foreground.is_none()
+            && self.slots.iter().all(Option::is_none)
+    }
+
+    /// How much of it came back. Terminals answer some queries and not others.
+    pub fn known(&self) -> usize {
+        usize::from(self.background.is_some())
+            + usize::from(self.foreground.is_some())
+            + self.slots.iter().filter(|s| s.is_some()).count()
+    }
+}
+
+/// Ask the terminal for its background, its foreground and all sixteen palette
+/// entries, in one batch.
+///
+/// Must be called in raw mode and before anything else reads stdin, or the
+/// replies get eaten by the event loop. One batch rather than eighteen
+/// round-trips: the whole point is that this cannot be allowed to cost anything
+/// a person would notice at startup.
+pub fn query_palette(timeout: std::time::Duration) -> Palette {
+    let mut palette = Palette::default();
+    if !RAW.load(Ordering::SeqCst) {
+        return palette; // Cooked mode would line-buffer the replies forever.
+    }
+
+    let mut request = Vec::with_capacity(256);
+    request.extend_from_slice(b"\x1b]11;?\x1b\\");
+    request.extend_from_slice(b"\x1b]10;?\x1b\\");
+    for slot in 0..16u8 {
+        request.extend_from_slice(format!("\x1b]4;{slot};?\x1b\\").as_bytes());
+    }
+    write_raw(&request);
+
+    let deadline = std::time::Instant::now() + timeout;
+    let mut buf = Vec::with_capacity(2048);
+    let mut chunk = [0u8; 512];
+    loop {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        if left.is_zero() {
+            break;
+        }
+        let mut fds = libc::pollfd {
+            fd: libc::STDIN_FILENO,
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        // SAFETY: polling and reading one descriptor we own, with a timeout.
+        #[allow(unsafe_code)]
+        let ready = unsafe { libc::poll(&mut fds, 1, left.as_millis().min(1000) as i32) };
+        if ready <= 0 {
+            break;
+        }
+        #[allow(unsafe_code)]
+        let n = unsafe {
+            libc::read(
+                libc::STDIN_FILENO,
+                chunk.as_mut_ptr() as *mut libc::c_void,
+                chunk.len(),
+            )
+        };
+        if n <= 0 {
+            break;
+        }
+        buf.extend_from_slice(&chunk[..n as usize]);
+        palette = parse_palette(&buf);
+        if palette.known() == 18 {
+            break; // Everything asked for came back.
+        }
+        if buf.len() > 8192 {
+            break; // Whatever this is, it is not a palette.
+        }
+    }
+    palette
+}
+
+/// Pull every OSC colour reply out of whatever the terminal sent back.
+///
+/// Tolerant on purpose: replies arrive in any order, interleaved with anything
+/// else on stdin, terminated by either ST or BEL, and a terminal that answers
+/// twelve of eighteen queries is still worth listening to.
+pub fn parse_palette(bytes: &[u8]) -> Palette {
+    let text = String::from_utf8_lossy(bytes);
+    let mut palette = Palette::default();
+
+    for part in text.split('\u{1b}') {
+        let Some(body) = part.strip_prefix(']') else {
+            continue;
+        };
+        let end = body
+            .find('\u{7}')
+            .or_else(|| body.find('\\'))
+            .unwrap_or(body.len());
+        let body = &body[..end];
+
+        if let Some(value) = body.strip_prefix("11;") {
+            palette.background = crate::theme::parse_color(value.trim());
+        } else if let Some(value) = body.strip_prefix("10;") {
+            palette.foreground = crate::theme::parse_color(value.trim());
+        } else if let Some(rest) = body.strip_prefix("4;")
+            && let Some((slot, value)) = rest.split_once(';')
+            && let Ok(slot) = slot.trim().parse::<usize>()
+            && slot < 16
+        {
+            palette.slots[slot] = crate::theme::parse_color(value.trim());
+        }
+    }
+    palette
+}
+
 /// Ask the terminal what colour its background is, with OSC 11.
 ///
 /// Must be called in raw mode and before anything else reads stdin, or the
@@ -314,6 +439,65 @@ fn install_signal_handlers() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_palette_reply_parses_however_it_arrives() {
+        // Terminals answer in any order, terminate with ST or BEL, and split
+        // the reply across reads. All three happen.
+        let reply = concat!(
+            "\x1b]11;rgb:0a0a/0f0f/1414\x1b\\",
+            "\x1b]4;0;rgb:0a0a/0f0f/1414\x07",
+            "\x1b]10;rgb:9898/d1d1/cece\x1b\\",
+            "\x1b]4;2;rgb:2626/a9a9/8b8b\x1b\\",
+        );
+        let p = parse_palette(reply.as_bytes());
+        assert_eq!(
+            p.background,
+            Some(ratatui::style::Color::Rgb(0x0a, 0x0f, 0x14))
+        );
+        assert_eq!(
+            p.foreground,
+            Some(ratatui::style::Color::Rgb(0x98, 0xd1, 0xce))
+        );
+        assert_eq!(
+            p.slots[0],
+            Some(ratatui::style::Color::Rgb(0x0a, 0x0f, 0x14))
+        );
+        assert_eq!(
+            p.slots[2],
+            Some(ratatui::style::Color::Rgb(0x26, 0xa9, 0x8b))
+        );
+        assert_eq!(p.slots[1], None, "nothing invented for what did not answer");
+        assert_eq!(p.known(), 4);
+    }
+
+    #[test]
+    fn a_partial_or_hostile_reply_is_not_a_panic() {
+        for junk in [
+            "",
+            "\x1b]11;",
+            "\x1b]4;",
+            "\x1b]4;99;rgb:00/00/00\x1b\\",
+            "\x1b]4;notanumber;rgb:00/00/00\x07",
+            "hello there",
+            "\x1b]11;not-a-colour\x07",
+        ] {
+            let p = parse_palette(junk.as_bytes());
+            assert!(p.is_empty(), "invented something from {junk:?}");
+        }
+    }
+
+    #[test]
+    fn querying_a_cooked_terminal_returns_nothing_immediately() {
+        // Under `cargo test` we are not in raw mode; the query must not block.
+        let started = std::time::Instant::now();
+        assert!(query_palette(std::time::Duration::from_secs(5)).is_empty());
+        assert!(
+            started.elapsed() < std::time::Duration::from_millis(200),
+            "took {:?} to decline",
+            started.elapsed()
+        );
+    }
 
     #[test]
     fn an_osc11_reply_parses() {

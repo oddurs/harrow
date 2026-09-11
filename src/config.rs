@@ -32,8 +32,8 @@ pub struct Config {
     /// Show everything on startup, as `--all` does: finished, dropped, and the
     /// containers work belongs to.
     pub show_all: bool,
-    /// Open on the board rather than the list.
-    pub board: bool,
+    /// Which pane to open on: `list`, `board` or `stats`.
+    pub pane: String,
     /// Seconds between checks for a changed backlog.
     pub refresh_secs: u64,
     /// How long to give `cairn` to carry out a change before giving up on it.
@@ -55,7 +55,7 @@ impl Default for Config {
             sort: String::new(),
             view: String::new(),
             show_all: false,
-            board: false,
+            pane: "list".to_string(),
             refresh_secs: 3,
             write_ms: 8000,
             cairn: "cairn".to_string(),
@@ -73,7 +73,7 @@ const KNOWN: &[&str] = &[
     "sort",
     "view",
     "show_all",
-    "board",
+    "pane",
     "refresh_secs",
     "write_ms",
     "cairn",
@@ -235,8 +235,8 @@ view = "{view}"
 # belongs to. This is cairn's `--all`, and means what it means there.
 show_all = {show_all}
 
-# Open on the board rather than the list.
-board = {board}
+# Which pane to open on: list, board or stats.
+pane = "{pane}"
 
 # Seconds between checks for a backlog that has changed underneath you.
 refresh_secs = {refresh_secs}
@@ -266,7 +266,7 @@ editor = "{editor}"
             sort = d.sort,
             view = d.view,
             show_all = d.show_all,
-            board = d.board,
+            pane = d.pane,
             refresh_secs = d.refresh_secs,
             write_ms = d.write_ms,
             cairn = d.cairn,
@@ -311,8 +311,8 @@ editor = "{editor}"
         if self.show_all != d.show_all {
             out.push("show_all");
         }
-        if self.board != d.board {
-            out.push("board");
+        if self.pane != d.pane {
+            out.push("pane");
         }
         if self.refresh_secs != d.refresh_secs {
             out.push("refresh_secs");

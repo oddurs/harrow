@@ -1,10 +1,10 @@
- harrow  sample  4 items · 2 ready · 1 blocked                                                       starting
+ harrow  sample    list  board  stats                                                                starting
+ ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ backlog 3 ────────────────────────╮╭ in progress 1 ───────────────────╮╭ done 0 ───────────────────────────╮
-│ ○ 0005 The detail pane scrolls… p1││ ◐ 0003 Draw the list           p1││                                   │
-│ ⊘ 0004 Draw the board           p2││                                  ││                                   │
-│ ○ 0006 Write the readme         p3││                                  ││                                   │
-│                                   ││                                  ││                                   │
+│  ○ 0005 The detail pane scrol…  p1││  ◐ 0003 Draw the list          p1││                                   │
+│  ⊘ 0004 Draw the board          p2││                                  ││                                   │
+│  ○ 0006 Write the readme        p3││                                  ││                                   │
 │                                   ││                                  ││                                   │
 │                                   ││                                  ││                                   │
 │                                   ││                                  ││                                   │
@@ -17,4 +17,4 @@
 │                                   ││                                  ││                                   │
 │                                   ││                                  ││                                   │
 ╰───────────────────────────────────╯╰──────────────────────────────────╯╰───────────────────────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab board  ? help
+ ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

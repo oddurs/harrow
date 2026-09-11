@@ -1,0 +1,14 @@
+ sample    list  board  stats  starting
+ ◐ 1 in progress   ○ 3 backlog
+────────────────────────────────────────
+╭ Backlog · by milestone ──────────────╮
+│ ▾ v0.1  First usable …   25%  3 left │
+│  ○ 0005 The detail pane scrolls…  p1 │
+│  ⊘ 0004 Draw the board            p2 │
+│  ◐ 0003 Draw the list             p1 │
+│ ▾ no milestone            0%  1 left │
+│  ○ 0006 Write the readme          p3 │
+│                                      │
+│                                      │
+╰──────────────────────────────────────╯
+ ↑↓ move  ↵ read  c claim  s status

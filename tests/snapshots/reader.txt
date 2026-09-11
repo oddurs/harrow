@@ -1,24 +1,24 @@
- harrow  sample  4 items · 2 ready · 1 blocked                                                       starting
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-╭ Backl╭ Item ────────────────────────────────────────────────────────────────────────────────────────╮──────╮
-│ ▾ v0.│                                                                                              │      │
-│  ○ 00│   0003  Draw the list                                                                        │      │
-│  ⊘ 00│                                                                                              │      │
-│  ◐ 00│                                                                                              │      │
-│ ▾ no │   Problem                                                                                    │      │
-│  ○ 00│                                                                                              │      │
-│      │   A backlog you cannot move through is a file you could have opened.                         │      │
-│      │                                                                                              │      │
-│      │   ✓ rows                                                                                     │      │
-│      │   ☐ groups                                                                                   │      │
-│      │                                                                                              │      │
-│      │                                                                                              │      │
-│      │                                                                                              │      │
-│      │                                                                                              │      │
-│      │                                                                                              │      │
-│      │                                                                                              │s a   │
-│      │                                                                                              │      │
-│      │                                                                                              │      │
-│      ╰ ↑↓ scroll · any other key closes ────────────────────────────────────────────────────────────╯      │
-╰──────────────────────────────────────────────────────────────╯╰────────────────────────────────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab board  ? help
+ harrow  sample    list  board  stats                                                                starting
+ ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+─────────╭ Item ────────────────────────────────────────────────────────────────────────────────────╮─────────
+╭ Backlog│                                                                                          │────────╮
+│ ▾ v0.1 │   0003  Draw the list                                                                    │        │
+│  ○ 0005│                                                                                          │ur      │
+│  ⊘ 0004│   Problem                                                                                │        │
+│  ◐ 0003│                                                                                          │──────  │
+│ ▾ no mi│   A backlog you cannot move through is a file you could have opened.                     │        │
+│  ○ 0006│                                                                                          │        │
+│        │   ✓ rows                                                                                 │──────  │
+│        │   ☐ groups                                                                               │        │
+│        │                                                                                          │        │
+│        │                                                                                          │        │
+│        │                                                                                          │        │
+│        │                                                                                          │──────  │
+│        │                                                                                          │        │
+│        │                                                                                          │        │
+│        │                                                                                          │s a     │
+│        │                                                                                          │        │
+│        │                                                                                          │        │
+│        ╰ ↑↓ scroll · any other key closes ────────────────────────────────────────────────────────╯        │
+╰────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
+ ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

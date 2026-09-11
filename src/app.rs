@@ -19,6 +19,41 @@ use crate::keys::{Command, Keymap};
 use crate::schema::{Category, Schema};
 use crate::theme::Theme;
 
+/// Which of the three ways of looking at a backlog is on screen.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum Pane {
+    #[default]
+    List,
+    Board,
+    Stats,
+}
+
+impl Pane {
+    pub const ALL: [Pane; 3] = [Pane::List, Pane::Board, Pane::Stats];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Pane::List => "list",
+            Pane::Board => "board",
+            Pane::Stats => "stats",
+        }
+    }
+
+    pub fn from_name(s: &str) -> Option<Pane> {
+        Pane::ALL
+            .into_iter()
+            .find(|p| p.name() == s.trim().to_lowercase())
+    }
+
+    fn next(self) -> Pane {
+        match self {
+            Pane::List => Pane::Board,
+            Pane::Board => Pane::Stats,
+            Pane::Stats => Pane::List,
+        }
+    }
+}
+
 /// A row in the list. The board has its own geometry.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Row {
@@ -163,7 +198,7 @@ pub struct App {
     pub sort: String,
     pub view: Option<String>,
     pub show_all: bool,
-    pub board: bool,
+    pub pane: Pane,
 
     pub reading: bool,
     pub read_scroll: u16,
@@ -183,6 +218,12 @@ pub struct App {
     pub writable: bool,
     pub warnings: Vec<String>,
 
+    /// When harrow noticed each item change, by id, in wall-clock seconds.
+    ///
+    /// The point of running this beside something that is doing the work: a row
+    /// that just moved says so for a moment, so a glance catches what happened
+    /// while you were looking at the other pane.
+    pub changed: HashMap<u32, u64>,
     pub toast: Option<(String, ToastKind, Instant)>,
     /// Wall-clock seconds, refreshed once per frame rather than read during a
     /// render. Rendering has to be a pure function of state, or a snapshot of
@@ -190,6 +231,8 @@ pub struct App {
     pub now: u64,
     pub theme: Theme,
     pub keymap: Keymap,
+    /// When harrow last asked cairn to change something.
+    pub wrote: Option<Instant>,
     pub list_area: Rect,
     pub board_area: Rect,
     pub should_quit: bool,
@@ -224,7 +267,7 @@ impl App {
             sort: String::new(),
             view: None,
             show_all: false,
-            board: false,
+            pane: Pane::List,
             reading: false,
             read_scroll: 0,
             picker: None,
@@ -238,19 +281,26 @@ impl App {
             watcher_alive: true,
             writable: true,
             warnings: Vec::new(),
+            changed: HashMap::new(),
             toast: None,
             now: unix_seconds(),
             theme: Theme::auto(true),
             keymap: Keymap::default(),
+            wrote: None,
             list_area: Rect::default(),
             board_area: Rect::default(),
             should_quit: false,
         }
     }
 
+    /// How long a change stays marked. Long enough to catch on a glance back,
+    /// short enough that the marks are never a second kind of status.
+    pub const RECENT: u64 = 45;
+
     /// Replace the backlog, keeping the cursor on the same item where we can.
     pub fn ingest(&mut self, report: Report) {
         let anchor = self.selected_item().map(|i| i.id);
+        let moved = self.notice_changes(&report.items);
 
         self.schema = report.schema;
         self.items = report.items;
@@ -272,6 +322,101 @@ impl App {
             self.select_id(id);
         }
         self.clamp();
+        self.announce(moved);
+    }
+
+    /// What moved since the last reading, and when we noticed.
+    ///
+    /// The first reading marks nothing: everything is new the first time, and a
+    /// screen that opened covered in "just changed" would be telling you about
+    /// the last six months.
+    fn notice_changes(&mut self, fresh: &[Item]) -> Vec<(u32, String)> {
+        if self.items.is_empty() {
+            return Vec::new();
+        }
+        let now = unix_seconds();
+        let mut moved = Vec::new();
+        for item in fresh {
+            let before = self.by_id.get(&item.id).and_then(|i| self.items.get(*i));
+            let changed = match before {
+                None => true,
+                Some(before) => {
+                    before.status != item.status
+                        || before.updated != item.updated
+                        || before.assignee != item.assignee
+                }
+            };
+            if changed {
+                self.changed.insert(item.id, now);
+                if before.is_none_or(|b| b.status != item.status) {
+                    moved.push((item.id, item.status.clone()));
+                }
+            }
+        }
+        self.changed
+            .retain(|_, at| now.saturating_sub(*at) <= Self::RECENT);
+        moved
+    }
+
+    /// Say what somebody else did. A change harrow made says so already, so
+    /// this keeps quiet for a moment after a write of our own.
+    fn announce(&mut self, moved: Vec<(u32, String)>) {
+        if moved.is_empty() || self.wrote_recently() {
+            return;
+        }
+        let message = match moved.as_slice() {
+            [(id, status)] => format!("{} → {status}", self.schema.format_id(*id)),
+            many => format!("{} items moved", many.len()),
+        };
+        self.toast(message, ToastKind::Info);
+    }
+
+    fn wrote_recently(&self) -> bool {
+        self.wrote
+            .is_some_and(|at| at.elapsed() < Duration::from_secs(3))
+    }
+
+    /// Note that a change of ours has just landed, so the re-read it causes is
+    /// not reported back to us as news.
+    pub fn wrote(&mut self) {
+        self.wrote = Some(Instant::now());
+    }
+
+    /// Whether an item moved recently enough to still be worth pointing at.
+    pub fn is_recent(&self, id: u32) -> bool {
+        self.changed
+            .get(&id)
+            .is_some_and(|at| self.now.saturating_sub(*at) <= Self::RECENT)
+    }
+
+    /// Every status with something in it, ordered for a glance: what is active
+    /// first, then what is open, then what is finished.
+    ///
+    /// Deliberately not the declared order the list and the board use. Those
+    /// are a place you move through; this is a summary, and a summary leads
+    /// with what is live.
+    pub fn status_counts(&self) -> Vec<(&crate::schema::Status, usize)> {
+        let mut counts: Vec<(&crate::schema::Status, usize)> = self
+            .schema
+            .statuses
+            .iter()
+            .map(|status| {
+                let n = self
+                    .items
+                    .iter()
+                    .filter(|i| !i.container && i.status == status.name)
+                    .count();
+                (status, n)
+            })
+            .filter(|(_, n)| *n > 0)
+            .collect();
+        counts.sort_by_key(|(status, _)| match status.category {
+            Category::Active => 0,
+            Category::Open => 1,
+            Category::Done => 2,
+            Category::Dropped => 3,
+        });
+        counts
     }
 
     /// A view or a grouping named on the command line may not exist in this
@@ -666,7 +811,7 @@ impl App {
     }
 
     fn selected_index(&self) -> Option<usize> {
-        if self.board {
+        if self.pane == Pane::Board {
             let column = self.columns.get(self.column)?;
             return column.items.get(self.column_row).copied();
         }
@@ -682,7 +827,7 @@ impl App {
         if delta == 0 {
             return;
         }
-        if self.board {
+        if self.pane == Pane::Board {
             let Some(column) = self.columns.get(self.column) else {
                 return;
             };
@@ -712,7 +857,7 @@ impl App {
     }
 
     pub fn jump(&mut self, to_end: bool) {
-        if self.board {
+        if self.pane == Pane::Board {
             let len = self
                 .columns
                 .get(self.column)
@@ -732,7 +877,7 @@ impl App {
     /// selection follows the item where it can, so stepping sideways past an
     /// empty column does not lose your place.
     pub fn step_group(&mut self, forward: bool) {
-        if self.board {
+        if self.pane == Pane::Board {
             if self.columns.is_empty() {
                 return;
             }
@@ -1265,7 +1410,7 @@ impl App {
             Command::First => self.jump(false),
             Command::Last => self.jump(true),
             Command::ToggleGroup => {
-                if !self.board {
+                if self.pane == Pane::List {
                     self.toggle_group()
                 }
             }
@@ -1273,14 +1418,14 @@ impl App {
             Command::NextGroup => self.step_group(true),
             Command::ViewBoard => {
                 let id = self.selected_item().map(|i| i.id);
-                self.board = !self.board;
+                self.pane = self.pane.next();
                 if let Some(id) = id {
                     self.select_id(id);
                 }
                 self.clamp();
             }
             Command::GroupBy => {
-                if self.board {
+                if self.pane == Pane::Board {
                     self.toast("the board is grouped by status", ToastKind::Info);
                 } else {
                     self.cycle_grouping();
@@ -1398,7 +1543,7 @@ impl App {
             MouseEventKind::ScrollDown => self.move_by(1),
             MouseEventKind::ScrollUp => self.move_by(-1),
             MouseEventKind::Down(MouseButton::Left) => {
-                if !self.board
+                if self.pane == Pane::List
                     && let Some(idx) = self.row_at(m.column, m.row)
                 {
                     self.click_row(idx);
@@ -1479,6 +1624,185 @@ impl App {
     }
 }
 
+/// What a backlog looks like from a distance.
+///
+/// Computed rather than stored, from what is on disk and the clock the frame
+/// was drawn at, so none of it can go stale or disagree with the list.
+pub struct Stats {
+    pub total: usize,
+    pub open: usize,
+    pub active: usize,
+    pub done: usize,
+    pub dropped: usize,
+    pub ready: usize,
+    pub blocked: usize,
+    pub claimed: usize,
+    pub closed_recently: [(u32, usize); 3],
+    pub criteria: (u32, u32),
+    /// `(key, title, percent, left, due)`, in the order the roadmap runs.
+    pub milestones: Vec<(String, String, u32, usize, Option<String>)>,
+    pub by_type: Vec<(String, usize)>,
+    /// One distribution per enum field the project marked as a column.
+    pub by_field: Vec<(String, Vec<(String, usize)>)>,
+    /// The open item that has been waiting longest, and for how many days.
+    pub oldest: Option<(u32, String, i64)>,
+    /// What the most things are waiting on.
+    pub blocking: Option<(u32, String, usize)>,
+}
+
+impl App {
+    /// Everything the statistics pane shows.
+    pub fn stats(&self) -> Stats {
+        let work: Vec<&Item> = self.items.iter().filter(|i| !i.container).collect();
+        let today = self.now / 86_400;
+        let days_ago = |date: Option<&String>| {
+            date.and_then(|d| days_from_iso(d))
+                .map(|d| today as i64 - d as i64)
+        };
+
+        let mut closed_recently = [(7u32, 0usize), (30, 0), (90, 0)];
+        for item in work.iter().filter(|i| i.category == Category::Done) {
+            if let Some(age) = days_ago(item.updated.as_ref()) {
+                for (window, count) in closed_recently.iter_mut() {
+                    if age >= 0 && age <= i64::from(*window) {
+                        *count += 1;
+                    }
+                }
+            }
+        }
+
+        let mut criteria = (0, 0);
+        for item in work.iter().filter(|i| !i.category.is_closed()) {
+            let (done, total) = item.criteria();
+            criteria.0 += done;
+            criteria.1 += total;
+        }
+
+        let milestones = self
+            .items
+            .iter()
+            .filter(|i| i.container)
+            .map(|m| {
+                let left = self
+                    .items
+                    .iter()
+                    .filter(|i| {
+                        !i.container
+                            && !i.category.is_closed()
+                            && m.key.as_deref().is_some_and(|k| i.milestone() == Some(k))
+                    })
+                    .count();
+                (
+                    m.key.clone().unwrap_or_else(|| self.schema.format_id(m.id)),
+                    m.title.clone(),
+                    m.progress().unwrap_or(0),
+                    left,
+                    m.field_str("due").map(str::to_string),
+                )
+            })
+            .collect();
+
+        let count_of = |f: &dyn Fn(&Item) -> bool| work.iter().filter(|i| f(i)).count();
+        let mut by_type: Vec<(String, usize)> = self
+            .schema
+            .types
+            .iter()
+            .filter(|t| !self.schema.is_container(&t.name))
+            .map(|t| (t.name.clone(), count_of(&|i| i.kind == t.name)))
+            .filter(|(_, n)| *n > 0)
+            .collect();
+        by_type.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
+
+        let by_field = self
+            .schema
+            .fields
+            .iter()
+            .filter(|f| f.column && !f.values.is_empty())
+            .map(|f| {
+                let values = f
+                    .values
+                    .iter()
+                    .map(|v| {
+                        (
+                            v.clone(),
+                            count_of(&|i| {
+                                !i.category.is_closed() && i.field_str(&f.name) == Some(v)
+                            }),
+                        )
+                    })
+                    .collect();
+                (f.name.clone(), values)
+            })
+            .collect();
+
+        let oldest = work
+            .iter()
+            .filter(|i| !i.category.is_closed())
+            .filter_map(|i| days_ago(i.created.as_ref()).map(|age| (i, age)))
+            .filter(|(_, age)| *age >= 0)
+            .max_by_key(|(_, age)| *age)
+            .map(|(i, age)| (i.id, i.title.clone(), age));
+
+        // What the most things are waiting on. One item holding up six others
+        // is the most useful sentence a backlog can say about itself.
+        let blocking = work
+            .iter()
+            .filter(|i| !i.category.is_closed())
+            .map(|i| {
+                let n = work
+                    .iter()
+                    .filter(|o| !o.category.is_closed() && o.blockers.contains(&i.id))
+                    .count();
+                (i, n)
+            })
+            .filter(|(_, n)| *n > 0)
+            .max_by_key(|(_, n)| *n)
+            .map(|(i, n)| (i.id, i.title.clone(), n));
+
+        Stats {
+            total: work.len(),
+            open: count_of(&|i| i.category == Category::Open),
+            active: count_of(&|i| i.category == Category::Active),
+            done: count_of(&|i| i.category == Category::Done),
+            dropped: count_of(&|i| i.category == Category::Dropped),
+            ready: count_of(&|i| i.ready(&self.schema)),
+            blocked: count_of(&|i| i.blocked && !i.category.is_closed()),
+            claimed: count_of(&|i| i.assignee.is_some() && !i.category.is_closed()),
+            closed_recently: [
+                (7, closed_recently[0].1),
+                (30, closed_recently[1].1),
+                (90, closed_recently[2].1),
+            ],
+            criteria,
+            milestones,
+            by_type,
+            by_field,
+            oldest,
+            blocking,
+        }
+    }
+}
+
+/// Days since the epoch for `YYYY-MM-DD`, by Howard Hinnant's civil algorithm.
+///
+/// Worth the twelve lines: the alternative is a date library for one question,
+/// and cairn writes exactly one date format.
+fn days_from_iso(date: &str) -> Option<u64> {
+    let mut parts = date.trim().splitn(3, '-');
+    let y: i64 = parts.next()?.parse().ok()?;
+    let m: i64 = parts.next()?.parse().ok()?;
+    let d: i64 = parts.next()?.parse().ok()?;
+    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+        return None;
+    }
+    let y = y - i64::from(m <= 2);
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = y - era * 400;
+    let doy = (153 * (m + if m > 2 { -3 } else { 9 }) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    u64::try_from(era * 146_097 + doe - 719_468).ok()
+}
+
 /// The value a field currently holds, for the fields a change can name.
 fn current_value(item: &Item, field: &str) -> Option<String> {
     match field {
@@ -1494,4 +1818,30 @@ fn unix_seconds() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod date_tests {
+    use super::days_from_iso;
+
+    #[test]
+    fn iso_dates_become_days_that_subtract_correctly() {
+        assert_eq!(days_from_iso("1970-01-01"), Some(0));
+        assert_eq!(days_from_iso("1970-01-02"), Some(1));
+        assert_eq!(days_from_iso("2000-03-01"), Some(11017));
+        // A leap day, and the day after it.
+        let feb29 = days_from_iso("2024-02-29").expect("a real date");
+        assert_eq!(days_from_iso("2024-03-01"), Some(feb29 + 1));
+        // A year apart is a year apart.
+        let a = days_from_iso("2026-09-11").expect("a");
+        let b = days_from_iso("2025-09-11").expect("b");
+        assert_eq!(a - b, 365);
+    }
+
+    #[test]
+    fn anything_that_is_not_a_date_is_not_guessed_at() {
+        for bad in ["", "today", "2026", "2026-13-01", "2026-01-99", "x-y-z"] {
+            assert_eq!(days_from_iso(bad), None, "accepted {bad:?}");
+        }
+    }
 }

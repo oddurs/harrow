@@ -19,8 +19,22 @@ fn the_list() {
 #[test]
 fn the_board() {
     let mut app = support::app();
-    app.board = true;
+    app.pane = harrow::app::Pane::Board;
     support::assert_snapshot("board", &ui::render_to_string(&mut app, 110, 20, 0));
+}
+
+#[test]
+fn the_statistics() {
+    let mut app = support::app();
+    app.pane = harrow::app::Pane::Stats;
+    support::assert_snapshot("stats", &ui::render_to_string(&mut app, 110, 26, 0));
+}
+
+#[test]
+fn the_statistics_in_one_column() {
+    let mut app = support::app();
+    app.pane = harrow::app::Pane::Stats;
+    support::assert_snapshot("stats-narrow", &ui::render_to_string(&mut app, 62, 26, 0));
 }
 
 #[test]
@@ -54,10 +68,18 @@ fn the_status_picker() {
     support::assert_snapshot("picker", &ui::render_to_string(&mut app, 110, 20, 0));
 }
 
+/// The shape this is most often used in: a pane beside the work, with an agent
+/// changing the backlog in the other one.
 #[test]
-fn a_narrow_terminal_loses_detail_not_its_shape() {
+fn a_narrow_pane() {
     let mut app = support::app();
-    support::assert_snapshot("narrow", &ui::render_to_string(&mut app, 54, 18, 0));
+    support::assert_snapshot("narrow", &ui::render_to_string(&mut app, 62, 22, 0));
+}
+
+#[test]
+fn a_pane_too_narrow_for_words() {
+    let mut app = support::app();
+    support::assert_snapshot("cramped", &ui::render_to_string(&mut app, 40, 14, 0));
 }
 
 /// Colour is data, so it is asserted like data. The plain-text snapshots say
@@ -85,6 +107,50 @@ fn with_no_colour_at_all_the_glyphs_still_carry_it() {
     for glyph in ["⊘", "◐", "✓", "○"] {
         assert!(text.contains(glyph), "mono lost {glyph}:\n{text}");
     }
+}
+
+/// What "the highlight is janky" was. Reverse video swaps the foreground and
+/// background of every cell in the row, so the selected row becomes a bright
+/// bar with the page colour punched through it — and every colour the row was
+/// carrying, the status glyph included, turns into the background.
+#[test]
+fn the_selected_row_is_a_lift_of_the_page_rather_than_an_inversion() {
+    use ratatui::style::Modifier;
+
+    let mut app = support::app();
+    app.theme = Theme::resolve("ghostty:gotham")
+        .or_else(|_| Theme::resolve("night"))
+        .expect("a derived theme");
+    app.select_id(3);
+
+    let buffer = ui::render_frame(&mut app, 100, 24, 0);
+    // The list pane only. The detail pane carries the same title, and finding
+    // that one instead is how this test first went wrong.
+    let list_width = app.list_area.width;
+    let row = (0..buffer.area.height)
+        .find(|y| {
+            (0..list_width)
+                .map(|x| buffer[(x, *y)].symbol().to_string())
+                .collect::<String>()
+                .contains("Draw the list")
+        })
+        .expect("the selected item is on screen");
+
+    let cell = &buffer[(4, row)];
+    assert_eq!(
+        cell.style().bg,
+        Some(app.theme.selection),
+        "the selected row has to carry the selection colour"
+    );
+    assert!(
+        !cell.style().add_modifier.contains(Modifier::REVERSED),
+        "and must not be drawn by inverting the page"
+    );
+    assert_ne!(
+        cell.style().bg,
+        Some(app.theme.background),
+        "and has to differ from an unselected one"
+    );
 }
 
 #[test]
