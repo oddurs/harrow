@@ -37,6 +37,10 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ### Added
 
+- `H` shows how an item got the way it is, read from the repository through
+  `cairn log` rather than by asking git a second time. A project that is not in
+  git says so, which is a different answer from an empty history.
+
 - A filesystem watcher, so a change made in another window shows up at once
   instead of on the next poll. The poll stays as the backstop for the places a
   watcher does not work, bursts are settled before reading, and there is a floor

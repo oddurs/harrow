@@ -30,6 +30,7 @@ pub enum Command {
     GroupBy,
     Read,
     Edit,
+    History,
     Claim,
     Release,
     Close,
@@ -53,7 +54,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 33] = [
+    pub const ALL: [Command; 34] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -67,6 +68,7 @@ impl Command {
         Command::GroupBy,
         Command::Read,
         Command::Edit,
+        Command::History,
         Command::Claim,
         Command::Release,
         Command::Close,
@@ -106,6 +108,7 @@ impl Command {
             Command::GroupBy => "group-by",
             Command::Read => "read",
             Command::Edit => "edit",
+            Command::History => "history",
             Command::Claim => "claim",
             Command::Release => "release",
             Command::Close => "close",
@@ -149,6 +152,7 @@ impl Command {
             Command::GroupBy => "group by something else",
             Command::Read => "read the item in full",
             Command::Edit => "open the item in your editor",
+            Command::History => "how this item got the way it is",
             Command::Claim => "claim it — assign it to you and start it",
             Command::Release => "give it back",
             Command::Close => "close it, with a confirm",
@@ -173,7 +177,7 @@ impl Command {
     }
 
     /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 25] {
+    pub fn help_order() -> [Command; 26] {
         [
             Command::Down,
             Command::First,
@@ -183,6 +187,7 @@ impl Command {
             Command::GroupBy,
             Command::Read,
             Command::Edit,
+            Command::History,
             Command::Claim,
             Command::Release,
             Command::Status,
@@ -237,6 +242,7 @@ impl Default for Keymap {
                 (K::Enter, n, C::Read),
                 (K::Char('o'), n, C::Read),
                 (K::Char('e'), n, C::Edit),
+                (K::Char('H'), n, C::History),
                 (K::Char('c'), n, C::Claim),
                 (K::Char('C'), n, C::Release),
                 (K::Char('x'), n, C::Close),

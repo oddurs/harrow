@@ -240,6 +240,25 @@ fn reading_an_item_scrolls_and_any_other_key_leaves() {
 }
 
 #[test]
+fn history_is_asked_of_cairn_rather_than_of_git() {
+    let mut app = app();
+    match app.run(Command::History) {
+        Action::History(id) => assert_eq!(id, 3),
+        other => panic!("expected a history request, got {other:?}"),
+    }
+
+    // The overlay takes the keys while it is open, and any other key closes it.
+    app.show_history(3, Ok("2026-09-02  somebody  created\n".into()));
+    app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+    assert_eq!(app.history.as_ref().map(|h| h.scroll), Some(1));
+    app.handle_key(KeyCode::Char('q'), KeyModifiers::NONE);
+    assert!(
+        app.history.is_none(),
+        "and q closes it rather than quitting"
+    );
+}
+
+#[test]
 fn editing_hands_over_the_file_rather_than_the_id() {
     let mut app = app();
     match press(&mut app, 'e') {

@@ -109,6 +109,7 @@ harrow --fix-terminal         # undo a terminal left in mouse-reporting mode
 | `v` | group by something else |
 | `enter` / `o` | read the item in full |
 | `e` | open it in your editor |
+| `H` | how this item got the way it is |
 | `c` / `C` | claim / release |
 | `s` `p` `M` | set the status, the priority, the milestone |
 | `h` / `l` | move it back or forward through the statuses |

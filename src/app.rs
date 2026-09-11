@@ -115,6 +115,8 @@ pub enum Action {
     Copy(String),
     /// Suspend the interface and open a file in the user's editor.
     Edit(std::path::PathBuf),
+    /// Ask cairn how an item got the way it is.
+    History(u32),
     /// Ask cairn to change something.
     Write(Change),
 }
@@ -182,6 +184,17 @@ pub struct Confirm {
     pub change: Change,
 }
 
+/// What the repository remembers about one item.
+pub struct History {
+    pub id: u32,
+    pub lines: Vec<String>,
+    pub scroll: u16,
+    /// Set when there is no history to be had rather than none recorded — not
+    /// a git repository, or no cairn to ask. The difference matters: one is a
+    /// new item and the other is a missing tool.
+    pub unavailable: Option<String>,
+}
+
 /// A list of values to choose between: a status, a priority, a milestone.
 /// Triage is picking from a small set over and over, and typing the value each
 /// time is the thing a screen is supposed to remove.
@@ -236,6 +249,9 @@ pub struct App {
 
     pub reading: bool,
     pub read_scroll: u16,
+    /// How the selected item changed, and where the reader is in it. Read from
+    /// the repository, which is the only place that knows.
+    pub history: Option<History>,
     pub picker: Option<Picker>,
     pub confirm: Option<Confirm>,
     pub help: bool,
@@ -312,6 +328,7 @@ impl App {
             pane: Pane::List,
             reading: false,
             read_scroll: 0,
+            history: None,
             picker: None,
             confirm: None,
             help: false,
@@ -1437,6 +1454,24 @@ impl App {
         }
     }
 
+    /// Take what cairn said about an item's history.
+    pub fn show_history(&mut self, id: u32, result: Result<String, String>) {
+        self.history = Some(match result {
+            Ok(text) => History {
+                id,
+                lines: text.lines().map(str::to_string).collect(),
+                scroll: 0,
+                unavailable: None,
+            },
+            Err(why) => History {
+                id,
+                lines: Vec::new(),
+                scroll: 0,
+                unavailable: Some(why),
+            },
+        });
+    }
+
     pub fn toast(&mut self, msg: impl Into<String>, kind: ToastKind) {
         self.toast = Some((msg.into(), kind, Instant::now()));
     }
@@ -1537,6 +1572,22 @@ impl App {
                     self.preview_filter();
                 }
                 _ => {}
+            }
+            return Action::None;
+        }
+        if let Some(history) = self.history.as_mut() {
+            match code {
+                KeyCode::Down | KeyCode::Char('j') => {
+                    history.scroll = history.scroll.saturating_add(1)
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    history.scroll = history.scroll.saturating_sub(1)
+                }
+                KeyCode::PageDown | KeyCode::Char(' ') => {
+                    history.scroll = history.scroll.saturating_add(10)
+                }
+                KeyCode::PageUp => history.scroll = history.scroll.saturating_sub(10),
+                _ => self.history = None,
             }
             return Action::None;
         }
@@ -1660,6 +1711,12 @@ impl App {
                     self.reading = true;
                     self.read_scroll = 0;
                 }
+            }
+            Command::History => {
+                let Some(item) = self.selected_item() else {
+                    return Action::None;
+                };
+                return Action::History(item.id);
             }
             Command::Edit => {
                 if let Some(item) = self.selected_item() {
@@ -1829,6 +1886,12 @@ impl App {
     /// selection run away from the pointer is the thing that makes a terminal
     /// interface feel unlike everything else on the screen.
     fn scroll(&mut self, delta: isize) {
+        if let Some(history) = self.history.as_mut() {
+            history.scroll = history
+                .scroll
+                .saturating_add_signed(delta.clamp(-32, 32) as i16);
+            return;
+        }
         if self.reading {
             self.read_scroll = self
                 .read_scroll

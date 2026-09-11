@@ -108,6 +108,9 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     if app.reading {
         draw_reader(f, app, &t, area);
     }
+    if app.history.is_some() {
+        draw_history(f, app, &t, area);
+    }
     if app.help {
         draw_help(f, app, &t, area);
     }
@@ -1479,6 +1482,89 @@ fn draw_reader(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
                 .border_style(Style::default().fg(t.border_focus))
                 .padding(Padding::horizontal(1))
                 .title(Span::styled(" Item ", Style::default().fg(t.muted)))
+                .title_bottom(Span::styled(
+                    " ↑↓ scroll · any other key closes ",
+                    Style::default().fg(t.faint),
+                )),
+        ),
+        popup,
+    );
+}
+
+/// How an item got the way it is.
+///
+/// The reason an item file is worth keeping in the repository rather than in a
+/// database: its history is the answer to "when did this become p0, and who
+/// decided that?", and it is already there.
+fn draw_history(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+    let Some(history) = &app.history else { return };
+    let width = 84u16.min(area.width.saturating_sub(4));
+    let room = width.saturating_sub(6) as usize;
+
+    let mut lines = vec![Line::from("")];
+    if let Some(why) = &history.unavailable {
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(truncate(why, room), Style::default().fg(t.warn)),
+        ]));
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                "An item's history is the repository's. Without one there is none.",
+                Style::default().fg(t.faint),
+            ),
+        ]));
+    } else if history.lines.is_empty() {
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                "Nothing recorded yet — this item has not been committed.",
+                Style::default().fg(t.faint),
+            ),
+        ]));
+    }
+
+    for line in &history.lines {
+        // cairn prints `date  who  what`. The what is the part being read.
+        let mut parts = line.splitn(3, "  ").map(str::trim);
+        match (parts.next(), parts.next(), parts.next()) {
+            (Some(date), Some(who), Some(what)) => lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(date.to_string(), Style::default().fg(t.faint)),
+                Span::raw("  "),
+                Span::styled(
+                    format!("{:<18}", truncate(who, 18)),
+                    Style::default().fg(t.person),
+                ),
+                Span::raw("  "),
+                Span::styled(
+                    truncate(what, room.saturating_sub(32)),
+                    Style::default().fg(t.text),
+                ),
+            ])),
+            _ => lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(truncate(line, room), Style::default().fg(t.muted)),
+            ])),
+        }
+    }
+
+    // Sized to what there is to say, which for a project with no repository is
+    // a sentence and not a list.
+    let height = ((lines.len() + 2) as u16).min(area.height.saturating_sub(4));
+    let popup = centered(area, width, height);
+
+    f.render_widget(Clear, popup);
+    f.render_widget(
+        Paragraph::new(lines).scroll((history.scroll, 0)).block(
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(t.border_focus))
+                .title(Span::styled(
+                    format!(" {} · history ", app.schema.format_id(history.id)),
+                    Style::default().fg(t.muted),
+                ))
                 .title_bottom(Span::styled(
                     " ↑↓ scroll · any other key closes ",
                     Style::default().fg(t.faint),
