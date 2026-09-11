@@ -2,10 +2,10 @@
 id: 17
 title: Watch the directory instead of re-reading it
 type: feature
-status: backlog
+status: done
 milestone: v0.2
 created: 2026-09-08
-updated: 2026-09-08
+updated: 2026-09-11
 priority: p2
 area: runtime
 ---

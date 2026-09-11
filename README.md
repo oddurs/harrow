@@ -179,6 +179,7 @@ sort         = ""            # cairn's spelling: "priority,-updated"
 view         = ""            # open in a saved view from cairn.toml
 show_all     = false         # finished, dropped and milestones too
 pane         = "list"        # or board, stats
+watch        = true          # notice changes at once, not on the next poll
 refresh_secs = 3
 cairn        = "cairn"       # a path, if it is not on PATH
 editor       = ""            # falls back to $VISUAL, $EDITOR, vi
@@ -242,8 +243,13 @@ behaviour, which still works.
 - **The core performs no side effects.** `App` returns actions for the shell to
   carry out, including the `cairn` invocations, which is why every write can be
   asserted in a test with no repository underneath it.
-- The backlog is re-read every three seconds and only sent on when it has
-  changed, so a screen you leave open does not flicker at you.
+- **A change shows up at once.** harrow watches the item directory, so an edit
+  made in another window — by you, by `cairn`, by an agent — arrives without
+  waiting for anything. The three-second poll stays underneath it: it is what
+  notices a change on a network mount or anywhere else the operating system
+  declines to tell anybody. Either way the reading is only sent on when
+  something actually changed, so a screen you leave open does not flicker.
+  `harrow --doctor` says which of the two a project is running on.
 
 ## Cost
 

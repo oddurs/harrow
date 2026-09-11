@@ -31,6 +31,12 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ### Added
 
+- A filesystem watcher, so a change made in another window shows up at once
+  instead of on the next poll. The poll stays as the backstop for the places a
+  watcher does not work, bursts are settled before reading, and there is a floor
+  between reads so a directory being rewritten continuously cannot become a busy
+  loop. `watch = false` turns it off; `harrow --doctor` says which is in use.
+
 - Marking. `space` marks the item under the cursor, ctrl-click marks one and
   shift-click a range, and the next change applies to all of them — in a single
   `cairn` invocation, after a confirmation that says how many. Where the marked
