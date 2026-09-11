@@ -142,7 +142,7 @@ impl Command {
             Command::PageUp => "up a page",
             Command::First => "jump to the first item",
             Command::Last => "jump to the last item",
-            Command::ToggleGroup => "collapse or expand a group",
+            Command::ToggleGroup => "mark it for the next change — a heading folds",
             Command::PrevGroup => "previous group — column, on the board",
             Command::NextGroup => "next group — column, on the board",
             Command::ViewBoard => "switch between the list, the board and the stats",

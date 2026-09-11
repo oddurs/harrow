@@ -41,7 +41,9 @@ reading carries a mark for forty-five seconds, so a glance back catches what
 happened while you were looking elsewhere. Below ninety-six columns the detail
 pane gets out of the way rather than halving the list.
 
-Then triage. `cairn next`, `cairn claim` and `cairn close` are three short commands
+Then triage. One keystroke per decision — `c` claims, `s` picks a status, `h`
+and `l` walk an item through the columns — and `space` marks items so the same
+decision applies to all of them at once, in one write. `cairn next`, `cairn claim` and `cairn close` are three short commands
 and do not need a screen. What commands serve badly is moving through a backlog
 — reading forty items, deciding what matters, changing a status and seeing the
 columns rearrange — because every one of those decisions costs you an id typed
@@ -101,7 +103,7 @@ harrow --fix-terminal         # undo a terminal left in mouse-reporting mode
 |---|---|
 | `↑` `↓` / `j` `k` | move between items |
 | `←` `→` | previous or next group — a column, on the board |
-| `space` | collapse or expand a group |
+| `space` | mark it for the next change — on a heading, fold |
 | `g` / `G` | first / last |
 | `tab` | switch between the list, the board and the stats |
 | `v` | group by something else |
@@ -135,6 +137,7 @@ It is meant to be usable without learning any of the above.
 | click a tab | switch between the list, the board and the stats |
 | click a status | filter to it; click it again to clear |
 | click a row | select it; a group heading folds |
+| ctrl-click | mark it; shift-click marks the range |
 | double-click | read the item |
 | drag a card | to another column, which sets its status |
 | click a hint | run it — the footer is a row of buttons |

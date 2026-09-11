@@ -169,6 +169,15 @@ fn draw_header(f: &mut Frame, app: &mut App, t: &Theme, area: Rect, tick: usize)
         ));
     }
 
+    // Marked is a state you are in, so it is said in the header rather than
+    // left to be counted off the rows.
+    if !app.marked.is_empty() {
+        left.push(Span::raw("   "));
+        left.push(Span::styled(
+            format!(" {} marked ", app.marked.len()),
+            Style::default().bg(t.secondary).fg(t.background).bold(),
+        ));
+    }
     if roomy && !app.filter.is_empty() {
         left.push(Span::styled("   ", Style::default()));
         left.push(Span::styled(
@@ -519,11 +528,17 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
         Style::default().fg(t.text)
     };
 
+    let marked = app.marked.contains(&item.id);
     let mut spans = vec![
-        // The mark for something that just moved takes the first of the two
-        // lead spaces, so a row that changed costs no width to say so.
+        // Two characters carry both facts: whether this is in the set the next
+        // change applies to, and whether it moved a moment ago. Neither costs
+        // any width, because the two lead spaces were there anyway.
         Span::styled(
-            if recent { " •" } else { "  " },
+            if marked { "▌" } else { " " },
+            Style::default().fg(t.secondary).bold(),
+        ),
+        Span::styled(
+            if recent { "•" } else { " " },
             Style::default().fg(t.accent).bold(),
         ),
         Span::styled(

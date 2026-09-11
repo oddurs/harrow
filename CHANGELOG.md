@@ -31,6 +31,12 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ### Added
 
+- Marking. `space` marks the item under the cursor, ctrl-click marks one and
+  shift-click a range, and the next change applies to all of them — in a single
+  `cairn` invocation, after a confirmation that says how many. Where the marked
+  set is exactly what the filter is showing, it becomes one `cairn set --filter`
+  rather than a list of ids.
+
 - A mouse interface. Tabs, statuses, rows, group headings, board columns,
   picker options, the confirmation and the footer hints are all clickable;
   double-click reads an item; a card dragged between columns sets its status.

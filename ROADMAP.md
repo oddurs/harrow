@@ -32,10 +32,13 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 ### backlog
 
 - [ ] `0017` Watch the directory instead of re-reading it <sup>feature · p2 · runtime</sup>
-- [ ] `0018` Multi-select, for triage that is actually bulk <sup>feature · p1 · chrome</sup>
 - [ ] `0019` Show what changed, from the repository's own history <sup>feature · p2 · chrome</sup>
 - [ ] `0020` Answer proposals without leaving the board <sup>feature · p2 · write</sup>
 - [ ] `0021` Package it: crates.io and a tap <sup>chore · p1 · packaging</sup>
+
+### in progress
+
+- [ ] `0018` Multi-select, for triage that is actually bulk <sup>feature · p1 · chrome</sup>
 
 ## later — Someday
 
