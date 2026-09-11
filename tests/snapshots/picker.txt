@@ -1,4 +1,4 @@
- harrow  sample    list  board                                                                       starting
+ harrow  sample    list  board  stats                                                                starting
  ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Backlog · by milestone ────────────────────────────────────╮╭ 0003 ────────────────────────────────────────╮
@@ -17,4 +17,4 @@
 │                                                            ││   Problem                                    │
 │                                                            ││   … ↵ to read it all                         │
 ╰────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab board  ? help
+ ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

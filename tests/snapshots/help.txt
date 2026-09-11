@@ -1,11 +1,11 @@
- harrow  sample    list  board                                                                       starting
+ harrow  sample    list  board  stats                                                                starting
  ◐ 1 in progress  ╭ Keys ──────────────────────────────────────────────────────────────────╮
 ──────────────────│                                                                        │──────────────────
 ╭ Backlog · by mil│  ↑/k, ↓/j      move between items                                      │─────────────────╮
 │ ▾ v0.1  First us│  home/g, end/G jump to the first or last                               │st its pane      │
 │  ○ 0005 The deta│  ←, →          previous or next group — a column, on the board         │                 │
 │  ⊘ 0004 Draw the│  space         collapse or expand a group                              │                 │
-│  ◐ 0003 Draw the│  tab           switch between the list and the board                   │───────────────  │
+│  ◐ 0003 Draw the│  tab           switch between the list, the board and the stats        │───────────────  │
 │ ▾ no milestone  │  v             group by something else                                 │                 │
 │  ○ 0006 Write th│  ↵/o           read the item in full                                   │                 │
 │                 │  e             open the item in your editor                            │                 │
@@ -29,4 +29,4 @@
 │                 │  click         select a row, or fold a group                           │                 │
 │                 │                                                                        │                 │
 ╰─────────────────╰────────────────────────────────────────────────────────────────────────╯─────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab board  ? help
+ ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

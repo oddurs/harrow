@@ -1,0 +1,26 @@
+ sample    list  board  stats                        starting
+ ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+──────────────────────────────────────────────────────────────
+╭ sample ────────────────────────────────────────────────────╮
+│   Where it stands ───────────────────────────────────────  │
+│   ▰▰▰▱▱▱▱▱▱▱▱▱  20%  ·  1 of 5 closed                      │
+│                                                            │
+│     2 ready       1 in flight   1 blocked                  │
+│     3 open        1 claimed     0 dropped                  │
+│                                                            │
+│   1 of 2 acceptance criteria ticked on open work           │
+│                                                            │
+│   Closed ────────────────────────────────────────────────  │
+│   0 in 7d   1 in 30d   1 in 90d                            │
+│                                                            │
+│   Waiting longest ───────────────────────────────────────  │
+│   0004 Draw the board                                      │
+│   9 days open                                              │
+│                                                            │
+│   In the way ────────────────────────────────────────────  │
+│   0003 Draw the list                                       │
+│   1 item is waiting on it                                  │
+│                                                            │
+│   Milestones ────────────────────────────────────────────  │
+╰────────────────────────────────────────────────────────────╯
+ ↑↓ move  ↵ read  c claim  s status  x close  / filter

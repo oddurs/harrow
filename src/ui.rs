@@ -17,7 +17,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Padding, Paragraph};
 
-use crate::app::{App, Row, ToastKind};
+use crate::app::{App, Pane, Row, ToastKind};
 use crate::diag;
 use crate::item::Item;
 use crate::schema::{Category, Schema};
@@ -83,7 +83,9 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     draw_rule(f, &t, chunks[2]);
 
     let body = chunks[3];
-    if app.board {
+    if app.pane == Pane::Stats {
+        draw_stats(f, app, &t, body);
+    } else if app.pane == Pane::Board {
         app.board_area = body;
         draw_board(f, app, &t, body);
     } else if body.width >= DETAIL_MIN_WIDTH {
@@ -134,9 +136,10 @@ fn draw_header(f: &mut Frame, app: &App, t: &Theme, area: Rect, tick: usize) {
     // Tabs, because there are two views and one of them was a key nobody knew
     // about.
     left.push(Span::raw("   "));
-    for (label, active) in [("list", !app.board), ("board", app.board)] {
+    for pane in Pane::ALL {
+        let active = pane == app.pane;
         left.push(Span::styled(
-            format!(" {label} "),
+            format!(" {} ", pane.name()),
             if active {
                 Style::default().bg(t.selection).fg(t.text).bold()
             } else {
@@ -1061,6 +1064,298 @@ fn wrap(text: &str, width: usize) -> Vec<String> {
     out
 }
 
+// ── The statistics ───────────────────────────────────────────────────────────
+
+/// A backlog from a distance: how much of it there is, how much is moving, and
+/// what is in the way.
+fn draw_stats(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(t.border))
+        .padding(Padding::horizontal(1))
+        .title(Span::styled(
+            format!(" {} ", app.schema.name),
+            Style::default().fg(t.muted),
+        ));
+    let inner = block.inner(area);
+    let stats = app.stats();
+
+    // Two columns where there is room for two, because the sections are short
+    // and a single column of them is mostly whitespace.
+    let (left, right) = if inner.width >= 84 {
+        (
+            stats_left(app, &stats, t, inner.width as usize / 2 - 2),
+            stats_right(app, &stats, t, inner.width as usize / 2 - 2),
+        )
+    } else {
+        let mut all = stats_left(app, &stats, t, inner.width as usize);
+        all.push(Line::from(""));
+        all.extend(stats_right(app, &stats, t, inner.width as usize));
+        (all, Vec::new())
+    };
+
+    f.render_widget(block, area);
+    if right.is_empty() {
+        f.render_widget(Paragraph::new(left), inner);
+        return;
+    }
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(inner);
+    f.render_widget(Paragraph::new(left), columns[0]);
+    f.render_widget(Paragraph::new(right), columns[1]);
+}
+
+fn stats_left(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+    let closed = s.done + s.dropped;
+    let percent = (closed * 100).checked_div(s.total).unwrap_or(0) as u32;
+
+    lines.push(section("Where it stands", t, width));
+    lines.push(Line::from(vec![
+        Span::raw("  "),
+        Span::styled(
+            progress_bar(percent, 12),
+            Style::default().fg(if percent == 100 { t.done } else { t.accent }),
+        ),
+        Span::styled(
+            format!("  {percent}%  ·  {} of {} closed", closed, s.total),
+            Style::default().fg(t.muted),
+        ),
+    ]));
+    lines.push(Line::from(""));
+    lines.push(tally(
+        &[
+            ("ready", s.ready, t.ready),
+            ("in flight", s.active, t.active),
+            ("blocked", s.blocked, t.blocked),
+        ],
+        t,
+    ));
+    lines.push(tally(
+        &[
+            ("open", s.open, t.open),
+            ("claimed", s.claimed, t.person),
+            ("dropped", s.dropped, t.dropped),
+        ],
+        t,
+    ));
+
+    if s.criteria.1 > 0 {
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                format!("{} of {} ", s.criteria.0, s.criteria.1),
+                Style::default().fg(t.text),
+            ),
+            Span::styled(
+                "acceptance criteria ticked on open work",
+                Style::default().fg(t.faint),
+            ),
+        ]));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(section("Closed", t, width));
+    let mut spans = vec![Span::raw("  ")];
+    for (window, count) in s.closed_recently {
+        spans.push(Span::styled(
+            count.to_string(),
+            Style::default()
+                .fg(if count > 0 { t.done } else { t.faint })
+                .bold(),
+        ));
+        spans.push(Span::styled(
+            format!(" in {window}d   "),
+            Style::default().fg(t.faint),
+        ));
+    }
+    lines.push(Line::from(spans));
+
+    if let Some((id, title, days)) = &s.oldest {
+        lines.push(Line::from(""));
+        lines.push(section("Waiting longest", t, width));
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(app.schema.format_id(*id), Style::default().fg(t.faint)),
+            Span::raw(" "),
+            Span::styled(
+                truncate(title, width.saturating_sub(16)),
+                Style::default().fg(t.muted),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(format!("{days} days open"), Style::default().fg(t.warn)),
+        ]));
+    }
+
+    if let Some((id, title, count)) = &s.blocking {
+        lines.push(Line::from(""));
+        lines.push(section("In the way", t, width));
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(app.schema.format_id(*id), Style::default().fg(t.faint)),
+            Span::raw(" "),
+            Span::styled(
+                truncate(title, width.saturating_sub(16)),
+                Style::default().fg(t.muted),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                format!(
+                    "{count} {} waiting on it",
+                    if *count == 1 { "item is" } else { "items are" }
+                ),
+                Style::default().fg(t.blocked),
+            ),
+        ]));
+    }
+    lines
+}
+
+fn stats_right(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+
+    if !s.milestones.is_empty() {
+        lines.push(section("Milestones", t, width));
+        let key_width = s
+            .milestones
+            .iter()
+            .map(|(k, ..)| k.chars().count())
+            .max()
+            .unwrap_or(4)
+            .min(10);
+        for (key, title, percent, left, due) in &s.milestones {
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(
+                    format!("{:<key_width$} ", truncate(key, key_width)),
+                    Style::default().fg(t.milestone).bold(),
+                ),
+                Span::styled(
+                    progress_bar(*percent, 8),
+                    Style::default().fg(if *percent == 100 { t.done } else { t.accent }),
+                ),
+                Span::styled(format!(" {percent:>3}%  "), Style::default().fg(t.muted)),
+                Span::styled(
+                    if *left == 0 {
+                        "done".to_string()
+                    } else {
+                        format!("{left} left")
+                    },
+                    Style::default().fg(if *left == 0 { t.done } else { t.faint }),
+                ),
+            ]));
+            let note = match due {
+                Some(due) => format!("{title} · due {due}"),
+                None => title.clone(),
+            };
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::raw(" ".repeat(key_width + 1)),
+                Span::styled(
+                    truncate(&note, width.saturating_sub(key_width + 4)),
+                    Style::default().fg(t.faint),
+                ),
+            ]));
+        }
+        lines.push(Line::from(""));
+    }
+
+    let bars = |lines: &mut Vec<Line<'static>>,
+                rows: &[(String, usize)],
+                colour: &dyn Fn(usize) -> ratatui::style::Color| {
+        let most = rows.iter().map(|(_, n)| *n).max().unwrap_or(0).max(1);
+        let label_width = rows
+            .iter()
+            .map(|(k, _)| k.chars().count())
+            .max()
+            .unwrap_or(4)
+            .min(12);
+        let bar_width = width.saturating_sub(label_width + 8).clamp(4, 14);
+        for (i, (label, count)) in rows.iter().enumerate() {
+            let filled = (count * bar_width).div_ceil(most).min(bar_width);
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(
+                    format!("{:<label_width$} ", truncate(label, label_width)),
+                    Style::default().fg(t.muted),
+                ),
+                Span::styled("▇".repeat(filled), Style::default().fg(colour(i))),
+                Span::styled(
+                    "▁".repeat(bar_width - filled),
+                    Style::default().fg(t.border),
+                ),
+                Span::styled(format!(" {count}"), Style::default().fg(t.faint)),
+            ]));
+        }
+    };
+
+    if !s.by_type.is_empty() {
+        lines.push(section("By type", t, width));
+        let types: Vec<(String, usize)> = s.by_type.clone();
+        let schema = &app.schema;
+        let colour = |i: usize| {
+            types
+                .get(i)
+                .and_then(|(name, _)| schema.item_type(name))
+                .map(|k| t.item_type(Some(k)))
+                .unwrap_or(t.secondary)
+        };
+        bars(&mut lines, &s.by_type, &colour);
+        lines.push(Line::from(""));
+    }
+
+    for (field, values) in &s.by_field {
+        // A short scale shows its empty steps — "no p3 open" is worth knowing.
+        // A long one drops them, because fifteen rows of zero is not a
+        // distribution, it is a list of the field's values.
+        let rows: Vec<(String, usize)> = if values.len() > 5 {
+            values.iter().filter(|(_, n)| *n > 0).cloned().collect()
+        } else {
+            values.clone()
+        };
+        if rows.iter().all(|(_, n)| *n == 0) {
+            continue;
+        }
+        lines.push(section(&title_case(field), t, width));
+        let len = rows.len();
+        let colour = |i: usize| t.rank(i, len);
+        bars(&mut lines, &rows, &colour);
+        lines.push(Line::from(""));
+    }
+    lines
+}
+
+/// A row of `count label` pairs, aligned so the numbers line up.
+fn tally(cells: &[(&str, usize, ratatui::style::Color)], t: &Theme) -> Line<'static> {
+    let mut spans = vec![Span::raw("  ")];
+    for (label, count, colour) in cells {
+        spans.push(Span::styled(
+            format!("{count:>3} "),
+            Style::default().fg(*colour).bold(),
+        ));
+        spans.push(Span::styled(
+            format!("{label:<10}"),
+            Style::default().fg(t.faint),
+        ));
+    }
+    Line::from(spans)
+}
+
+fn title_case(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
+}
+
 // ── Overlays ─────────────────────────────────────────────────────────────────
 
 /// The whole item, which is the thing cairn keeps that a listing cannot show:
@@ -1673,7 +1968,7 @@ mod tests {
     #[test]
     fn the_board_draws_a_column_per_declared_status() {
         let mut app = testkit::app();
-        app.board = true;
+        app.pane = Pane::Board;
         let text = render_to_string(&mut app, 120, 30, 0);
         assert!(text.contains("backlog"), "{text}");
         assert!(text.contains("in progress"), "the label, not the name");

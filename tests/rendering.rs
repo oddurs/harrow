@@ -19,8 +19,22 @@ fn the_list() {
 #[test]
 fn the_board() {
     let mut app = support::app();
-    app.board = true;
+    app.pane = harrow::app::Pane::Board;
     support::assert_snapshot("board", &ui::render_to_string(&mut app, 110, 20, 0));
+}
+
+#[test]
+fn the_statistics() {
+    let mut app = support::app();
+    app.pane = harrow::app::Pane::Stats;
+    support::assert_snapshot("stats", &ui::render_to_string(&mut app, 110, 26, 0));
+}
+
+#[test]
+fn the_statistics_in_one_column() {
+    let mut app = support::app();
+    app.pane = harrow::app::Pane::Stats;
+    support::assert_snapshot("stats-narrow", &ui::render_to_string(&mut app, 62, 26, 0));
 }
 
 #[test]

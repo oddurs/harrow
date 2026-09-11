@@ -145,7 +145,7 @@ impl Command {
             Command::ToggleGroup => "collapse or expand a group",
             Command::PrevGroup => "previous group — column, on the board",
             Command::NextGroup => "next group — column, on the board",
-            Command::ViewBoard => "switch between the list and the board",
+            Command::ViewBoard => "switch between the list, the board and the stats",
             Command::GroupBy => "group by something else",
             Command::Read => "read the item in full",
             Command::Edit => "open the item in your editor",
@@ -411,7 +411,7 @@ impl Keymap {
             (Command::Status, "status"),
             (Command::Close, "close"),
             (Command::Filter, "filter"),
-            (Command::ViewBoard, "board"),
+            (Command::ViewBoard, "views"),
             (Command::Help, "help"),
         ];
         wanted

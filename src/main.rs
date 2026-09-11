@@ -61,6 +61,7 @@ fn main() -> Result<()> {
         "--all",
         "-b",
         "--board",
+        "--stats",
         "-p",
         "--plain",
         "--doctor",
@@ -128,7 +129,8 @@ fn print_usage() {
          OPTIONS:\n\
          \x20 -C, --directory <DIR>  start looking for the project here\n\
          \x20 -a, --all              show everything: finished, dropped, milestones\n\
-         \x20 -b, --board            open on the board rather than the list\n\
+         \x20 -b, --board            open on the board\n\
+         \x20     --stats            open on the statistics\n\
          \x20 -f, --filter <EXPR>    open filtered, in cairn's grammar\n\
          \x20     --view <NAME>      open in one of the project's saved views\n\
          \x20     --group-by <FIELD> milestone, status, type, or any field\n\
@@ -194,7 +196,13 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
     app.theme = startup.theme.clone();
     app.keymap = startup.keymap.clone();
     app.show_all = startup.config.show_all || args.iter().any(|a| a == "-a" || a == "--all");
-    app.board = startup.config.board || args.iter().any(|a| a == "-b" || a == "--board");
+    app.pane = if args.iter().any(|a| a == "-b" || a == "--board") {
+        harrow::app::Pane::Board
+    } else if args.iter().any(|a| a == "--stats") {
+        harrow::app::Pane::Stats
+    } else {
+        harrow::app::Pane::from_name(&startup.config.pane).unwrap_or_default()
+    };
     app.group_by =
         flag_value(args, "--group-by").unwrap_or_else(|| startup.config.group_by.clone());
     app.sort = flag_value(args, "--sort").unwrap_or_else(|| startup.config.sort.clone());

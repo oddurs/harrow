@@ -261,7 +261,7 @@ fn the_selection_survives_switching_between_the_list_and_the_board() {
 #[test]
 fn moving_between_columns_keeps_the_cursor_somewhere_real() {
     let mut app = testkit::app();
-    app.board = true;
+    app.pane = harrow::app::Pane::Board;
     for _ in 0..12 {
         app.run(Command::NextGroup);
         assert!(
