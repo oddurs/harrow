@@ -441,6 +441,65 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_palette_reply_parses_however_it_arrives() {
+        // Terminals answer in any order, terminate with ST or BEL, and split
+        // the reply across reads. All three happen.
+        let reply = concat!(
+            "\x1b]11;rgb:0a0a/0f0f/1414\x1b\\",
+            "\x1b]4;0;rgb:0a0a/0f0f/1414\x07",
+            "\x1b]10;rgb:9898/d1d1/cece\x1b\\",
+            "\x1b]4;2;rgb:2626/a9a9/8b8b\x1b\\",
+        );
+        let p = parse_palette(reply.as_bytes());
+        assert_eq!(
+            p.background,
+            Some(ratatui::style::Color::Rgb(0x0a, 0x0f, 0x14))
+        );
+        assert_eq!(
+            p.foreground,
+            Some(ratatui::style::Color::Rgb(0x98, 0xd1, 0xce))
+        );
+        assert_eq!(
+            p.slots[0],
+            Some(ratatui::style::Color::Rgb(0x0a, 0x0f, 0x14))
+        );
+        assert_eq!(
+            p.slots[2],
+            Some(ratatui::style::Color::Rgb(0x26, 0xa9, 0x8b))
+        );
+        assert_eq!(p.slots[1], None, "nothing invented for what did not answer");
+        assert_eq!(p.known(), 4);
+    }
+
+    #[test]
+    fn a_partial_or_hostile_reply_is_not_a_panic() {
+        for junk in [
+            "",
+            "\x1b]11;",
+            "\x1b]4;",
+            "\x1b]4;99;rgb:00/00/00\x1b\\",
+            "\x1b]4;notanumber;rgb:00/00/00\x07",
+            "hello there",
+            "\x1b]11;not-a-colour\x07",
+        ] {
+            let p = parse_palette(junk.as_bytes());
+            assert!(p.is_empty(), "invented something from {junk:?}");
+        }
+    }
+
+    #[test]
+    fn querying_a_cooked_terminal_returns_nothing_immediately() {
+        // Under `cargo test` we are not in raw mode; the query must not block.
+        let started = std::time::Instant::now();
+        assert!(query_palette(std::time::Duration::from_secs(5)).is_empty());
+        assert!(
+            started.elapsed() < std::time::Duration::from_millis(200),
+            "took {:?} to decline",
+            started.elapsed()
+        );
+    }
+
+    #[test]
     fn an_osc11_reply_parses() {
         let reply = b"\x1b]11;rgb:0a0a/0f0f/1414\x1b\\";
         assert_eq!(

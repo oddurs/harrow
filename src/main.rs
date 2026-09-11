@@ -594,6 +594,9 @@ fn run_change(app: &mut App, handle: &runtime::Handle, config: &Config, change: 
     let args: Vec<&str> = change.args.iter().map(String::as_str).collect();
     match harrow::exec::run(&config.cairn, &args, config.write_timeout()) {
         Ok(_) => {
+            // So the re-read this causes is not announced back as somebody
+            // else's news.
+            app.wrote();
             let message = match &change.undo {
                 Some(undo) => format!("{} · undo: {undo}", change.describe),
                 None => change.describe.clone(),

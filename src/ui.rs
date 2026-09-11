@@ -1,5 +1,9 @@
-//! All drawing. The screen is a title strip, a two-pane body, and a status
-//! strip; overlays (read, help, picker, confirm) are painted on top.
+//! All drawing.
+//!
+//! The screen is a header, a status strip, a body and a footer; overlays (read,
+//! help, picker, confirm) are painted on top. The body is a list and a detail
+//! pane where there is room for both, and the list alone where there is not —
+//! because the place this runs is often a narrow pane beside the work.
 //!
 //! Rendering is a pure function of [`App`]: nothing here reads the clock, the
 //! environment or the filesystem, which is what makes a frame reproducible and
@@ -11,9 +15,7 @@ use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Block, BorderType, Clear, List, ListItem, ListState, Padding, Paragraph, Wrap,
-};
+use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Padding, Paragraph};
 
 use crate::app::{App, Row, ToastKind};
 use crate::diag;
@@ -23,6 +25,13 @@ use crate::theme::Theme;
 
 const SPINNER: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"];
 
+/// Below this, the detail pane costs the list more than it gives. A right-hand
+/// pane beside an editor is usually sixty columns, and two panes in sixty is
+/// two unreadable panes.
+const DETAIL_MIN_WIDTH: u16 = 96;
+/// Below this, the header drops to the identity and the counts.
+const ROOMY: u16 = 74;
+
 /// One glyph per state, so the screen still says everything it needs to when
 /// there is no colour at all — `mono`, `NO_COLOR`, or a reader who cannot tell
 /// the green from the red.
@@ -30,7 +39,11 @@ pub fn glyph(item: &Item) -> &'static str {
     if item.blocked && !item.category.is_closed() {
         return "⊘";
     }
-    match item.category {
+    category_glyph(item.category)
+}
+
+pub fn category_glyph(category: Category) -> &'static str {
+    match category {
         Category::Open => "○",
         Category::Active => "◐",
         Category::Done => "✓",
@@ -50,32 +63,42 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     // taking `&mut App` for its own bookkeeping.
     let t = app.theme.clone();
     let area = f.area();
+    let strip = u16::from(area.height >= 12 && !app.status_counts().is_empty());
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Min(6),
-            Constraint::Length(1),
+            Constraint::Length(1),     // identity, tabs, freshness
+            Constraint::Length(strip), // what is happening
+            Constraint::Length(1),     // rule
+            Constraint::Min(3),        // the work
+            Constraint::Length(1),     // keys, or what just happened
         ])
         .split(area);
 
-    draw_titlebar(f, app, &t, chunks[0], tick);
-    draw_rule(f, &t, chunks[1]);
+    draw_header(f, app, &t, chunks[0], tick);
+    if strip == 1 {
+        draw_strip(f, app, &t, chunks[1]);
+    }
+    draw_rule(f, &t, chunks[2]);
 
+    let body = chunks[3];
     if app.board {
-        app.board_area = chunks[2];
-        draw_board(f, app, &t, chunks[2]);
-    } else {
+        app.board_area = body;
+        draw_board(f, app, &t, body);
+    } else if body.width >= DETAIL_MIN_WIDTH {
         let split = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(58), Constraint::Percentage(42)])
-            .split(chunks[2]);
+            .constraints([Constraint::Percentage(56), Constraint::Percentage(44)])
+            .split(body);
         app.list_area = split[0];
         draw_list(f, app, &t, split[0]);
         draw_detail(f, app, &t, split[1]);
+    } else {
+        app.list_area = body;
+        draw_list(f, app, &t, body);
     }
-    draw_status(f, app, &t, chunks[3]);
+    draw_footer(f, app, &t, chunks[4]);
 
     if app.reading {
         draw_reader(f, app, &t, area);
@@ -94,72 +117,51 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     }
 }
 
-fn draw_titlebar(f: &mut Frame, app: &App, t: &Theme, area: Rect, tick: usize) {
-    let shown = app.shown();
-    let ready = app
-        .items
-        .iter()
-        .filter(|i| i.ready(&app.schema) && !i.is_milestone())
-        .count();
-    // Milestones are excluded from both counts: a milestone waiting on the one
-    // before it is the schedule working, not work that is stuck.
-    let blocked = app
-        .items
-        .iter()
-        .filter(|i| i.blocked && !i.category.is_closed() && !i.is_milestone())
-        .count();
+// ── The header ───────────────────────────────────────────────────────────────
 
-    // Everything after the count is optional; a narrow terminal keeps the
-    // identity and the number, and drops the rest rather than colliding.
-    let roomy = area.width >= 78;
-    let mut left = vec![
-        Span::styled(" harrow", Style::default().fg(t.accent).bold()),
-        Span::styled("  ", Style::default()),
-        Span::styled(
-            app.schema.name.clone(),
-            Style::default().fg(t.milestone).bold(),
-        ),
-        Span::styled("  ", Style::default()),
-        Span::styled(format!("{shown}"), Style::default().fg(t.text).bold()),
-        Span::styled(" items", Style::default().fg(t.muted)),
-    ];
+fn draw_header(f: &mut Frame, app: &App, t: &Theme, area: Rect, tick: usize) {
+    let roomy = area.width >= ROOMY;
+    let mut left = vec![Span::raw(" ")];
     if roomy {
-        left.push(Span::styled(" · ", Style::default().fg(t.faint)));
+        left.push(Span::styled("harrow", Style::default().fg(t.faint)));
+        left.push(Span::styled("  ", Style::default()));
+    }
+    left.push(Span::styled(
+        app.schema.name.clone(),
+        Style::default().fg(t.heading).bold(),
+    ));
+
+    // Tabs, because there are two views and one of them was a key nobody knew
+    // about.
+    left.push(Span::raw("   "));
+    for (label, active) in [("list", !app.board), ("board", app.board)] {
         left.push(Span::styled(
-            format!("{ready}"),
-            Style::default().fg(t.ready).bold(),
+            format!(" {label} "),
+            if active {
+                Style::default().bg(t.selection).fg(t.text).bold()
+            } else {
+                Style::default().fg(t.faint)
+            },
         ));
-        left.push(Span::styled(" ready", Style::default().fg(t.muted)));
-        if blocked > 0 {
-            left.push(Span::styled(" · ", Style::default().fg(t.faint)));
-            left.push(Span::styled(
-                format!("{blocked}"),
-                Style::default().fg(t.blocked).bold(),
-            ));
-            left.push(Span::styled(" blocked", Style::default().fg(t.blocked)));
-        }
-        if let Some(view) = &app.view {
-            left.push(Span::styled(" · ", Style::default().fg(t.faint)));
-            left.push(Span::styled(
-                format!("view {view}"),
-                Style::default().fg(t.secondary),
-            ));
-        }
-        if !app.filter.is_empty() {
-            left.push(Span::styled(" · ", Style::default().fg(t.faint)));
-            left.push(Span::styled(
-                format!("filter “{}”", app.filter),
-                Style::default().fg(t.warn),
-            ));
-        }
+    }
+
+    if roomy && !app.filter.is_empty() {
+        left.push(Span::styled("   ", Style::default()));
+        left.push(Span::styled(
+            format!("/{}", truncate(&app.filter, 24)),
+            Style::default().fg(t.warn),
+        ));
+    }
+    if roomy && let Some(view) = &app.view {
+        left.push(Span::styled("   ", Style::default()));
+        left.push(Span::styled(
+            format!("view {view}"),
+            Style::default().fg(t.secondary),
+        ));
     }
 
     let right = if let Some(fail) = &app.failure {
-        format!(
-            "⚠ cannot read the backlog ({}×){} ",
-            fail.count,
-            if fail.transient { ", retrying" } else { "" }
-        )
+        format!("⚠ cannot read the backlog ({}×) ", fail.count)
     } else if !app.watcher_alive {
         "⚠ watcher stopped ".to_string()
     } else if app.loading {
@@ -168,10 +170,12 @@ fn draw_titlebar(f: &mut Frame, app: &App, t: &Theme, area: Rect, tick: usize) {
         match app.last_load {
             Some(at) => {
                 let e = at.elapsed();
-                if e.as_secs() == 0 {
-                    "updated just now ".to_string()
-                } else {
+                if e.as_secs() < 2 {
+                    "just now ".to_string()
+                } else if roomy {
                     format!("updated {} ago ", ago(e))
+                } else {
+                    format!("{} ", ago(e))
                 }
             }
             None => String::from("starting "),
@@ -182,7 +186,7 @@ fn draw_titlebar(f: &mut Frame, app: &App, t: &Theme, area: Rect, tick: usize) {
     let right_style = if app.is_stale() {
         Style::default().fg(t.error).bold()
     } else {
-        Style::default().fg(t.muted)
+        Style::default().fg(t.faint)
     };
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(right, right_style))).alignment(Alignment::Right),
@@ -190,10 +194,70 @@ fn draw_titlebar(f: &mut Frame, app: &App, t: &Theme, area: Rect, tick: usize) {
     );
 }
 
+/// What is happening, in one line.
+///
+/// The reason to keep this open in a pane beside the work: how much is moving,
+/// how much is stuck, how much is done, without reading a single row.
+fn draw_strip(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+    let mut spans = vec![Span::raw(" ")];
+    let mut used = 1usize;
+    let room = area.width as usize;
+
+    for (status, count) in app.status_counts() {
+        if status.category == Category::Dropped && !app.show_all {
+            continue;
+        }
+        let colour = t.status(Some(status));
+        let cell = format!(
+            "{} {count} {}",
+            category_glyph(status.category),
+            status.display()
+        );
+        // Everything that does not fit is dropped from the right, so the
+        // leftmost — what is active — survives a narrow pane.
+        if used + cell.chars().count() + 3 > room {
+            break;
+        }
+        if used > 1 {
+            spans.push(Span::raw("   "));
+            used += 3;
+        }
+        used += cell.chars().count();
+        spans.push(Span::styled(
+            format!("{} ", category_glyph(status.category)),
+            Style::default().fg(colour),
+        ));
+        spans.push(Span::styled(
+            count.to_string(),
+            Style::default().fg(t.text).bold(),
+        ));
+        spans.push(Span::styled(
+            format!(" {}", status.display()),
+            Style::default().fg(t.muted),
+        ));
+    }
+
+    let blocked = app
+        .items
+        .iter()
+        .filter(|i| i.blocked && !i.category.is_closed() && !i.container)
+        .count();
+    if blocked > 0 && used + 12 <= room {
+        spans.push(Span::raw("   "));
+        spans.push(Span::styled("⊘ ", Style::default().fg(t.blocked)));
+        spans.push(Span::styled(
+            blocked.to_string(),
+            Style::default().fg(t.blocked).bold(),
+        ));
+        spans.push(Span::styled(" blocked", Style::default().fg(t.blocked)));
+    }
+    f.render_widget(Line::from(spans), area);
+}
+
 fn draw_rule(f: &mut Frame, t: &Theme, area: Rect) {
     let rule = "─".repeat(area.width as usize);
     f.render_widget(
-        Line::from(Span::styled(rule, Style::default().fg(t.faint))),
+        Line::from(Span::styled(rule, Style::default().fg(t.border))),
         area,
     );
 }
@@ -208,10 +272,10 @@ fn draw_list(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     };
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(t.faint))
+        .border_style(Style::default().fg(t.border))
         .title(Line::from(Span::styled(
             title,
-            Style::default().fg(t.text).bold(),
+            Style::default().fg(t.muted),
         )));
 
     if app.rows.is_empty() {
@@ -237,7 +301,7 @@ fn draw_list(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         .iter()
         .map(|row| match row {
             Row::Group(g) => group_line(app, t, *g, inner_width),
-            Row::Item(i) => item_line(&app.items[*i], &app.schema, t, inner_width),
+            Row::Item(i) => item_line(app, &app.items[*i], t, inner_width),
         })
         .collect();
 
@@ -289,38 +353,30 @@ fn group_line(app: &App, t: &Theme, idx: usize, width: usize) -> ListItem<'stati
     let collapsed = app.collapsed.contains(&g.key);
     let marker = if collapsed { " ▸ " } else { " ▾ " };
 
-    // The count and the bar are the point of the row, so they get their width
-    // first; the name fills whatever is left. The count is of everything under
-    // the heading, with what the filter is showing said separately — a bar that
-    // moved when you pressed `a` would be a bar nobody could believe.
     let percent = g.percent(&app.items);
-    let bar = progress_bar(percent, 8);
-    let count = if g.shown == g.count {
-        format!("{:>3}", g.count)
+    // What is left, not what is listed: "2 of 30" beside "93%" reads as two of
+    // thirty done, which is the opposite of what it says.
+    let left = g.count.saturating_sub(g.done);
+    let count = if left == 0 {
+        "done".to_string()
     } else {
-        format!("{} of {}", g.shown, g.count)
-    };
-    let blocked = if g.blocked > 0 {
-        format!("⊘{}  ", g.blocked)
-    } else {
-        String::new()
+        format!("{left} left")
     };
 
-    // Degrade in a defined order — the bar, then the percentage, then the count
-    // of what is hidden — so a narrow terminal loses the decoration rather than
-    // the name of the thing.
-    const MIN_NAME: usize = 12;
+    // Degrade in a defined order — the bar, then the percentage — so a narrow
+    // pane loses the decoration rather than the name of the thing.
+    const MIN_NAME: usize = 14;
     let room = width.saturating_sub(marker.chars().count());
+    let bar = progress_bar(percent, 6);
     let candidates = [
-        format!("{bar} {percent:>3}%  {blocked}{count} "),
-        format!("{percent:>3}%  {blocked}{count} "),
-        format!("{blocked}{count} "),
-        format!("{count} "),
+        format!("  {bar} {percent:>3}%  {count} "),
+        format!("  {percent:>3}%  {count} "),
+        format!("  {count} "),
     ];
     let right = candidates
         .iter()
         .find(|r| room.saturating_sub(r.chars().count()) >= MIN_NAME)
-        .unwrap_or_else(|| candidates.last().expect("one candidate always exists"))
+        .unwrap_or_else(|| candidates.last().expect("one always fits"))
         .clone();
 
     let budget = room.saturating_sub(right.chars().count());
@@ -346,78 +402,104 @@ fn group_line(app: &App, t: &Theme, idx: usize, width: usize) -> ListItem<'stati
     ]))
 }
 
-fn item_line(item: &Item, schema: &Schema, t: &Theme, width: usize) -> ListItem<'static> {
+/// One item, in columns that hold still.
+///
+/// Everything to the right of the title is fixed width and right-aligned, so
+/// the eye can run down a column instead of hunting along each row. What drops
+/// first when the pane narrows is what answers the least: how much of the
+/// acceptance is ticked, then who has it, then how urgent it is.
+fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'static> {
+    let schema = &app.schema;
     let reference = schema.format_id(item.id);
-    let icon = schema
-        .item_type(&item.kind)
-        .and_then(|k| k.icon.clone())
-        .unwrap_or_else(|| " ".to_string());
+    let recent = app.is_recent(item.id);
 
-    // Degrade in a defined order — the rank tag, then the marks, then the title
-    // — so a narrow terminal loses detail instead of losing its shape.
     let rank = rank_tag(item, schema);
-    let marks = marks(item);
-    let lead = 2 + 1 + 1 + reference.chars().count() + 1 + icon.chars().count() + 1;
+    let criteria = match item.criteria() {
+        (_, 0) => String::new(),
+        (done, total) => format!("{done}/{total}"),
+    };
+    let who = item
+        .assignee
+        .as_deref()
+        .map(|a| format!("@{}", truncate(a, 8)))
+        .unwrap_or_default();
+
+    let lead = 2 + 1 + 1 + reference.chars().count() + 1;
     let avail = width.saturating_sub(lead + 1);
 
-    const MIN_TITLE: usize = 8;
-    let rank_cost = if rank.is_empty() {
-        0
-    } else {
-        rank.chars().count() + 1
+    const MIN_TITLE: usize = 22;
+    let cost = |s: &str| {
+        if s.is_empty() {
+            0
+        } else {
+            s.chars().count() + 2
+        }
     };
-    let mark_cost = if marks.is_empty() {
-        0
-    } else {
-        marks.chars().count() + 1
-    };
-    let (show_rank, show_marks) = if avail >= rank_cost + mark_cost + MIN_TITLE {
-        (true, true)
-    } else if avail >= rank_cost + MIN_TITLE {
-        (true, false)
-    } else {
-        (false, false)
-    };
+    let (mut show_criteria, mut show_who, mut show_rank) = (true, true, true);
+    for _ in 0..3 {
+        let reserved = if show_criteria { cost(&criteria) } else { 0 }
+            + if show_who { cost(&who) } else { 0 }
+            + if show_rank { cost(&rank) } else { 0 };
+        if avail.saturating_sub(reserved) >= MIN_TITLE {
+            break;
+        }
+        if show_criteria {
+            show_criteria = false;
+        } else if show_who {
+            show_who = false;
+        } else {
+            show_rank = false;
+        }
+    }
+    let reserved = if show_criteria { cost(&criteria) } else { 0 }
+        + if show_who { cost(&who) } else { 0 }
+        + if show_rank { cost(&rank) } else { 0 };
 
-    let reserved = if show_rank { rank_cost } else { 0 } + if show_marks { mark_cost } else { 0 };
     let title_width = avail.saturating_sub(reserved);
     let title = truncate(&item.title, title_width);
     let pad = title_width.saturating_sub(title.chars().count());
 
-    let dim = item.category.is_closed();
-    let title_style = if dim {
-        Style::default()
-            .fg(t.faint)
-            .add_modifier(Modifier::CROSSED_OUT)
+    let closed = item.category.is_closed();
+    let title_style = if closed {
+        Style::default().fg(t.faint)
     } else {
         Style::default().fg(t.text)
     };
 
     let mut spans = vec![
-        Span::raw("  "),
+        // The mark for something that just moved takes the first of the two
+        // lead spaces, so a row that changed costs no width to say so.
+        Span::styled(
+            if recent { " •" } else { "  " },
+            Style::default().fg(t.accent).bold(),
+        ),
         Span::styled(
             glyph(item),
             Style::default().fg(state_color(item, t, schema)),
         ),
         Span::raw(" "),
-        Span::styled(reference, Style::default().fg(t.faint)),
-        Span::raw(" "),
         Span::styled(
-            icon,
-            Style::default().fg(t.item_type(schema.item_type(&item.kind))),
+            reference,
+            Style::default().fg(if recent { t.accent } else { t.faint }),
         ),
         Span::raw(" "),
         Span::styled(title, title_style),
         Span::raw(" ".repeat(pad)),
     ];
-    if show_marks && !marks.is_empty() {
+    if show_criteria && !criteria.is_empty() {
+        let (done, total) = item.criteria();
+        spans.push(Span::raw("  "));
         spans.push(Span::styled(
-            format!(" {marks}"),
-            Style::default().fg(t.muted),
+            criteria,
+            Style::default().fg(if done == total { t.done } else { t.faint }),
         ));
     }
+    if show_who && !who.is_empty() {
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled(who, Style::default().fg(t.person)));
+    }
     if show_rank && !rank.is_empty() {
-        spans.push(Span::raw(" "));
+        spans.push(Span::raw("  "));
         spans.push(Span::styled(rank.clone(), rank_style(item, schema, t)));
     }
     ListItem::new(Line::from(spans))
@@ -454,29 +536,6 @@ fn rank_style(item: &Item, schema: &Schema, t: &Theme) -> Style {
     Style::default().fg(t.rank(index, field.values.len()))
 }
 
-/// The short marks after a title: who holds it, how much of it is ticked off,
-/// and whether anybody has said anything about it.
-fn marks(item: &Item) -> String {
-    let mut out = String::new();
-    if item.assignee.is_some() {
-        out.push('@');
-    }
-    let (done, total) = item.criteria();
-    if total > 0 {
-        if !out.is_empty() {
-            out.push(' ');
-        }
-        out.push_str(&format!("{done}/{total}"));
-    }
-    if !item.labels.is_empty() {
-        if !out.is_empty() {
-            out.push(' ');
-        }
-        out.push('#');
-    }
-    out
-}
-
 fn progress_bar(percent: u32, width: usize) -> String {
     let filled = (percent as usize * width).div_ceil(100).min(width);
     let mut bar = String::with_capacity(width * 3);
@@ -499,7 +558,7 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             .block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(t.faint)),
+                    .border_style(Style::default().fg(t.border)),
             ),
             area,
         );
@@ -522,7 +581,7 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         let focused = index == app.column;
         let status = app.schema.status(&column.status);
         let color = t.status(status);
-        let border = if focused { color } else { t.faint };
+        let border = if focused { color } else { t.border };
 
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
@@ -540,7 +599,6 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 
         let inner_width = cell.width.saturating_sub(2) as usize;
         let inner_height = cell.height.saturating_sub(2) as usize;
-        let selected = if focused { app.column_row } else { usize::MAX };
         let offset = if focused {
             scroll_to(0, app.column_row, column.items.len(), inner_height)
         } else {
@@ -550,7 +608,7 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 
         let cards: Vec<ListItem> = column.items[offset.min(end)..end]
             .iter()
-            .map(|i| card_line(&app.items[*i], &app.schema, t, inner_width))
+            .map(|i| card_line(app, &app.items[*i], t, inner_width))
             .collect();
 
         let list = List::new(cards).block(block).highlight_style(if focused {
@@ -559,27 +617,33 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             Style::default()
         });
         let mut state = ListState::default().with_selected(
-            (focused && !column.items.is_empty()).then(|| selected.saturating_sub(offset)),
+            (focused && !column.items.is_empty()).then(|| app.column_row.saturating_sub(offset)),
         );
         f.render_stateful_widget(list, *cell, &mut state);
     }
 }
 
-fn card_line(item: &Item, schema: &Schema, t: &Theme, width: usize) -> ListItem<'static> {
+fn card_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'static> {
+    let schema = &app.schema;
     let reference = schema.format_id(item.id);
+    let recent = app.is_recent(item.id);
     let rank = rank_tag(item, schema);
-    let lead = 1 + 1 + 1 + reference.chars().count() + 1;
+
+    let lead = 2 + 1 + 1 + reference.chars().count() + 1;
     let rank_cost = if rank.is_empty() {
         0
     } else {
-        rank.chars().count() + 1
+        rank.chars().count() + 2
     };
     let title_width = width.saturating_sub(lead + rank_cost);
     let title = truncate(&item.title, title_width);
     let pad = title_width.saturating_sub(title.chars().count());
 
     let mut spans = vec![
-        Span::raw(" "),
+        Span::styled(
+            if recent { " •" } else { "  " },
+            Style::default().fg(t.accent).bold(),
+        ),
         Span::styled(
             glyph(item),
             Style::default().fg(state_color(item, t, schema)),
@@ -591,7 +655,7 @@ fn card_line(item: &Item, schema: &Schema, t: &Theme, width: usize) -> ListItem<
         Span::raw(" ".repeat(pad)),
     ];
     if !rank.is_empty() {
-        spans.push(Span::raw(" "));
+        spans.push(Span::raw("  "));
         spans.push(Span::styled(rank.clone(), rank_style(item, schema, t)));
     }
     ListItem::new(Line::from(spans))
@@ -610,48 +674,73 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             .block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(t.faint))
-                    .title(Span::styled(" Detail ", Style::default().fg(t.text).bold())),
+                    .border_style(Style::default().fg(t.border))
+                    .title(Span::styled(" Detail ", Style::default().fg(t.muted))),
             ),
             area,
         );
         return;
     };
-    let schema = &app.schema;
-    let reference = schema.format_id(item.id);
 
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(t.faint))
+        .border_style(Style::default().fg(t.border))
         .padding(Padding::horizontal(1))
-        .title(Line::from(vec![
-            Span::styled(format!(" {reference} "), Style::default().fg(t.text).bold()),
-            Span::styled(
-                format!("{} ", item.kind),
-                Style::default().fg(t.item_type(schema.item_type(&item.kind))),
-            ),
-        ]));
+        .title(Line::from(Span::styled(
+            format!(" {} ", app.schema.format_id(item.id)),
+            Style::default().fg(t.muted),
+        )));
 
+    let inner = block.inner(area);
+    let lines = detail_lines(app, item, t, inner.width as usize, inner.height as usize);
+    f.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+/// The body of the detail pane.
+///
+/// Built as whole lines rather than handed to a wrapping widget: ratatui's wrap
+/// does not know about the indent a line started with, so a wrapped paragraph
+/// loses its left edge and the pane stops having one.
+fn detail_lines(
+    app: &App,
+    item: &Item,
+    t: &Theme,
+    width: usize,
+    height: usize,
+) -> Vec<Line<'static>> {
+    let schema = &app.schema;
     let mut lines: Vec<Line> = Vec::new();
-    lines.push(Line::from(vec![
-        Span::styled(
-            format!("{} ", glyph(item)),
-            Style::default().fg(state_color(item, t, schema)),
-        ),
-        Span::styled(item.title.clone(), Style::default().fg(t.text).bold()),
-    ]));
 
-    // The one line that says where this stands.
-    let mut state = vec![
-        Span::raw("  "),
-        Span::styled(
-            schema
-                .status(&item.status)
-                .map(|s| s.display().to_string())
-                .unwrap_or_else(|| item.status.clone()),
-            Style::default().fg(t.status(schema.status(&item.status))),
-        ),
-    ];
+    // The title, wrapped under its own glyph.
+    let title_width = width.saturating_sub(3);
+    for (n, part) in wrap(&item.title, title_width).into_iter().enumerate() {
+        lines.push(Line::from(vec![
+            if n == 0 {
+                Span::styled(
+                    format!("{} ", glyph(item)),
+                    Style::default().fg(state_color(item, t, schema)),
+                )
+            } else {
+                Span::raw("  ")
+            },
+            Span::styled(part, Style::default().fg(t.heading).bold()),
+        ]));
+    }
+
+    // One line that says where it stands.
+    let mut state = vec![Span::raw("  ")];
+    state.push(Span::styled(
+        schema
+            .status(&item.status)
+            .map(|s| s.display().to_string())
+            .unwrap_or_else(|| item.status.clone()),
+        Style::default().fg(t.status(schema.status(&item.status))),
+    ));
+    state.push(Span::styled(" · ", Style::default().fg(t.faint)));
+    state.push(Span::styled(
+        item.kind.clone(),
+        Style::default().fg(t.item_type(schema.item_type(&item.kind))),
+    ));
     if let Some(milestone) = item.milestone() {
         state.push(Span::styled(" · ", Style::default().fg(t.faint)));
         state.push(Span::styled(
@@ -667,10 +756,10 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         ));
     }
     lines.push(Line::from(state));
-    lines.push(Line::from(""));
 
     if item.blocked {
-        lines.push(section("Waiting on", t));
+        lines.push(Line::from(""));
+        lines.push(section("Waiting on", t, width));
         for id in &item.blockers {
             let title = app
                 .items
@@ -678,127 +767,251 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
                 .find(|i| i.id == *id)
                 .map(|i| i.title.clone())
                 .unwrap_or_default();
+            let reference = schema.format_id(*id);
+            let room = width.saturating_sub(reference.chars().count() + 3);
             lines.push(Line::from(vec![
                 Span::raw("  "),
-                Span::styled(schema.format_id(*id), Style::default().fg(t.blocked)),
+                Span::styled(reference, Style::default().fg(t.blocked)),
                 Span::raw(" "),
-                Span::styled(title, Style::default().fg(t.muted)),
+                Span::styled(truncate(&title, room), Style::default().fg(t.muted)),
             ]));
         }
-        lines.push(Line::from(""));
     }
 
     if let Some(percent) = item.progress() {
-        lines.push(section("Progress", t));
+        lines.push(Line::from(""));
+        lines.push(section("Progress", t, width));
         lines.push(Line::from(vec![
             Span::raw("  "),
             Span::styled(
-                progress_bar(percent, 12),
+                progress_bar(percent, 10),
                 Style::default().fg(if percent == 100 { t.done } else { t.accent }),
             ),
             Span::styled(
-                format!(
-                    "  {percent}% · {} of {}",
-                    item.scheduled_done, item.scheduled
-                ),
+                format!("  {} of {} done", item.scheduled_done, item.scheduled),
                 Style::default().fg(t.muted),
             ),
         ]));
-        lines.push(Line::from(""));
     }
 
     let (met, total) = item.criteria();
-    if total > 0 {
-        lines.push(section("Acceptance", t));
+    if let Some(percent) = (met * 100).checked_div(total) {
+        lines.push(Line::from(""));
+        lines.push(section("Acceptance", t, width));
         lines.push(Line::from(vec![
             Span::raw("  "),
             Span::styled(
-                format!("{met} of {total} ticked"),
-                Style::default().fg(if met == total { t.done } else { t.muted }),
+                progress_bar(percent, 10),
+                Style::default().fg(if met == total { t.done } else { t.accent }),
+            ),
+            Span::styled(
+                format!("  {met} of {total} ticked"),
+                Style::default().fg(t.muted),
             ),
         ]));
-        lines.push(Line::from(""));
     }
 
-    lines.push(section("Fields", t));
+    // A grid, not a list: one column of labels, one of values, so the eye runs
+    // down the labels instead of reading every line to find the one it wants.
+    let mut fields: Vec<(String, String)> = Vec::new();
     for field in &schema.fields {
         if field.name == "milestone" {
             continue;
         }
         if let Some(value) = item.field(&field.name).filter(|v| !v.is_empty()) {
-            lines.push(kv(&field.name, &value.display(), t));
+            fields.push((field.name.clone(), value.display()));
         }
     }
     if !item.labels.is_empty() {
-        lines.push(kv("labels", &item.labels.join(", "), t));
+        fields.push(("labels".into(), item.labels.join(", ")));
     }
-    if let Some(created) = &item.created {
-        lines.push(kv("created", created, t));
+    if let Some(owner) = &item.owner {
+        fields.push(("owner".into(), owner.clone()));
     }
-    if let Some(updated) = &item.updated {
-        lines.push(kv("updated", updated, t));
+    if let Some(by) = &item.created_by {
+        fields.push(("filed by".into(), by.clone()));
     }
-    if let Some(claimed) = &item.claimed {
-        lines.push(kv("claimed", claimed, t));
+    for (label, value) in [("created", &item.created), ("updated", &item.updated)] {
+        if let Some(value) = value {
+            fields.push((label.into(), value.clone()));
+        }
     }
-    lines.push(Line::from(""));
-
-    // The body, as much of it as fits. `enter` reads the rest.
-    let inner = block.inner(area);
-    let room = (inner.height as usize).saturating_sub(lines.len() + 2);
-    if room > 1 {
-        lines.push(section("Body", t));
-        let mut shown = 0;
-        for line in item.body.lines() {
-            if shown >= room.saturating_sub(1) {
-                lines.push(Line::from(Span::styled(
-                    "  … ↵ to read it all",
-                    Style::default().fg(t.faint).italic(),
-                )));
-                break;
-            }
-            if line.trim().is_empty() && shown == 0 {
-                continue;
-            }
-            lines.push(body_line(line, t));
-            shown += 1;
+    if !fields.is_empty() {
+        let label_width = fields
+            .iter()
+            .map(|(k, _)| k.chars().count())
+            .max()
+            .unwrap_or(0)
+            .min(12);
+        lines.push(Line::from(""));
+        lines.push(section("Fields", t, width));
+        for (label, value) in fields {
+            let room = width.saturating_sub(label_width + 3);
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(
+                    format!("{label:<label_width$}"),
+                    Style::default().fg(t.faint),
+                ),
+                Span::raw(" "),
+                Span::styled(truncate(&value, room), Style::default().fg(t.muted)),
+            ]));
         }
     }
 
-    f.render_widget(
-        Paragraph::new(lines)
-            .block(block)
-            .wrap(Wrap { trim: false }),
-        area,
-    );
+    // The body, as much of it as fits. `enter` reads the rest.
+    let room = height.saturating_sub(lines.len() + 2);
+    if room > 1 && !item.body.trim().is_empty() {
+        lines.push(Line::from(""));
+        lines.push(section("Body", t, width));
+        let body = body_lines(&item.body, t, width.saturating_sub(2));
+        let shown = room.saturating_sub(1);
+        for line in body.iter().take(shown) {
+            lines.push(line.clone());
+        }
+        if body.len() > shown {
+            lines.push(Line::from(Span::styled(
+                "  … ↵ to read it all",
+                Style::default().fg(t.faint).italic(),
+            )));
+        }
+    }
+
+    lines
 }
 
-/// Markdown, at the small amount of fidelity a pane this size earns: headings
-/// stand out, checkboxes read as ticked or not, and everything else is text.
-fn body_line(line: &str, t: &Theme) -> Line<'static> {
-    let trimmed = line.trim_start();
-    if let Some(heading) = trimmed.strip_prefix("## ").or(trimmed.strip_prefix("# ")) {
-        return Line::from(Span::styled(
-            format!("  {heading}"),
-            Style::default().fg(t.heading).bold(),
-        ));
+/// A heading, with a rule running out to the edge. Cheaper to scan than a
+/// column of capitals, and it gives the pane a horizontal rhythm.
+fn section(name: &str, t: &Theme, width: usize) -> Line<'static> {
+    let used = name.chars().count() + 4;
+    let rule = "─".repeat(width.saturating_sub(used));
+    Line::from(vec![
+        Span::raw("  "),
+        Span::styled(
+            name.to_string(),
+            Style::default().fg(t.muted).add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" "),
+        Span::styled(rule, Style::default().fg(t.border)),
+    ])
+}
+
+/// Markdown, at the fidelity a pane this size earns: headings stand out,
+/// checkboxes read as ticked or not, and everything else is text that keeps its
+/// left edge when it wraps.
+fn body_lines(body: &str, t: &Theme, width: usize) -> Vec<Line<'static>> {
+    let mut out = Vec::new();
+    let mut blank = false;
+    // A paragraph in the file is hard-wrapped at whatever width its author was
+    // working at. Re-wrapping each of those lines on its own reproduces their
+    // ragged edge inside a pane of a different width, so consecutive prose
+    // lines are joined back into a paragraph first and wrapped once.
+    let mut paragraph = String::new();
+
+    macro_rules! flush {
+        () => {
+            if !paragraph.is_empty() {
+                for part in wrap(&plain_markdown(&paragraph), width) {
+                    out.push(Line::from(Span::styled(
+                        format!("  {part}"),
+                        Style::default().fg(t.muted),
+                    )));
+                }
+                paragraph.clear();
+            }
+        };
     }
-    if let Some(rest) = trimmed.strip_prefix("- [") {
-        let ticked = !rest.starts_with(' ');
-        let text = plain_markdown(rest.split_once("] ").map(|x| x.1).unwrap_or(""));
-        return Line::from(vec![
-            Span::raw("  "),
-            Span::styled(
-                if ticked { "✓ " } else { "☐ " },
-                Style::default().fg(if ticked { t.done } else { t.faint }),
-            ),
-            Span::styled(text, Style::default().fg(t.muted)),
-        ]);
+
+    for raw in body.lines() {
+        let trimmed = raw.trim_start();
+
+        if trimmed.is_empty() {
+            flush!();
+            // One blank line between things, never three.
+            if !out.is_empty() && !blank {
+                out.push(Line::from(""));
+            }
+            blank = true;
+            continue;
+        }
+        blank = false;
+
+        if trimmed.starts_with('#')
+            || trimmed.starts_with("- ")
+            || trimmed.starts_with("* ")
+            || raw.starts_with("    ")
+        {
+            flush!();
+        }
+
+        if let Some(heading) = trimmed
+            .strip_prefix("### ")
+            .or_else(|| trimmed.strip_prefix("## "))
+            .or_else(|| trimmed.strip_prefix("# "))
+        {
+            for part in wrap(&plain_markdown(heading), width) {
+                out.push(Line::from(Span::styled(
+                    format!("  {part}"),
+                    Style::default().fg(t.heading).bold(),
+                )));
+            }
+            continue;
+        }
+
+        if let Some(rest) = trimmed.strip_prefix("- [") {
+            let ticked = !rest.starts_with(' ');
+            let text = plain_markdown(rest.split_once("] ").map(|x| x.1).unwrap_or(""));
+            for (n, part) in wrap(&text, width.saturating_sub(2)).into_iter().enumerate() {
+                out.push(Line::from(vec![
+                    Span::raw("  "),
+                    if n == 0 {
+                        Span::styled(
+                            if ticked { "✓ " } else { "☐ " },
+                            Style::default().fg(if ticked { t.done } else { t.faint }),
+                        )
+                    } else {
+                        Span::raw("  ")
+                    },
+                    Span::styled(part, Style::default().fg(t.muted)),
+                ]));
+            }
+            continue;
+        }
+
+        if let Some(text) = trimmed.strip_prefix("- ").or(trimmed.strip_prefix("* ")) {
+            for (n, part) in wrap(&plain_markdown(text), width.saturating_sub(2))
+                .into_iter()
+                .enumerate()
+            {
+                out.push(Line::from(vec![
+                    Span::raw("  "),
+                    if n == 0 {
+                        Span::styled("· ", Style::default().fg(t.faint))
+                    } else {
+                        Span::raw("  ")
+                    },
+                    Span::styled(part, Style::default().fg(t.muted)),
+                ]));
+            }
+            continue;
+        }
+
+        // An indented line is code or a command; it keeps its own shape.
+        if raw.starts_with("    ") {
+            out.push(Line::from(Span::styled(
+                format!("  {}", truncate(raw.trim_end(), width)),
+                Style::default().fg(t.faint),
+            )));
+            continue;
+        }
+
+        if !paragraph.is_empty() {
+            paragraph.push(' ');
+        }
+        paragraph.push_str(trimmed.trim_end());
     }
-    Line::from(Span::styled(
-        format!("  {}", plain_markdown(line)),
-        Style::default().fg(t.muted),
-    ))
+    flush!();
+    out
 }
 
 /// The two bits of inline markup that are noise rather than emphasis when the
@@ -807,19 +1020,45 @@ fn plain_markdown(line: &str) -> String {
     line.replace("**", "").replace('`', "")
 }
 
-fn section(name: &str, t: &Theme) -> Line<'static> {
-    Line::from(Span::styled(
-        name.to_uppercase(),
-        Style::default().fg(t.faint).add_modifier(Modifier::BOLD),
-    ))
-}
-
-fn kv(key: &str, value: &str, t: &Theme) -> Line<'static> {
-    Line::from(vec![
-        Span::raw("  "),
-        Span::styled(format!("{key:<9}"), Style::default().fg(t.faint)),
-        Span::styled(value.to_string(), Style::default().fg(t.muted)),
-    ])
+/// Break text on word boundaries. A word longer than the line is cut rather
+/// than allowed to push the pane open.
+fn wrap(text: &str, width: usize) -> Vec<String> {
+    if width == 0 {
+        return vec![String::new()];
+    }
+    let mut out = Vec::new();
+    let mut line = String::new();
+    for word in text.split_whitespace() {
+        let word_len = word.chars().count();
+        let line_len = line.chars().count();
+        if line_len == 0 {
+            if word_len > width {
+                let mut rest = word;
+                while rest.chars().count() > width {
+                    let head: String = rest.chars().take(width).collect();
+                    out.push(head);
+                    rest = &rest[rest
+                        .char_indices()
+                        .nth(width)
+                        .map(|(i, _)| i)
+                        .unwrap_or(rest.len())..];
+                }
+                line.push_str(rest);
+            } else {
+                line.push_str(word);
+            }
+        } else if line_len + 1 + word_len <= width {
+            line.push(' ');
+            line.push_str(word);
+        } else {
+            out.push(std::mem::take(&mut line));
+            line.push_str(word);
+        }
+    }
+    if !line.is_empty() || out.is_empty() {
+        out.push(line);
+    }
+    out
 }
 
 // ── Overlays ─────────────────────────────────────────────────────────────────
@@ -830,49 +1069,48 @@ fn draw_reader(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     let Some(item) = app.selected_item() else {
         return;
     };
-    let width = 96u16.min(area.width.saturating_sub(4));
-    // Below the title strip: the identity of what you are reading stays on
-    // screen while you read it.
+    let width = 92u16.min(area.width.saturating_sub(4));
+    // Below the header, so what you are reading stays identified while you read.
     let height = area.height.saturating_sub(4);
     let popup = centered(area, width, height);
+    let inner = width.saturating_sub(4) as usize;
 
     let mut lines = vec![
         Line::from(""),
         Line::from(vec![
-            Span::raw("  "),
-            Span::styled(app.schema.format_id(item.id), Style::default().fg(t.faint)),
-            Span::raw("  "),
-            Span::styled(item.title.clone(), Style::default().fg(t.text).bold()),
+            Span::styled(
+                format!("  {}  ", app.schema.format_id(item.id)),
+                Style::default().fg(t.faint),
+            ),
+            Span::styled(
+                truncate(&item.title, inner.saturating_sub(10)),
+                Style::default().fg(t.heading).bold(),
+            ),
         ]),
         Line::from(""),
     ];
-    for line in item.body.lines() {
-        lines.push(body_line(line, t));
-    }
+    lines.extend(body_lines(&item.body, t, inner));
 
     f.render_widget(Clear, popup);
     f.render_widget(
-        Paragraph::new(lines)
-            .scroll((app.read_scroll, 0))
-            .wrap(Wrap { trim: false })
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(t.accent))
-                    .padding(Padding::horizontal(1))
-                    .title(Span::styled(" Item ", Style::default().fg(t.accent).bold()))
-                    .title_bottom(Span::styled(
-                        " ↑↓ scroll · any other key closes ",
-                        Style::default().fg(t.faint),
-                    )),
-            ),
+        Paragraph::new(lines).scroll((app.read_scroll, 0)).block(
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(t.border_focus))
+                .padding(Padding::horizontal(1))
+                .title(Span::styled(" Item ", Style::default().fg(t.muted)))
+                .title_bottom(Span::styled(
+                    " ↑↓ scroll · any other key closes ",
+                    Style::default().fg(t.faint),
+                )),
+        ),
         popup,
     );
 }
 
 fn draw_picker(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     let Some(picker) = &app.picker else { return };
-    let width = 52u16.min(area.width.saturating_sub(4));
+    let width = 54u16.min(area.width.saturating_sub(4));
     let height = ((picker.options.len() + 2) as u16).min(area.height.saturating_sub(2));
     let popup = centered(area, width, height);
 
@@ -908,7 +1146,7 @@ fn draw_picker(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         List::new(items).highlight_style(t.selected()).block(
             Block::bordered()
                 .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(t.accent))
+                .border_style(Style::default().fg(t.border_focus))
                 .title(Span::styled(
                     format!(" {} ", picker.title),
                     Style::default().fg(t.accent).bold(),
@@ -957,7 +1195,7 @@ fn draw_help(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         Paragraph::new(lines).block(
             Block::bordered()
                 .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(t.accent))
+                .border_style(Style::default().fg(t.border_focus))
                 .title(Span::styled(" Keys ", Style::default().fg(t.accent).bold())),
         ),
         popup,
@@ -1012,10 +1250,7 @@ fn draw_diagnostics(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     // twice. The same ground `cairn check` covers, without leaving the screen.
     if !app.warnings.is_empty() {
         lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            Span::raw("  "),
-            Span::styled("THIS BACKLOG", Style::default().fg(t.faint).bold()),
-        ]));
+        lines.push(section("This backlog", t, width as usize - 2));
         for warning in app.warnings.iter().take(6) {
             lines.push(Line::from(vec![
                 Span::raw("  "),
@@ -1075,7 +1310,7 @@ fn draw_confirm(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         Line::from(""),
         Line::from(vec![
             Span::raw("  "),
-            Span::styled(c.prompt.clone(), Style::default().fg(t.text).bold()),
+            Span::styled(c.prompt.clone(), Style::default().fg(t.heading).bold()),
         ]),
         Line::from(vec![
             Span::raw("  "),
@@ -1098,15 +1333,15 @@ fn draw_confirm(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         Paragraph::new(lines).block(
             Block::bordered()
                 .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(t.accent)),
+                .border_style(Style::default().fg(t.border_focus)),
         ),
         popup,
     );
 }
 
-// ── The status strip ─────────────────────────────────────────────────────────
+// ── The footer ───────────────────────────────────────────────────────────────
 
-fn draw_status(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+fn draw_footer(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     use crate::app::Editing;
     if let Some(editing) = &app.editing {
         let (label, hint) = match editing {
@@ -1140,7 +1375,10 @@ fn draw_status(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         f.render_widget(
             Line::from(vec![
                 Span::styled(" ● ", Style::default().fg(color)),
-                Span::styled(msg.clone(), Style::default().fg(color)),
+                Span::styled(
+                    truncate(msg, area.width.saturating_sub(4) as usize),
+                    Style::default().fg(color),
+                ),
             ]),
             area,
         );
@@ -1160,19 +1398,24 @@ fn draw_status(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         return;
     }
 
+    // Hints, as many as fit. They are in the order somebody learning the tool
+    // needs them, so a narrow pane keeps the useful end.
     let mut spans = vec![Span::raw(" ")];
-    for (i, (key, label)) in app.keymap.footer_hints().into_iter().enumerate() {
-        if i > 0 {
-            spans.push(Span::raw("  "));
+    let mut used = 1usize;
+    for (key, label) in app.keymap.footer_hints() {
+        let cost = key.chars().count() + label.chars().count() + 3;
+        if used + cost > area.width as usize {
+            break;
         }
+        used += cost;
         spans.push(Span::styled(key, Style::default().fg(t.accent).bold()));
         spans.push(Span::styled(
-            format!(" {label}"),
+            format!(" {label}  "),
             Style::default().fg(t.faint),
         ));
     }
-    if !app.writable {
-        spans.push(Span::styled("   read-only", Style::default().fg(t.warn)));
+    if !app.writable && used + 12 <= area.width as usize {
+        spans.push(Span::styled(" read-only", Style::default().fg(t.warn)));
     }
     f.render_widget(Line::from(spans), area);
 }
@@ -1203,9 +1446,9 @@ pub fn ago(d: Duration) -> String {
     match s {
         0 => "just now".into(),
         1..=59 => format!("{s}s"),
-        60..=3599 => format!("{}m {}s", s / 60, s % 60),
+        60..=3599 => format!("{}m", s / 60),
         3600..=86399 => format!("{}h {}m", s / 3600, (s % 3600) / 60),
-        _ => format!("{}d {}h", s / 86400, (s % 86400) / 3600),
+        _ => format!("{}d", s / 86400),
     }
 }
 
@@ -1325,10 +1568,39 @@ mod tests {
         }
     }
 
+    /// The reason this is not `Paragraph::wrap`: that wraps to column zero and
+    /// the pane stops having a left edge.
+    #[test]
+    fn wrapped_text_keeps_its_left_edge() {
+        let t = Theme::mono();
+        let lines = body_lines("one two three four five six seven eight", &t, 12);
+        assert!(lines.len() > 1, "it has to have wrapped at all");
+        for line in &lines {
+            let text: String = line.spans.iter().map(|s| s.content.clone()).collect();
+            assert!(text.starts_with("  "), "lost the indent: {text:?}");
+            assert!(text.chars().count() <= 14, "ran past the width: {text:?}");
+        }
+    }
+
+    #[test]
+    fn a_word_longer_than_the_line_is_cut_rather_than_allowed_to_push() {
+        let parts = wrap("supercalifragilistic", 8);
+        assert!(parts.iter().all(|p| p.chars().count() <= 8), "{parts:?}");
+        assert_eq!(parts.concat(), "supercalifragilistic");
+    }
+
+    #[test]
+    fn wrapping_never_loses_a_word() {
+        let text = "the body explains why the diff already says what";
+        for width in 6..40 {
+            assert_eq!(wrap(text, width).join(" ").split_whitespace().count(), 9);
+        }
+    }
+
     #[test]
     fn a_frame_is_produced_at_every_reasonable_size() {
         let mut app = testkit::app();
-        for (w, h) in [(40u16, 10u16), (80, 24), (120, 40), (200, 60)] {
+        for (w, h) in [(40u16, 10u16), (56, 20), (80, 24), (120, 40), (200, 60)] {
             let text = render_to_string(&mut app, w, h, 0);
             assert!(!text.is_empty(), "{w}x{h} produced nothing");
         }
@@ -1339,9 +1611,44 @@ mod tests {
         // Not a size anybody works at, but a window being dragged passes
         // through it, and a panic there loses the session.
         let mut app = testkit::app();
-        for (w, h) in [(1u16, 1u16), (4, 3), (20, 5)] {
+        for (w, h) in [(1u16, 1u16), (4, 3), (20, 5), (8, 30)] {
             let _ = render_frame(&mut app, w, h, 0);
         }
+    }
+
+    #[test]
+    fn a_narrow_pane_drops_the_detail_rather_than_halving_the_list() {
+        let mut app = testkit::app();
+        let narrow = render_to_string(&mut app, 60, 20, 0);
+        assert!(!narrow.contains("Fields"), "the detail pane should be gone");
+        assert!(narrow.contains("Backlog"), "and the list should not be");
+
+        let wide = render_to_string(&mut app, 120, 24, 0);
+        assert!(wide.contains("Fields"), "with room, it comes back");
+    }
+
+    #[test]
+    fn the_strip_says_what_is_happening_before_any_row_is_read() {
+        let mut app = testkit::app();
+        let text = render_to_string(&mut app, 100, 24, 0);
+        let strip = text.lines().nth(1).expect("the second line");
+        assert!(strip.contains("in progress"), "{strip}");
+        assert!(strip.contains("backlog"), "{strip}");
+        // Active first: it is a summary, and a summary leads with what is live.
+        let doing = strip.find("in progress").expect("doing");
+        let backlog = strip.find("backlog").expect("backlog");
+        assert!(doing < backlog, "{strip}");
+    }
+
+    #[test]
+    fn a_row_that_just_moved_says_so() {
+        let mut app = testkit::app();
+        let before = render_to_string(&mut app, 100, 24, 0);
+        assert!(!before.contains(" •"), "nothing has moved yet");
+
+        app.changed.insert(3, app.now);
+        let after = render_to_string(&mut app, 100, 24, 0);
+        assert!(after.contains(" •"), "a change has to be visible:\n{after}");
     }
 
     #[test]

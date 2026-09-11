@@ -183,6 +183,12 @@ pub struct App {
     pub writable: bool,
     pub warnings: Vec<String>,
 
+    /// When harrow noticed each item change, by id, in wall-clock seconds.
+    ///
+    /// The point of running this beside something that is doing the work: a row
+    /// that just moved says so for a moment, so a glance catches what happened
+    /// while you were looking at the other pane.
+    pub changed: HashMap<u32, u64>,
     pub toast: Option<(String, ToastKind, Instant)>,
     /// Wall-clock seconds, refreshed once per frame rather than read during a
     /// render. Rendering has to be a pure function of state, or a snapshot of
@@ -190,6 +196,8 @@ pub struct App {
     pub now: u64,
     pub theme: Theme,
     pub keymap: Keymap,
+    /// When harrow last asked cairn to change something.
+    pub wrote: Option<Instant>,
     pub list_area: Rect,
     pub board_area: Rect,
     pub should_quit: bool,
@@ -238,19 +246,26 @@ impl App {
             watcher_alive: true,
             writable: true,
             warnings: Vec::new(),
+            changed: HashMap::new(),
             toast: None,
             now: unix_seconds(),
             theme: Theme::auto(true),
             keymap: Keymap::default(),
+            wrote: None,
             list_area: Rect::default(),
             board_area: Rect::default(),
             should_quit: false,
         }
     }
 
+    /// How long a change stays marked. Long enough to catch on a glance back,
+    /// short enough that the marks are never a second kind of status.
+    pub const RECENT: u64 = 45;
+
     /// Replace the backlog, keeping the cursor on the same item where we can.
     pub fn ingest(&mut self, report: Report) {
         let anchor = self.selected_item().map(|i| i.id);
+        let moved = self.notice_changes(&report.items);
 
         self.schema = report.schema;
         self.items = report.items;
@@ -272,6 +287,101 @@ impl App {
             self.select_id(id);
         }
         self.clamp();
+        self.announce(moved);
+    }
+
+    /// What moved since the last reading, and when we noticed.
+    ///
+    /// The first reading marks nothing: everything is new the first time, and a
+    /// screen that opened covered in "just changed" would be telling you about
+    /// the last six months.
+    fn notice_changes(&mut self, fresh: &[Item]) -> Vec<(u32, String)> {
+        if self.items.is_empty() {
+            return Vec::new();
+        }
+        let now = unix_seconds();
+        let mut moved = Vec::new();
+        for item in fresh {
+            let before = self.by_id.get(&item.id).and_then(|i| self.items.get(*i));
+            let changed = match before {
+                None => true,
+                Some(before) => {
+                    before.status != item.status
+                        || before.updated != item.updated
+                        || before.assignee != item.assignee
+                }
+            };
+            if changed {
+                self.changed.insert(item.id, now);
+                if before.is_none_or(|b| b.status != item.status) {
+                    moved.push((item.id, item.status.clone()));
+                }
+            }
+        }
+        self.changed
+            .retain(|_, at| now.saturating_sub(*at) <= Self::RECENT);
+        moved
+    }
+
+    /// Say what somebody else did. A change harrow made says so already, so
+    /// this keeps quiet for a moment after a write of our own.
+    fn announce(&mut self, moved: Vec<(u32, String)>) {
+        if moved.is_empty() || self.wrote_recently() {
+            return;
+        }
+        let message = match moved.as_slice() {
+            [(id, status)] => format!("{} → {status}", self.schema.format_id(*id)),
+            many => format!("{} items moved", many.len()),
+        };
+        self.toast(message, ToastKind::Info);
+    }
+
+    fn wrote_recently(&self) -> bool {
+        self.wrote
+            .is_some_and(|at| at.elapsed() < Duration::from_secs(3))
+    }
+
+    /// Note that a change of ours has just landed, so the re-read it causes is
+    /// not reported back to us as news.
+    pub fn wrote(&mut self) {
+        self.wrote = Some(Instant::now());
+    }
+
+    /// Whether an item moved recently enough to still be worth pointing at.
+    pub fn is_recent(&self, id: u32) -> bool {
+        self.changed
+            .get(&id)
+            .is_some_and(|at| self.now.saturating_sub(*at) <= Self::RECENT)
+    }
+
+    /// Every status with something in it, ordered for a glance: what is active
+    /// first, then what is open, then what is finished.
+    ///
+    /// Deliberately not the declared order the list and the board use. Those
+    /// are a place you move through; this is a summary, and a summary leads
+    /// with what is live.
+    pub fn status_counts(&self) -> Vec<(&crate::schema::Status, usize)> {
+        let mut counts: Vec<(&crate::schema::Status, usize)> = self
+            .schema
+            .statuses
+            .iter()
+            .map(|status| {
+                let n = self
+                    .items
+                    .iter()
+                    .filter(|i| !i.container && i.status == status.name)
+                    .count();
+                (status, n)
+            })
+            .filter(|(_, n)| *n > 0)
+            .collect();
+        counts.sort_by_key(|(status, _)| match status.category {
+            Category::Active => 0,
+            Category::Open => 1,
+            Category::Done => 2,
+            Category::Dropped => 3,
+        });
+        counts
     }
 
     /// A view or a grouping named on the command line may not exist in this
