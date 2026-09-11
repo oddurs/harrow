@@ -120,7 +120,7 @@ pub const ITEMS: &[(&str, &str)] = &[
     ),
     (
         "0006-write-the-readme.md",
-        "---\nid: 6\ntitle: Write the readme\ntype: chore\nstatus: backlog\ndepends_on:\n- 999\ncreated: 2026-09-05\npriority: p3\n---\n\nA dangling dependency, on purpose.\n",
+        "---\nid: 6\ntitle: Write the readme\ntype: chore\nstatus: backlog\ndepends_on:\n- 999\ncreated: 2026-09-05\npriority: p3\n---\n\nA dangling dependency, on purpose.\n\n## Proposed priority: p3 -> p0 (an agent, 2026-09-05)\n\nNobody can install this without it.\n",
     ),
 ];
 

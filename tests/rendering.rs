@@ -190,3 +190,14 @@ fn a_project_without_a_repository_says_so() {
     assert!(text.contains("not a git repository"), "{text}");
     assert!(text.contains("the repository's"), "and why: {text}");
 }
+
+#[test]
+fn an_item_with_a_proposal_is_visible_as_such() {
+    let mut app = support::app();
+    app.select_id(6);
+    let text = ui::render_to_string(&mut app, 100, 24, 0);
+    assert!(text.contains(" ?"), "the row says so:\n{text}");
+    assert!(text.contains("1 proposed"), "and the header counts them");
+    assert!(text.contains("Proposed"), "and the detail pane shows what");
+    assert!(text.contains("p3 → p0"), "{text}");
+}

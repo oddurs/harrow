@@ -55,6 +55,21 @@ impl Value {
     }
 }
 
+/// A change somebody asked for and a person decides.
+///
+/// cairn writes it into the body as a section, which is why harrow can read it
+/// the same way it reads everything else: it is part of the record, not a
+/// sidecar. Accepting it is still cairn's to do.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Proposal {
+    pub field: String,
+    pub from: String,
+    pub to: String,
+    pub by: String,
+    pub when: String,
+    pub why: String,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Item {
     pub id: u32,
@@ -94,6 +109,8 @@ pub struct Item {
     pub contains: Vec<u32>,
     /// How far below a root of the composition graph this sits.
     pub depth: u32,
+    /// Changes waiting for a person to decide.
+    pub proposals: Vec<Proposal>,
     /// True when a reference field names this item's type, so it is a thing
     /// work belongs to rather than a piece of work. Kept on the item because
     /// every listing has to ask.
@@ -238,6 +255,8 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
         }
     }
 
+    item.proposals = parse_proposals(&item.body);
+
     if item.title.is_empty() {
         item.title = path
             .file_stem()
@@ -250,6 +269,60 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
 fn non_empty(s: &str) -> Option<String> {
     let s = s.trim();
     (!s.is_empty() && s != "null" && s != "~").then(|| s.to_string())
+}
+
+/// Pull the proposals out of a body.
+///
+/// cairn writes `## Proposed <field>: <from> -> <to> (<who>, <date>)` and the
+/// reason underneath. Anything that does not match that shape is prose that
+/// happens to start with the word, and is left alone.
+fn parse_proposals(body: &str) -> Vec<Proposal> {
+    let mut out = Vec::new();
+    let mut lines = body.lines().peekable();
+
+    while let Some(line) = lines.next() {
+        let Some(rest) = line.trim().strip_prefix("## Proposed ") else {
+            continue;
+        };
+        let Some((field, rest)) = rest.split_once(": ") else {
+            continue;
+        };
+        let Some((change, who)) = rest.rsplit_once(" (") else {
+            continue;
+        };
+        let Some((from, to)) = change.split_once(" -> ") else {
+            continue;
+        };
+        let who = who.trim_end_matches(')');
+        let (by, when) = who.rsplit_once(", ").unwrap_or((who, ""));
+
+        // The reason is whatever follows, up to the next heading.
+        let mut why = String::new();
+        while let Some(next) = lines.peek() {
+            if next.trim_start().starts_with("## ") {
+                break;
+            }
+            let next = lines.next().unwrap_or_default().trim();
+            if next.is_empty() {
+                if why.is_empty() {
+                    continue;
+                }
+            } else if !why.is_empty() {
+                why.push(' ');
+            }
+            why.push_str(next);
+        }
+
+        out.push(Proposal {
+            field: field.trim().to_string(),
+            from: from.trim().to_string(),
+            to: to.trim().to_string(),
+            by: by.trim().to_string(),
+            when: when.trim().to_string(),
+            why: why.trim().to_string(),
+        });
+    }
+    out
 }
 
 /// Split `---\n…\n---\n` off the front. Tolerates a leading byte-order mark and
@@ -384,6 +457,47 @@ priority: p1\n\
         assert_eq!(i.depends_on, vec![10, 11]);
         assert_eq!(i.labels, vec!["chrome", "perf"]);
         assert_eq!(i.field_str("priority"), Some("p1"));
+    }
+
+    #[test]
+    fn a_proposal_is_read_out_of_the_body() {
+        let i = parse(
+            "---\nid: 5\ntitle: A thing\npriority: p2\n---\n\n\
+             ## Problem\n\nSomething.\n\n\
+             ## Proposed priority: p2 -> p0 (Oddur Sigurdsson, 2026-09-11)\n\n\
+             it blocks the release\n",
+            Path::new("x.md"),
+        )
+        .expect("parses");
+        assert_eq!(i.proposals.len(), 1);
+        let p = &i.proposals[0];
+        assert_eq!(p.field, "priority");
+        assert_eq!((p.from.as_str(), p.to.as_str()), ("p2", "p0"));
+        assert_eq!(p.by, "Oddur Sigurdsson");
+        assert_eq!(p.when, "2026-09-11");
+        assert_eq!(p.why, "it blocks the release");
+    }
+
+    #[test]
+    fn prose_that_happens_to_start_with_the_word_is_not_a_proposal() {
+        let i = parse(
+            "---\nid: 5\ntitle: t\n---\n\n## Proposal\n\n## Proposed approach\n\nwords\n",
+            Path::new("x.md"),
+        )
+        .expect("parses");
+        assert!(i.proposals.is_empty(), "{:?}", i.proposals);
+    }
+
+    #[test]
+    fn a_reason_stops_at_the_next_heading() {
+        let i = parse(
+            "---\nid: 5\ntitle: t\n---\n\n\
+             ## Proposed status: backlog -> doing (an agent, 2026-09-11)\n\n\
+             because it is started\n\n## Notes\n\nnot the reason\n",
+            Path::new("x.md"),
+        )
+        .expect("parses");
+        assert_eq!(i.proposals[0].why, "because it is started");
     }
 
     #[test]

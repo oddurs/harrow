@@ -451,6 +451,14 @@ impl App {
             .is_some_and(|at| self.now.saturating_sub(*at) <= Self::RECENT)
     }
 
+    /// How many items are waiting on somebody to decide something.
+    pub fn proposed(&self) -> usize {
+        self.items
+            .iter()
+            .filter(|i| !i.proposals.is_empty() && !i.category.is_closed())
+            .count()
+    }
+
     /// Every status with something in it, ordered for a glance: what is active
     /// first, then what is open, then what is finished.
     ///
@@ -1711,6 +1719,37 @@ impl App {
                     self.reading = true;
                     self.read_scroll = 0;
                 }
+            }
+            // A proposal is somebody asking; accepting is cairn's own command,
+            // so the change lands the way it would have if they had the say.
+            Command::Accept => {
+                let Some(item) = self.selected_item() else {
+                    return Action::None;
+                };
+                let Some(proposal) = item.proposals.last().cloned() else {
+                    self.toast("nothing proposed on this one", ToastKind::Info);
+                    return Action::None;
+                };
+                let (id, reference) = (item.id, self.schema.format_id(item.id));
+                self.confirm = Some(Confirm {
+                    prompt: format!(
+                        "{reference} · {} {} → {}?",
+                        proposal.field, proposal.from, proposal.to
+                    ),
+                    detail: if proposal.why.is_empty() {
+                        format!("{} proposed it", proposal.by)
+                    } else {
+                        format!("{}: {}", proposal.by, proposal.why)
+                    },
+                    change: Change {
+                        args: vec!["proposals".into(), "--accept".into(), id.to_string()],
+                        describe: format!("{reference} {} → {}", proposal.field, proposal.to),
+                        undo: Some(format!(
+                            "cairn set {id} {}={}",
+                            proposal.field, proposal.from
+                        )),
+                    },
+                });
             }
             Command::History => {
                 let Some(item) = self.selected_item() else {
