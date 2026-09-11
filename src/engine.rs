@@ -194,6 +194,7 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
         .collect();
 
     let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+    let mut parents: HashMap<u32, Vec<u32>> = HashMap::new();
     for item in items.iter() {
         for field in &rollups {
             let Some(value) = item.fields.get(&field.name) else {
@@ -213,6 +214,7 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
                     && parent != item.id
                 {
                     children.entry(parent).or_default().push(item.id);
+                    parents.entry(item.id).or_default().push(parent);
                 }
             }
         }
@@ -225,12 +227,41 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
             beneath(parent, &children, &closed, &mut HashSet::new()),
         );
     }
+    // Depth is a fact about the graph rather than a label somebody maintains,
+    // so it is derived here and cannot go stale.
+    let mut depth: HashMap<u32, u32> = HashMap::new();
+    for id in known.iter().copied() {
+        depth.insert(id, depth_of(id, &parents, &mut HashSet::new()));
+    }
+
     for item in items.iter_mut() {
         if let Some((total, done)) = counts.get(&item.id) {
             item.scheduled = *total;
             item.scheduled_done = *done;
         }
+        if let Some(kids) = children.get(&item.id) {
+            item.contains = kids.clone();
+            item.contains.sort_unstable();
+            item.contains.dedup();
+        }
+        item.depth = depth.get(&item.id).copied().unwrap_or(0);
+        item.container = schema.is_container(&item.kind);
     }
+}
+
+/// How far below a root an item sits. The visited set makes a cycle finite
+/// rather than fatal, for the same reason `beneath` has one.
+fn depth_of(id: u32, parents: &HashMap<u32, Vec<u32>>, seen: &mut HashSet<u32>) -> u32 {
+    if !seen.insert(id) {
+        return 0;
+    }
+    parents
+        .get(&id)
+        .into_iter()
+        .flatten()
+        .map(|p| 1 + depth_of(*p, parents, seen))
+        .max()
+        .unwrap_or(0)
 }
 
 /// `(total, done)` for everything under an item, transitively. The visited set

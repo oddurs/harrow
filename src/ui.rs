@@ -257,8 +257,8 @@ fn empty_message(app: &App, t: &Theme) -> Vec<Line<'static>> {
         ("No matches.", "esc clears the filter.")
     } else {
         (
-            "Everything here is finished.",
-            "Press a to show closed items.",
+            "Nothing open here.",
+            "Press a to show finished work and milestones.",
         )
     };
     vec![

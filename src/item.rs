@@ -65,8 +65,13 @@ pub struct Item {
     pub created: Option<String>,
     pub updated: Option<String>,
     pub claimed: Option<String>,
+    /// Who is working on it. `cairn claim` sets this.
     pub assignee: Option<String>,
+    /// Who is answerable for it, which with an agent working is somebody else.
     pub owner: Option<String>,
+    /// Set only when an agent filed it; a person filing something is the
+    /// ordinary case and leaves no mark.
+    pub created_by: Option<String>,
     pub labels: Vec<String>,
     pub depends_on: Vec<u32>,
     /// Everything the schema calls a field, plus anything else the file
@@ -85,6 +90,14 @@ pub struct Item {
     /// are finished. What makes a milestone row carry a progress bar.
     pub scheduled: u32,
     pub scheduled_done: u32,
+    /// The items directly under this one, by id.
+    pub contains: Vec<u32>,
+    /// How far below a root of the composition graph this sits.
+    pub depth: u32,
+    /// True when a reference field names this item's type, so it is a thing
+    /// work belongs to rather than a piece of work. Kept on the item because
+    /// every listing has to ask.
+    pub container: bool,
 }
 
 impl Item {
@@ -110,6 +123,11 @@ impl Item {
 
     pub fn is_milestone(&self) -> bool {
         self.kind == "milestone"
+    }
+
+    /// Nothing belongs to it. A leaf is ordinary work.
+    pub fn is_leaf(&self) -> bool {
+        self.contains.is_empty()
     }
 
     /// Ready to start: open, and nothing unfinished in its way. The same
@@ -203,6 +221,7 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
             "claimed" => item.claimed = non_empty(value.as_str()),
             "assignee" => item.assignee = non_empty(value.as_str()),
             "owner" => item.owner = non_empty(value.as_str()),
+            "created_by" => item.created_by = non_empty(value.as_str()),
             "labels" => {
                 item.labels = value.items().iter().map(|s| s.to_string()).collect();
             }

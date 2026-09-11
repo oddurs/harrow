@@ -127,7 +127,7 @@ fn print_usage() {
          USAGE:\n  harrow [options]\n  harrow config [--write] [--force]\n  harrow themes\n\n\
          OPTIONS:\n\
          \x20 -C, --directory <DIR>  start looking for the project here\n\
-         \x20 -a, --all              include finished and dropped items\n\
+         \x20 -a, --all              show everything: finished, dropped, milestones\n\
          \x20 -b, --board            open on the board rather than the list\n\
          \x20 -f, --filter <EXPR>    open filtered, in cairn's grammar\n\
          \x20     --view <NAME>      open in one of the project's saved views\n\
@@ -193,7 +193,7 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
     let mut app = App::new();
     app.theme = startup.theme.clone();
     app.keymap = startup.keymap.clone();
-    app.show_closed = startup.config.show_closed || args.iter().any(|a| a == "-a" || a == "--all");
+    app.show_all = startup.config.show_all || args.iter().any(|a| a == "-a" || a == "--all");
     app.board = startup.config.board || args.iter().any(|a| a == "-b" || a == "--board");
     app.group_by =
         flag_value(args, "--group-by").unwrap_or_else(|| startup.config.group_by.clone());

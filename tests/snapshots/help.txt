@@ -20,7 +20,7 @@
 │                 │  n             new item                                                │                 │
 │                 │  y             copy the item's reference                               │                 │
 │                 │  /             filter, in cairn's own grammar                          │                 │
-│                 │  a             show finished and dropped items too                     │                 │
+│                 │  a             show everything — finished, dropped, and milestones     │                 │
 │                 │  esc           back out — clear the filter, close an overlay           │                 │
 │                 │  r             re-read the backlog now                                 │                 │
 │                 │  D             diagnostics — what failed, and why                      │                 │

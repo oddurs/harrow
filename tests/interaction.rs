@@ -79,7 +79,7 @@ fn a_status_moves_one_step_at_a_time_and_stops_at_the_ends() {
     );
 
     // Item 2 is finished, so it has to be shown before it can be landed on.
-    app.show_closed = true;
+    app.show_all = true;
     app.rebuild();
     app.select_id(2);
     assert_eq!(app.selected_item().map(|i| i.id), Some(2));
@@ -93,7 +93,7 @@ fn a_status_never_steps_into_a_column_the_project_hid() {
     // `dropped` has board = false: it is not a stage of the work, so `l` and
     // `h` must not walk into it.
     let mut app = app();
-    app.show_closed = true;
+    app.show_all = true;
     app.rebuild();
     app.select_id(2);
     assert_eq!(

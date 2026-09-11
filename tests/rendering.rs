@@ -77,7 +77,7 @@ fn the_colours_a_row_is_drawn_in() {
 fn with_no_colour_at_all_the_glyphs_still_carry_it() {
     let mut app = support::app();
     app.theme = Theme::mono();
-    app.show_closed = true;
+    app.show_all = true;
     app.rebuild();
     let text = ui::render_to_string(&mut app, 110, 26, 0);
     // Blocked, active and finished have to be distinguishable with the colour

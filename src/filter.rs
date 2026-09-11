@@ -102,6 +102,23 @@ impl Query {
         self.clauses.is_empty()
     }
 
+    /// Whether the expression asks for this type by name. cairn's rule for
+    /// containers: absent from an ordinary listing, present when asked for.
+    pub fn names_type(&self, kind: &str) -> bool {
+        self.clauses.iter().any(|clause| match clause {
+            Clause::Compare { field, op, values } if field == "type" => {
+                matches!(op, Op::Eq | Op::Contains)
+                    && values.iter().any(|v| {
+                        !v.is_empty()
+                            && (v.eq_ignore_ascii_case(kind)
+                                || (*op == Op::Contains
+                                    && kind.to_lowercase().contains(&v.to_lowercase())))
+                    })
+            }
+            _ => false,
+        })
+    }
+
     /// Clauses are ANDed; alternatives within a clause are ORed.
     pub fn matches(&self, item: &Item, schema: &Schema) -> bool {
         self.clauses.iter().all(|clause| match clause {
@@ -144,6 +161,13 @@ pub const DERIVED: &[&str] = &[
     "created",
     "updated",
     "body",
+    "owner",
+    "created_by",
+    "contains",
+    "descendants",
+    "depth",
+    "leaf",
+    "container",
     "progress",
     "criteria",
     "criteria_done",
