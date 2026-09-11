@@ -37,6 +37,11 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ### Added
 
+- Proposals. `cairn propose` writes the request into the item's body, so harrow
+  reads it the way it reads everything else: an item with one carries a `?`, the
+  header counts them, and the detail pane shows the field, the change, who asked
+  and why. `A` accepts it through `cairn proposals --accept`.
+
 - `H` shows how an item got the way it is, read from the repository through
   `cairn log` rather than by asking git a second time. A project that is not in
   git says so, which is a different answer from an empty history.

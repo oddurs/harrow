@@ -2,10 +2,10 @@
 id: 20
 title: Answer proposals without leaving the board
 type: feature
-status: backlog
+status: done
 milestone: v0.2
 created: 2026-09-08
-updated: 2026-09-08
+updated: 2026-09-11
 priority: p2
 area: write
 ---
@@ -23,5 +23,5 @@ detail pane.
 
 ## Acceptance criteria
 
-- [ ] An item with a proposal is visible as such in the list
-- [ ] Accepting runs cairn's own command rather than writing the change directly
+- [x] An item with a proposal is visible as such in the list
+- [x] Accepting runs cairn's own command rather than writing the change directly

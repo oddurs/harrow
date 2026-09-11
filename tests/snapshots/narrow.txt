@@ -7,7 +7,7 @@
 │  ⊘ 0004 Draw the board                                  p2 │
 │  ◐ 0003 Draw the list                      1/2  @oddur  p1 │
 │ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left │
-│  ○ 0006 Write the readme                                p3 │
+│  ○ 0006 Write the readme                             ?  p3 │
 │                                                            │
 │                                                            │
 │                                                            │

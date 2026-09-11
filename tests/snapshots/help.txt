@@ -1,4 +1,4 @@
- harrow  sample    list  board  stats                                                                starting
+ harrow  sample    list  board  stats    1 proposed                                                  starting
  ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Backlog · by milestone ────────────────────────────────────╮╭ 0005 ────────────────────────────────────────╮
@@ -6,22 +6,22 @@
 │  ○ 0005 The detail pane scrolls past its pane           p1 ││   backlog · bug · v0.1                       │
 │  ⊘ 00╭ Keys ────────────────────────────────────────────────────────────────────────────────────────╮      │
 │  ◐ 00│                                                                                              │────  │
-│ ▾ no │  ↑/k, ↓/j      move between items              u             reopen it                       │      │
-│  ○ 00│  home/g, end/G jump to the first or last       n             new item                        │      │
-│      │  ←, →          previous or next group — a co…  y             copy the item's reference       │      │
-│      │  space         mark it for the next change —…  /             filter, in cairn's own grammar  │      │
-│      │  tab           switch between the list, the …  a             show everything — finished, d…  │      │
-│      │  v             group by something else         esc           back out — clear the filter, …  │────  │
-│      │  ↵/o           read the item in full           r             re-read the backlog now         │      │
-│      │  e             open the item in your editor    D             diagnostics — what failed, an…  │      │
-│      │  H             how this item got the way it …  ?             this help                       │      │
+│ ▾ no │  ↑/k, ↓/j      move between items              x             close it, with a confirm        │      │
+│  ○ 00│  home/g, end/G jump to the first or last       u             reopen it                       │      │
+│      │  ←, →          previous or next group — a co…  n             new item                        │      │
+│      │  space         mark it for the next change —…  y             copy the item's reference       │      │
+│      │  tab           switch between the list, the …  /             filter, in cairn's own grammar  │      │
+│      │  v             group by something else         a             show everything — finished, d…  │────  │
+│      │  ↵/o           read the item in full           esc           back out — clear the filter, …  │      │
+│      │  e             open the item in your editor    r             re-read the backlog now         │      │
+│      │  H             how this item got the way it …  D             diagnostics — what failed, an…  │      │
+│      │  A             accept the change somebody pr…  ?             this help                       │      │
 │      │  c             claim it — assign it to you a…  q/ctrl-c      quit                            │      │
 │      │  C             give it back                                                                  │      │
 │      │  s             set the status                  click         a tab, a status, a row, a foo…  │      │
 │      │  h/<, l/>      move it back or forward throu…  double-click  read the item                   │      │
 │      │  p             set the priority                drag          a card to another column, whi…  │      │
 │      │  M             set the milestone               scroll        move the view                   │      │
-│      │  x             close it, with a confirm                                                      │      │
 │      │                                                                                              │      │
 │      ╰──────────────────────────────────────────────────────────────────────────────────────────────╯      │
 │                                                            ││                                              │

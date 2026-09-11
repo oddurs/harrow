@@ -302,3 +302,41 @@ fn nothing_selected_is_not_a_crash() {
         assert!(app.check_invariants().is_ok(), "{command:?}");
     }
 }
+
+/// A proposal is somebody asking. Accepting is cairn's own command, so the
+/// change lands the way it would have if they had the say in the first place.
+#[test]
+fn a_proposal_is_accepted_through_cairn_and_asks_first() {
+    let mut app = testkit::app();
+    app.select_id(6);
+    let item = app.selected_item().expect("item 6");
+    assert_eq!(item.proposals.len(), 1, "the fixture has one");
+
+    assert_eq!(app.run(Command::Accept), Action::None, "it asks first");
+    let confirm = app.confirm.as_ref().expect("a confirmation");
+    assert!(confirm.prompt.contains("p3 → p0"), "{}", confirm.prompt);
+    assert!(confirm.detail.contains("Nobody can install"), "and why");
+
+    let action = app.handle_key(KeyCode::Char('y'), KeyModifiers::NONE);
+    match action {
+        Action::Write(change) => {
+            assert_eq!(change.args, vec!["proposals", "--accept", "6"]);
+            assert_eq!(
+                change.undo.as_deref(),
+                Some("cairn set 6 priority=p3"),
+                "and it says how to put it back"
+            );
+        }
+        other => panic!("expected an accept, got {other:?}"),
+    }
+}
+
+#[test]
+fn accepting_nothing_says_so() {
+    let mut app = testkit::app();
+    app.select_id(3);
+    assert_eq!(app.run(Command::Accept), Action::None);
+    assert!(app.confirm.is_none());
+    let (message, _, _) = app.toast.as_ref().expect("it says so");
+    assert!(message.contains("nothing proposed"), "{message}");
+}

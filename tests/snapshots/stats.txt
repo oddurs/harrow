@@ -1,4 +1,4 @@
- harrow  sample    list  board  stats                                                                starting
+ harrow  sample    list  board  stats    1 proposed                                                  starting
  ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ sample ────────────────────────────────────────────────────────────────────────────────────────────────────╮

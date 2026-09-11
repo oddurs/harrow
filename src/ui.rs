@@ -172,6 +172,14 @@ fn draw_header(f: &mut Frame, app: &mut App, t: &Theme, area: Rect, tick: usize)
         ));
     }
 
+    let proposed = app.proposed();
+    if proposed > 0 && roomy {
+        left.push(Span::raw("   "));
+        left.push(Span::styled(
+            format!("{proposed} proposed"),
+            Style::default().fg(t.accent),
+        ));
+    }
     // Marked is a state you are in, so it is said in the header rather than
     // left to be counted off the rows.
     if !app.marked.is_empty() {
@@ -488,6 +496,7 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
         .as_deref()
         .map(|a| format!("@{}", truncate(a, 8)))
         .unwrap_or_default();
+    let proposed = !item.proposals.is_empty();
 
     let lead = 2 + 1 + 1 + reference.chars().count() + 1;
     let avail = width.saturating_sub(lead + 1);
@@ -518,7 +527,8 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
     }
     let reserved = if show_criteria { cost(&criteria) } else { 0 }
         + if show_who { cost(&who) } else { 0 }
-        + if show_rank { cost(&rank) } else { 0 };
+        + if show_rank { cost(&rank) } else { 0 }
+        + usize::from(proposed) * 2;
 
     let title_width = avail.saturating_sub(reserved);
     let title = truncate(&item.title, title_width);
@@ -568,6 +578,11 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
     if show_who && !who.is_empty() {
         spans.push(Span::raw("  "));
         spans.push(Span::styled(who, Style::default().fg(t.person)));
+    }
+    if proposed {
+        // Somebody is waiting on an answer, which is a different kind of fact
+        // from anything else on the row.
+        spans.push(Span::styled(" ?", Style::default().fg(t.accent).bold()));
     }
     if show_rank && !rank.is_empty() {
         spans.push(Span::raw("  "));
@@ -867,6 +882,42 @@ fn detail_lines(
                 Span::styled(truncate(&title, room), Style::default().fg(t.muted)),
             ]));
         }
+    }
+
+    for proposal in &item.proposals {
+        lines.push(Line::from(""));
+        lines.push(section("Proposed", t, width));
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(proposal.field.clone(), Style::default().fg(t.muted)),
+            Span::raw(" "),
+            Span::styled(proposal.from.clone(), Style::default().fg(t.faint)),
+            Span::styled(" → ", Style::default().fg(t.faint)),
+            Span::styled(proposal.to.clone(), Style::default().fg(t.accent).bold()),
+        ]));
+        let by = if proposal.when.is_empty() {
+            proposal.by.clone()
+        } else {
+            format!("{} · {}", proposal.by, proposal.when)
+        };
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                truncate(&by, width.saturating_sub(2)),
+                Style::default().fg(t.person),
+            ),
+        ]));
+        for part in wrap(&proposal.why, width.saturating_sub(2)) {
+            lines.push(Line::from(Span::styled(
+                format!("  {part}"),
+                Style::default().fg(t.muted),
+            )));
+        }
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled("A", Style::default().fg(t.accent).bold()),
+            Span::styled(" to accept it", Style::default().fg(t.faint)),
+        ]));
     }
 
     if let Some(percent) = item.progress() {
