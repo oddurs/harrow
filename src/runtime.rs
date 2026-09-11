@@ -292,6 +292,23 @@ fn run(
         let read_at = Instant::now();
         let deadline = read_at + wait;
         loop {
+            // A command is answered before anything else. Without this, a
+            // directory producing events faster than they are drained — which
+            // inotify will, one per write, where FSEvents coalesces — means the
+            // loop breaks on a wake every time and never reaches the channel
+            // carrying Shutdown. The thread then outlives the interface and
+            // `join` waits for it forever: a busy backlog made harrow
+            // unquittable.
+            match commands.try_recv() {
+                Ok(Command::Shutdown) => return,
+                Ok(Command::Refresh) => {
+                    forced = true;
+                    break;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => return,
+                Err(mpsc::TryRecvError::Empty) => {}
+            }
+
             // A change on disk is the reason to look again; the timer is what
             // catches the changes the filesystem never mentioned.
             if wake_rx.try_recv().is_ok() {
@@ -543,7 +560,17 @@ mod tests {
             "{n} writes in a second produced {reads} reads; the floor is not holding"
         );
         assert!(reads >= 1, "and it still has to notice at all");
+
+        // And it still answers. A stream of events must never starve the one
+        // message that stops the thread — the first version of this hung here
+        // on Linux, where inotify sends an event per write.
+        let started = Instant::now();
         handle.shutdown();
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "shutdown took {:?} with the directory still noisy",
+            started.elapsed()
+        );
     }
 
     #[test]
