@@ -29,8 +29,9 @@ pub struct Config {
     pub sort: String,
     /// Start in one of the project's saved views.
     pub view: String,
-    /// Show finished and dropped items on startup, as `--all` does.
-    pub show_closed: bool,
+    /// Show everything on startup, as `--all` does: finished, dropped, and the
+    /// containers work belongs to.
+    pub show_all: bool,
     /// Open on the board rather than the list.
     pub board: bool,
     /// Seconds between checks for a changed backlog.
@@ -53,7 +54,7 @@ impl Default for Config {
             group_by: "milestone".to_string(),
             sort: String::new(),
             view: String::new(),
-            show_closed: false,
+            show_all: false,
             board: false,
             refresh_secs: 3,
             write_ms: 8000,
@@ -71,7 +72,7 @@ const KNOWN: &[&str] = &[
     "group_by",
     "sort",
     "view",
-    "show_closed",
+    "show_all",
     "board",
     "refresh_secs",
     "write_ms",
@@ -230,8 +231,9 @@ sort = "{sort}"
 # Open in one of the project's saved views, by name. Empty means everything.
 view = "{view}"
 
-# Show finished and dropped items on startup.
-show_closed = {show_closed}
+# Show everything on startup: finished, dropped, and the milestones work
+# belongs to. This is cairn's `--all`, and means what it means there.
+show_all = {show_all}
 
 # Open on the board rather than the list.
 board = {board}
@@ -254,7 +256,7 @@ editor = "{editor}"
 # Actions: down up page-down page-up first last toggle-group next-group
 #          prev-group view-board group-by read edit claim release close reopen
 #          new status priority milestone advance retreat copy filter back
-#          toggle-closed refresh reload diagnostics help toggle-mouse quit
+#          toggle-all refresh reload diagnostics help toggle-mouse quit
 [keys]
 # "ctrl-r" = "reload"
 # "s"      = "status"
@@ -263,7 +265,7 @@ editor = "{editor}"
             group_by = d.group_by,
             sort = d.sort,
             view = d.view,
-            show_closed = d.show_closed,
+            show_all = d.show_all,
             board = d.board,
             refresh_secs = d.refresh_secs,
             write_ms = d.write_ms,
@@ -306,8 +308,8 @@ editor = "{editor}"
         if self.view != d.view {
             out.push("view");
         }
-        if self.show_closed != d.show_closed {
-            out.push("show_closed");
+        if self.show_all != d.show_all {
+            out.push("show_all");
         }
         if self.board != d.board {
             out.push("board");

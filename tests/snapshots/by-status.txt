@@ -1,13 +1,13 @@
- harrow  sample  5 items · 2 ready · 1 blocked                                                       starting
+ harrow  sample  4 items · 2 ready · 1 blocked                                                       starting
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Backlog · by status ─────────────────────────────────────────╮╭ 0005 bug ──────────────────────────────────╮
-│ ▾ backlog                             ▱▱▱▱▱▱▱▱   0%  ⊘1    4 ││ ○ The detail pane scrolls past its pane    │
+│ ▾ backlog                          ▱▱▱▱▱▱▱▱   0%  ⊘1  3 of 4 ││ ○ The detail pane scrolls past its pane    │
 │  ○ 0005 ! The detail pane scrolls past its pane         # p1 ││   backlog · v0.1                           │
 │  ⊘ 0004 + Draw the board                                  p2 ││                                            │
 │  ○ 0006 ~ Write the readme                                p3 ││ FIELDS                                     │
-│  ○ 0001   First usable version                               ││   priority p1                              │
-│ ▾ in progress                             ▱▱▱▱▱▱▱▱   0%    1 ││   area     ui                              │
-│  ◐ 0003 + Draw the list                             @ 1/2 p1 ││   labels   chrome                          │
+│ ▾ in progress                             ▱▱▱▱▱▱▱▱   0%    1 ││   priority p1                              │
+│  ◐ 0003 + Draw the list                             @ 1/2 p1 ││   area     ui                              │
+│                                                              ││   labels   chrome                          │
 │                                                              ││   created  2026-09-04                      │
 │                                                              ││                                            │
 │                                                              ││ BODY                                       │

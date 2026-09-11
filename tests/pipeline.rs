@@ -42,14 +42,81 @@ fn a_group_counts_what_the_filter_is_hiding() {
     assert_eq!(group.percent(&app.items), 25, "and the bar says so anyway");
 }
 
+/// cairn keeps containers out of `next`, the board, the roadmap's item lists
+/// and an ordinary `list`. harrow shows the same set, whatever it is grouped by.
+#[test]
+fn a_milestone_is_not_a_row_whatever_the_grouping_is() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    for axis in ["milestone", "status", "type", "priority", "none"] {
+        app.group_by = axis.to_string();
+        app.rebuild();
+        assert!(
+            !app.rows
+                .iter()
+                .any(|r| matches!(r, Row::Item(i) if app.items[*i].is_milestone())),
+            "a milestone appeared as a row when grouped by {axis}"
+        );
+    }
+}
+
+#[test]
+fn a_milestone_comes_back_when_you_ask_for_it() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    let milestones = |app: &App| {
+        app.rows
+            .iter()
+            .filter(|r| matches!(r, Row::Item(i) if app.items[*i].is_milestone()))
+            .count()
+    };
+    app.group_by = "status".into();
+    app.rebuild();
+    assert_eq!(milestones(&app), 0);
+
+    // `--all` means all, which is cairn's word and cairn's meaning.
+    app.run(harrow::keys::Command::ToggleAll);
+    assert_eq!(milestones(&app), 1, "a is everything");
+
+    // And asking for the type by name, which is what `cairn list -t` does.
+    app.run(harrow::keys::Command::ToggleAll);
+    type_filter(&mut app, "type=milestone");
+    assert_eq!(milestones(&app), 1, "asked for by name");
+}
+
+fn type_filter(app: &mut App, expr: &str) {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    app.handle_key(KeyCode::Char('/'), KeyModifiers::NONE);
+    for c in expr.chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+    }
+    app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+}
+
+#[test]
+fn the_composition_graph_is_queryable() {
+    let dir = testkit::project();
+    let app = app_for(dir.path());
+    let milestone = app.items.iter().find(|i| i.id == 1).expect("the milestone");
+    assert_eq!(milestone.contains, vec![2, 3, 4, 5], "what belongs to it");
+    assert_eq!(milestone.depth, 0, "it is a root");
+    assert!(!milestone.is_leaf());
+    assert!(milestone.container, "a reference field names its type");
+
+    let leaf = app.items.iter().find(|i| i.id == 3).expect("item 3");
+    assert_eq!(leaf.depth, 1, "one level under the milestone");
+    assert!(leaf.is_leaf());
+    assert!(!leaf.container);
+}
+
 #[test]
 fn pressing_a_shows_what_is_finished() {
     let dir = testkit::project();
     let mut app = app_for(dir.path());
     let before = app.rows.len();
-    app.run(harrow::keys::Command::ToggleClosed);
+    app.run(harrow::keys::Command::ToggleAll);
     assert!(app.rows.len() > before, "closed items should have appeared");
-    app.run(harrow::keys::Command::ToggleClosed);
+    app.run(harrow::keys::Command::ToggleAll);
     assert_eq!(app.rows.len(), before);
 }
 

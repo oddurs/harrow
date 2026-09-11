@@ -24,6 +24,32 @@ use crate::diag;
 /// because a silently half-read backlog is worse than a warning.
 pub const KNOWN_FORMAT: u32 = 2;
 
+/// What a project allows a tool to do with a field or a status.
+///
+/// cairn's own words: a guard rail rather than a security boundary. Nothing
+/// detects an agent, and a command line cannot ask. harrow enforces nothing —
+/// the write goes through `cairn`, which decides — but it shows the restriction
+/// where the choice is made, so a refusal is never a surprise.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Agent {
+    #[default]
+    Unrestricted,
+    ReadOnly,
+    Propose,
+}
+
+impl Agent {
+    /// How to say it in the one line a picker has room for.
+    pub fn note(self) -> Option<&'static str> {
+        match self {
+            Agent::Unrestricted => None,
+            Agent::ReadOnly => Some("read-only"),
+            Agent::Propose => Some("by proposal"),
+        }
+    }
+}
+
 /// What a status *means*, as opposed to what a project calls it. The only part
 /// of the status table anything reasons about.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default, Deserialize)]
@@ -70,6 +96,7 @@ pub struct Status {
     pub name: String,
     pub label: Option<String>,
     pub category: Category,
+    pub agent: Agent,
     /// False when the file left `category` out. cairn treats that as a schema
     /// problem rather than a default, and so does `harrow --doctor`.
     pub category_declared: bool,
@@ -140,6 +167,7 @@ pub struct Field {
     /// Whether the reference composes a hierarchy. `milestone` and `part_of` do;
     /// `depends_on` names a prerequisite rather than a parent, and does not.
     pub rollup: bool,
+    pub agent: Agent,
 }
 
 impl Field {
@@ -227,6 +255,7 @@ impl Schema {
             .map(|s| Status {
                 category: s.category.unwrap_or_default(),
                 category_declared: s.category.is_some(),
+                agent: s.agent.unwrap_or_default(),
                 name: s.name,
                 label: s.label,
                 color: s.color,
@@ -269,6 +298,7 @@ impl Schema {
                 target: f.target,
                 many: f.cardinality.as_deref() == Some("many") || f.kind.as_deref() == Some("list"),
                 rollup: f.rollup.unwrap_or(false),
+                agent: f.agent.unwrap_or_default(),
             })
             .collect();
 
@@ -336,6 +366,28 @@ impl Schema {
         self.views.iter().find(|v| v.name == name)
     }
 
+    /// Types a reference field names specifically — `milestone`, and anything
+    /// else a project points a `target` at.
+    ///
+    /// cairn keeps these out of `next`, the board, the roadmap's item lists and
+    /// an ordinary `list`: a milestone is a thing work belongs to rather than a
+    /// piece of work, and listing it beside the work it contains reads as a
+    /// duplicate. They come back with `--all`, or when asked for by type.
+    pub fn is_container(&self, kind: &str) -> bool {
+        self.fields.iter().any(|f| {
+            matches!(f.kind, FieldKind::Ref)
+                && f.target.as_deref().is_some_and(|t| t != "*" && t == kind)
+        })
+    }
+
+    pub fn container_types(&self) -> Vec<&str> {
+        self.types
+            .iter()
+            .map(|t| t.name.as_str())
+            .filter(|n| self.is_container(n))
+            .collect()
+    }
+
     /// The statuses that get a column on the board, in declared order.
     pub fn board_statuses(&self) -> Vec<&Status> {
         self.statuses.iter().filter(|s| s.board).collect()
@@ -397,6 +449,7 @@ fn default_statuses() -> Vec<Status> {
         name: name.to_string(),
         label: None,
         category,
+        agent: Agent::default(),
         category_declared: false,
         color: None,
         icon: None,
@@ -470,6 +523,7 @@ struct StatusFile {
     name: String,
     label: Option<String>,
     category: Option<Category>,
+    agent: Option<Agent>,
     color: Option<String>,
     icon: Option<String>,
     board: Option<bool>,
@@ -487,6 +541,7 @@ struct FieldFile {
     target: Option<String>,
     cardinality: Option<String>,
     rollup: Option<bool>,
+    agent: Option<Agent>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -542,6 +597,16 @@ name = "dropped"
 category = "dropped"
 board = false
 
+[[type]]
+name = "milestone"
+
+[[field]]
+name = "milestone"
+kind = "ref"
+target = "milestone"
+by = "key"
+rollup = true
+
 [[field]]
 name = "priority"
 kind = "enum"
@@ -582,6 +647,33 @@ filter = "category=active"
     }
 
     #[test]
+    fn a_reference_target_makes_a_type_a_container() {
+        // cairn keeps these out of an ordinary listing: a milestone is a thing
+        // work belongs to rather than a piece of work.
+        let s = sample();
+        assert!(
+            s.is_container("milestone"),
+            "the milestone field targets it"
+        );
+        assert!(!s.is_container("feature"));
+        assert_eq!(s.container_types(), vec!["milestone"]);
+    }
+
+    #[test]
+    fn what_an_agent_may_touch_is_read_from_the_schema() {
+        let s = Schema::parse(
+            "[[status]]\nname = \"done\"\ncategory = \"done\"\nagent = \"read-only\"\n\
+             [[field]]\nname = \"priority\"\nkind = \"enum\"\nagent = \"propose\"\n",
+            PathBuf::from("/tmp"),
+        )
+        .expect("parses");
+        assert_eq!(s.status("done").map(|s| s.agent), Some(Agent::ReadOnly));
+        assert_eq!(s.field("priority").map(|f| f.agent), Some(Agent::Propose));
+        assert_eq!(Agent::ReadOnly.note(), Some("read-only"));
+        assert_eq!(Agent::Unrestricted.note(), None, "silence is the default");
+    }
+
+    #[test]
     fn a_label_is_what_gets_printed() {
         let s = sample();
         assert_eq!(s.status("doing").unwrap().display(), "in progress");
@@ -612,7 +704,7 @@ filter = "category=active"
     #[test]
     fn a_key_from_a_later_format_is_ignored_rather_than_fatal() {
         let body = format!(
-            "{SAMPLE}\n[[status]]\nname = \"shipped\"\ncategory = \"done\"\nagent = \"never\"\n"
+            "{SAMPLE}\n[[status]]\nname = \"shipped\"\ncategory = \"done\"\nsomething_later = 3\n"
         );
         let s = Schema::parse(&body, PathBuf::from("/tmp/p")).expect("unknown keys are skipped");
         assert_eq!(

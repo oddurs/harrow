@@ -21,6 +21,11 @@ say "toolchain: $(rustc --version)"
 
 if command -v cairn >/dev/null 2>&1; then
   say "cairn: $(cairn --version | head -1)"
+  # Registers the `cairn` merge driver in this clone's git config, so a merge
+  # that touched the backlog resolves the generated roadmap instead of
+  # conflicting on it. Safe to run again; cairn owns what it does.
+  cairn init --git >/dev/null 2>&1 || true
+  say "merge driver: registered for ROADMAP.md and cairn/items/*.md"
 else
   say "cairn: not installed — harrow will read backlogs but not change them"
   say "       https://oddurs.github.io/cairn"

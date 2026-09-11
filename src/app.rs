@@ -162,7 +162,7 @@ pub struct App {
     pub group_by: String,
     pub sort: String,
     pub view: Option<String>,
-    pub show_closed: bool,
+    pub show_all: bool,
     pub board: bool,
 
     pub reading: bool,
@@ -223,7 +223,7 @@ impl App {
             group_by: "milestone".to_string(),
             sort: String::new(),
             view: None,
-            show_closed: false,
+            show_all: false,
             board: false,
             reading: false,
             read_scroll: 0,
@@ -364,8 +364,17 @@ impl App {
     // ── Building what is on screen ───────────────────────────────────────────
 
     fn visible(&self, item: &Item) -> bool {
-        if !self.show_closed && item.category.is_closed() {
-            return false;
+        if !self.show_all {
+            if item.category.is_closed() {
+                return false;
+            }
+            // A milestone is a thing work belongs to rather than a piece of
+            // work, and listing it beside the work it contains reads as a
+            // duplicate. cairn keeps containers out of an ordinary listing for
+            // the same reason; asking for the type by name brings them back.
+            if item.container && !self.query.names_type(&item.kind) {
+                return false;
+            }
         }
         self.query.matches(item, &self.schema)
     }
@@ -1325,13 +1334,15 @@ impl App {
                 self.editing = Some(Editing::Filter);
                 self.input = self.filter.clone();
             }
-            Command::ToggleClosed => {
-                self.show_closed = !self.show_closed;
+            Command::ToggleAll => {
+                self.show_all = !self.show_all;
                 self.rebuild();
-                let msg = if self.show_closed {
-                    "showing finished items"
+                // "All" is cairn's word and cairn's meaning: finished, dropped,
+                // and the containers work belongs to.
+                let msg = if self.show_all {
+                    "showing everything"
                 } else {
-                    "hiding finished items"
+                    "showing open work only"
                 };
                 self.toast(msg, ToastKind::Info);
             }
