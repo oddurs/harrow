@@ -1,0 +1,20 @@
+ harrow  sample    list  board  stats                                                      starting
+ ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+────────────────────────────────────────────────────────────────────────────────────────────────────
+╭ Backlog · by milestone ──────────────────────────────╮╭ 0003 ────────────────────────────────────╮
+│ ▾ v0.1  First usable version     ▰▰▱▱▱▱  25%  3 left ││ ◐ Draw the list                          │
+│  ○ 0005 The detail pane scrolls past its pane     p1 ││   in progress · feature · v0.1 · @oddur  │
+│  ⊘ 0004 Draw the board                            p2 ││                                          │
+│  ◐ 000╭ 0003 · history ──────────────────────────────────────────────────────────────────╮─────  │
+│ ▾ no m│                                                                                  │       │
+│  ○ 000│  2026-09-02  Oddur Sigurdsson    created                                         │       │
+│       │  2026-09-03  Oddur Sigurdsson    status backlog -> doing                         │─────  │
+│       │  2026-09-03  an agent            priority p2 -> p1                               │       │
+│       ╰ ↑↓ scroll · any other key closes ────────────────────────────────────────────────╯       │
+│                                                      ││   created  2026-09-02                    │
+│                                                      ││                                          │
+│                                                      ││   Body ────────────────────────────────  │
+│                                                      ││   Problem                                │
+│                                                      ││   … ↵ to read it all                     │
+╰──────────────────────────────────────────────────────╯╰──────────────────────────────────────────╯
+ ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

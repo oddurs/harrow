@@ -163,3 +163,30 @@ fn an_empty_project_is_not_an_empty_screen() {
         "and says what to do next:\n{text}"
     );
 }
+
+#[test]
+fn the_history_of_one_item() {
+    let mut app = support::app();
+    app.select_id(3);
+    app.show_history(
+        3,
+        Ok("2026-09-02  Oddur Sigurdsson  created\n\
+            2026-09-03  Oddur Sigurdsson  status backlog -> doing\n\
+            2026-09-03  an agent          priority p2 -> p1\n"
+            .to_string()),
+    );
+    support::assert_snapshot("history", &ui::render_to_string(&mut app, 100, 20, 0));
+}
+
+/// A project that is not in git has no history rather than an empty one, and
+/// saying which is the whole difference between "nothing happened" and "this
+/// cannot be answered here".
+#[test]
+fn a_project_without_a_repository_says_so() {
+    let mut app = support::app();
+    app.select_id(3);
+    app.show_history(3, Err("not a git repository".into()));
+    let text = ui::render_to_string(&mut app, 100, 20, 0);
+    assert!(text.contains("not a git repository"), "{text}");
+    assert!(text.contains("the repository's"), "and why: {text}");
+}

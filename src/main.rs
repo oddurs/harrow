@@ -590,6 +590,18 @@ fn dispatch(
                 Err(e) => app.toast(format!("could not open your editor: {e}"), ToastKind::Bad),
             }
         }
+        Action::History(id) => {
+            // cairn reads it out of the repository's own history, which is the
+            // only place it is. harrow asking git directly would be a second
+            // answer to a question cairn already answers.
+            let result = harrow::exec::run(
+                &startup.config.cairn,
+                &["log", &id.to_string(), "--color", "never"],
+                startup.config.write_timeout(),
+            )
+            .map_err(|e| e.to_string());
+            app.show_history(id, result);
+        }
         Action::Write(change) => run_change(app, handle, &startup.config, change),
     }
     Ok(false)

@@ -14,16 +14,16 @@
 │      │  v             group by something else         esc           back out — clear the filter, …  │────  │
 │      │  ↵/o           read the item in full           r             re-read the backlog now         │      │
 │      │  e             open the item in your editor    D             diagnostics — what failed, an…  │      │
-│      │  c             claim it — assign it to you a…  ?             this help                       │      │
-│      │  C             give it back                    q/ctrl-c      quit                            │      │
-│      │  s             set the status                                                                │      │
-│      │  h/<, l/>      move it back or forward throu…  click         a tab, a status, a row, a foo…  │      │
-│      │  p             set the priority                double-click  read the item                   │      │
-│      │  M             set the milestone               drag          a card to another column, whi…  │      │
-│      │  x             close it, with a confirm        scroll        move the view                   │      │
+│      │  H             how this item got the way it …  ?             this help                       │      │
+│      │  c             claim it — assign it to you a…  q/ctrl-c      quit                            │      │
+│      │  C             give it back                                                                  │      │
+│      │  s             set the status                  click         a tab, a status, a row, a foo…  │      │
+│      │  h/<, l/>      move it back or forward throu…  double-click  read the item                   │      │
+│      │  p             set the priority                drag          a card to another column, whi…  │      │
+│      │  M             set the milestone               scroll        move the view                   │      │
+│      │  x             close it, with a confirm                                                      │      │
 │      │                                                                                              │      │
 │      ╰──────────────────────────────────────────────────────────────────────────────────────────────╯      │
-│                                                            ││                                              │
 │                                                            ││                                              │
 │                                                            ││                                              │
 │                                                            ││                                              │
