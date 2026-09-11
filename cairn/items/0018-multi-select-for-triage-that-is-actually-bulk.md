@@ -2,10 +2,10 @@
 id: 18
 title: Multi-select, for triage that is actually bulk
 type: feature
-status: backlog
+status: doing
 milestone: v0.2
 created: 2026-09-08
-updated: 2026-09-08
+updated: 2026-09-11
 priority: p1
 area: chrome
 ---

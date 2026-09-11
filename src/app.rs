@@ -218,6 +218,11 @@ pub struct App {
     pub column: usize,
     pub column_row: usize,
     pub collapsed: HashSet<String>,
+    /// Items marked for the next change, by id.
+    ///
+    /// Triage is one keystroke per item until the same decision applies to
+    /// forty of them, at which point it is one decision and forty keystrokes.
+    pub marked: HashSet<u32>,
 
     pub filter: String,
     pub query: Query,
@@ -295,6 +300,7 @@ impl App {
             column: 0,
             column_row: 0,
             collapsed: HashSet::new(),
+            marked: HashSet::new(),
             filter: String::new(),
             query: Query::default(),
             input: String::new(),
@@ -1017,16 +1023,70 @@ impl App {
 
     // ── Changing an item ─────────────────────────────────────────────────────
 
-    /// Build a `cairn` invocation for the selected item.
-    fn change(&self, args: Vec<String>, describe: String, undo: Option<String>) -> Action {
+    /// What the next change applies to: what is marked, or what is under the
+    /// cursor. Sorted, so the command reads the way the list does.
+    pub fn targets(&self) -> Vec<u32> {
+        if self.marked.is_empty() {
+            return self.selected_item().map(|i| i.id).into_iter().collect();
+        }
+        let mut ids: Vec<u32> = self.marked.iter().copied().collect();
+        ids.sort_unstable();
+        ids
+    }
+
+    pub fn toggle_mark(&mut self) {
+        let Some(id) = self.selected_item().map(|i| i.id) else {
+            return;
+        };
+        if !self.marked.remove(&id) {
+            self.marked.insert(id);
+        }
+        self.move_by(1);
+    }
+
+    /// Mark everything between the cursor and a row, which is what a person
+    /// expects shift-click to do.
+    fn mark_range(&mut self, to: usize) {
+        let (from, to) = if to < self.selected {
+            (to, self.selected)
+        } else {
+            (self.selected, to)
+        };
+        for row in from..=to {
+            if let Some(Row::Item(i)) = self.rows.get(row)
+                && let Some(item) = self.items.get(*i)
+            {
+                self.marked.insert(item.id);
+            }
+        }
+        self.selected = to;
+        self.clamp();
+    }
+
+    /// Hand a change over, asking first when it touches more than one item.
+    ///
+    /// One keystroke changing forty things is exactly the gesture that wants a
+    /// sentence between the intention and the write.
+    fn write(&mut self, change: Change, count: usize, what: &str) -> Action {
         if !self.writable {
+            self.refuse_readonly();
             return Action::None;
         }
-        Action::Write(Change {
-            args,
-            describe,
-            undo,
-        })
+        if count <= 1 {
+            return Action::Write(change);
+        }
+        self.confirm = Some(Confirm {
+            prompt: format!("{what} {count} items?"),
+            detail: change
+                .args
+                .iter()
+                .take(8)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(" "),
+            change,
+        });
+        Action::None
     }
 
     fn refuse_readonly(&mut self) {
@@ -1037,40 +1097,107 @@ impl App {
     }
 
     fn set_field(&mut self, field: &str, value: &str) -> Action {
-        let Some(item) = self.selected_item() else {
-            return Action::None;
-        };
-        let (id, was) = (item.id, current_value(item, field));
-        if was.as_deref() == Some(value) {
-            self.toast(format!("{field} is already {value}"), ToastKind::Info);
-            return Action::None;
+        // Only the ones the change would actually move. Telling cairn to set a
+        // field to what it already says is a write, a hook run and a line of
+        // history for nothing.
+        let targets: Vec<u32> = self
+            .targets()
+            .into_iter()
+            .filter(|id| {
+                self.by_id
+                    .get(id)
+                    .and_then(|i| self.items.get(*i))
+                    .is_some_and(|item| current_value(item, field).as_deref() != Some(value))
+            })
+            .collect();
+
+        match targets.len() {
+            0 => {
+                let shown = if value.is_empty() { "unset" } else { value };
+                self.toast(format!("{field} is already {shown}"), ToastKind::Info);
+                Action::None
+            }
+            1 => {
+                let id = targets[0];
+                let was = self
+                    .by_id
+                    .get(&id)
+                    .and_then(|i| self.items.get(*i))
+                    .and_then(|item| current_value(item, field));
+                let reference = self.schema.format_id(id);
+                let shown = if value.is_empty() { "cleared" } else { value };
+                let change = Change {
+                    args: vec!["set".into(), id.to_string(), format!("{field}={value}")],
+                    describe: format!("{reference} {field} → {shown}"),
+                    undo: was.map(|w| format!("cairn set {id} {field}={w}")),
+                };
+                self.write(change, 1, "set")
+            }
+            n => {
+                let shown = if value.is_empty() { "cleared" } else { value };
+                let change = Change {
+                    args: self.bulk_args("set", &targets, Some(format!("{field}={value}"))),
+                    describe: format!("{n} items · {field} → {shown}"),
+                    undo: None,
+                };
+                self.write(change, n, "Set the field on")
+            }
         }
-        let reference = self.schema.format_id(id);
-        let shown = if value.is_empty() { "cleared" } else { value };
-        self.change(
-            vec!["set".into(), id.to_string(), format!("{field}={value}")],
-            format!("{reference} {field} → {shown}"),
-            was.map(|w| format!("cairn set {id} {field}={w}")),
-        )
+    }
+
+    /// The argument vector for a change to many items.
+    ///
+    /// Where the marks are exactly what the filter is showing, this becomes one
+    /// `--filter` invocation instead of a list of ids: it is the same change,
+    /// it is what somebody would have typed, and it stays correct if the set
+    /// moves underneath between the decision and the write.
+    fn bulk_args(&self, command: &str, targets: &[u32], assignment: Option<String>) -> Vec<String> {
+        let visible: Vec<u32> = self
+            .items
+            .iter()
+            .filter(|i| self.visible(i))
+            .map(|i| i.id)
+            .collect();
+        let same = visible.len() == targets.len() && visible.iter().all(|id| targets.contains(id));
+
+        let mut args = vec![command.to_string()];
+        if same && !self.filter.trim().is_empty() {
+            args.push("--filter".into());
+            args.push(self.filter.clone());
+            args.push("--yes".into());
+        } else {
+            args.extend(targets.iter().map(u32::to_string));
+        }
+        args.extend(assignment);
+        args
     }
 
     pub fn claim(&mut self, take: bool) -> Action {
-        let Some(item) = self.selected_item() else {
-            return Action::None;
-        };
-        let (id, reference) = (item.id, self.schema.format_id(item.id));
-        if take {
-            self.change(
-                vec!["claim".into(), id.to_string()],
-                format!("{reference} claimed"),
-                Some(format!("cairn release {id}")),
-            )
+        let targets = self.targets();
+        let (command, undo) = if take {
+            ("claim", "release")
         } else {
-            self.change(
-                vec!["release".into(), id.to_string()],
-                format!("{reference} released"),
-                Some(format!("cairn claim {id}")),
-            )
+            ("release", "claim")
+        };
+        match targets.as_slice() {
+            [] => Action::None,
+            [id] => {
+                let change = Change {
+                    args: vec![command.into(), id.to_string()],
+                    describe: format!("{} {command}ed", self.schema.format_id(*id)),
+                    undo: Some(format!("cairn {undo} {id}")),
+                };
+                self.write(change, 1, command)
+            }
+            many => {
+                let n = many.len();
+                let change = Change {
+                    args: self.bulk_args(command, many, None),
+                    describe: format!("{n} items {command}ed"),
+                    undo: None,
+                };
+                self.write(change, n, if take { "Claim" } else { "Release" })
+            }
         }
     }
 
@@ -1078,29 +1205,77 @@ impl App {
     /// undone — `u` reopens — but because it is a declaration that something is
     /// finished, and it runs the project's hooks.
     pub fn ask_close(&mut self) {
-        let Some(item) = self.selected_item() else {
-            return;
+        let targets: Vec<u32> = self
+            .targets()
+            .into_iter()
+            .filter(|id| {
+                self.by_id
+                    .get(id)
+                    .and_then(|i| self.items.get(*i))
+                    .is_some_and(|item| item.category != Category::Done)
+            })
+            .collect();
+
+        let (prompt, detail, change) = match targets.as_slice() {
+            [] => {
+                self.toast("already closed", ToastKind::Info);
+                return;
+            }
+            [id] => {
+                let Some(item) = self.by_id.get(id).and_then(|i| self.items.get(*i)) else {
+                    return;
+                };
+                let reference = self.schema.format_id(*id);
+                let (met, total) = item.criteria();
+                let detail = if total > 0 && met < total {
+                    format!("{met} of {total} acceptance criteria are ticked")
+                } else {
+                    item.title.clone()
+                };
+                (
+                    format!("Close {reference}?"),
+                    detail,
+                    Change {
+                        args: vec!["close".into(), id.to_string()],
+                        describe: format!("{reference} closed"),
+                        undo: Some(format!("cairn reopen {id}")),
+                    },
+                )
+            }
+            many => {
+                let n = many.len();
+                let unticked = many
+                    .iter()
+                    .filter_map(|id| self.by_id.get(id).and_then(|i| self.items.get(*i)))
+                    .filter(|item| {
+                        let (met, total) = item.criteria();
+                        total > 0 && met < total
+                    })
+                    .count();
+                let detail = if unticked > 0 {
+                    format!("{unticked} of them have acceptance criteria left unticked")
+                } else {
+                    many.iter()
+                        .map(|id| self.schema.format_id(*id))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                };
+                (
+                    format!("Close {n} items?"),
+                    detail,
+                    Change {
+                        args: self.bulk_args("close", many, None),
+                        describe: format!("{n} items closed"),
+                        undo: None,
+                    },
+                )
+            }
         };
-        if item.category == Category::Done {
-            self.toast("already closed", ToastKind::Info);
-            return;
-        }
-        let (id, title) = (item.id, item.title.clone());
-        let reference = self.schema.format_id(id);
-        let (met, total) = item.criteria();
-        let detail = if total > 0 && met < total {
-            format!("{} of {total} acceptance criteria are ticked", met)
-        } else {
-            title
-        };
+
         self.confirm = Some(Confirm {
-            prompt: format!("Close {reference}?"),
+            prompt,
             detail,
-            change: Change {
-                args: vec!["close".into(), id.to_string()],
-                describe: format!("{reference} closed"),
-                undo: Some(format!("cairn reopen {id}")),
-            },
+            change,
         });
     }
 
@@ -1429,8 +1604,13 @@ impl App {
             Command::Quit => return Action::Quit,
             Command::Back => {
                 // Backing out closes what is open; with nothing open it does
-                // nothing, rather than quitting out from under you.
-                if self.view.is_some() {
+                // nothing, rather than quitting out from under you. Marks go
+                // first: they are the most recent thing you did.
+                if !self.marked.is_empty() {
+                    let n = self.marked.len();
+                    self.marked.clear();
+                    self.toast(format!("{n} unmarked"), ToastKind::Info);
+                } else if self.view.is_some() {
                     self.view = None;
                     self.reparse_filter();
                     self.rebuild();
@@ -1448,11 +1628,12 @@ impl App {
             Command::PageUp => self.move_by(-10),
             Command::First => self.jump(false),
             Command::Last => self.jump(true),
-            Command::ToggleGroup => {
-                if self.pane == Pane::List {
-                    self.toggle_group()
-                }
-            }
+            // On a heading, fold. On an item, mark it — which is where the
+            // gesture is going anyway once there is more than one thing to do.
+            Command::ToggleGroup => match self.rows.get(self.selected) {
+                Some(Row::Group(_)) if self.pane == Pane::List => self.toggle_group(),
+                _ => self.toggle_mark(),
+            },
             Command::PrevGroup => self.step_group(false),
             Command::NextGroup => self.step_group(true),
             Command::ViewBoard => {
@@ -1485,19 +1666,39 @@ impl App {
             Command::Release => return self.claim(false),
             Command::Close => self.ask_close(),
             Command::Reopen => {
-                let Some(item) = self.selected_item() else {
-                    return Action::None;
+                let targets: Vec<u32> = self
+                    .targets()
+                    .into_iter()
+                    .filter(|id| {
+                        self.by_id
+                            .get(id)
+                            .and_then(|i| self.items.get(*i))
+                            .is_some_and(|item| item.category.is_closed())
+                    })
+                    .collect();
+                return match targets.as_slice() {
+                    [] => {
+                        self.toast("that one is already open", ToastKind::Info);
+                        Action::None
+                    }
+                    [id] => {
+                        let change = Change {
+                            args: vec!["reopen".into(), id.to_string()],
+                            describe: format!("{} reopened", self.schema.format_id(*id)),
+                            undo: Some(format!("cairn close {id}")),
+                        };
+                        self.write(change, 1, "reopen")
+                    }
+                    many => {
+                        let n = many.len();
+                        let change = Change {
+                            args: self.bulk_args("reopen", many, None),
+                            describe: format!("{n} items reopened"),
+                            undo: None,
+                        };
+                        self.write(change, n, "Reopen")
+                    }
                 };
-                if !item.category.is_closed() {
-                    self.toast("that one is already open", ToastKind::Info);
-                    return Action::None;
-                }
-                let (id, reference) = (item.id, self.schema.format_id(item.id));
-                return self.change(
-                    vec!["reopen".into(), id.to_string()],
-                    format!("{reference} reopened"),
-                    Some(format!("cairn close {id}")),
-                );
             }
             Command::New => {
                 self.editing = Some(Editing::NewItem);
@@ -1592,6 +1793,24 @@ impl App {
             MouseEventKind::ScrollUp => self.scroll(-3),
             MouseEventKind::Down(MouseButton::Left) => {
                 let double = self.is_double(m.column, m.row);
+                // The modifiers everything else on the screen uses for the
+                // same two gestures.
+                if m.modifiers.contains(KeyModifiers::SHIFT) {
+                    if let Some(Hit::Row(idx)) = self.hit_at(m.column, m.row).cloned() {
+                        self.mark_range(idx);
+                        return Action::None;
+                    }
+                } else if m
+                    .modifiers
+                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+                    && let Some(Hit::Row(idx)) = self.hit_at(m.column, m.row).cloned()
+                {
+                    self.selected = idx;
+                    self.clamp();
+                    self.toggle_mark();
+                    self.move_by(-1);
+                    return Action::None;
+                }
                 return self.click(m.column, m.row, double);
             }
             MouseEventKind::Drag(MouseButton::Left) => self.drag(m.column, m.row),

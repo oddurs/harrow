@@ -9,7 +9,7 @@
 │ ▾ no │  ↑/k, ↓/j      move between items              u             reopen it                       │      │
 │  ○ 00│  home/g, end/G jump to the first or last       n             new item                        │      │
 │      │  ←, →          previous or next group — a co…  y             copy the item's reference       │      │
-│      │  space         collapse or expand a group      /             filter, in cairn's own grammar  │      │
+│      │  space         mark it for the next change —…  /             filter, in cairn's own grammar  │      │
 │      │  tab           switch between the list, the …  a             show everything — finished, d…  │      │
 │      │  v             group by something else         esc           back out — clear the filter, …  │────  │
 │      │  ↵/o           read the item in full           r             re-read the backlog now         │      │
