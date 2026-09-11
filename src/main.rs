@@ -401,15 +401,36 @@ fn run_tui(mut startup: Startup, args: &[String]) -> Result<()> {
     // Asked once, in raw mode, before anything else reads stdin. `auto` is the
     // only theme whose choices depend on the answer.
     if startup.theme.source == harrow::theme::Source::Auto && startup.theme.name == "auto" {
-        let dark = term::background_is_dark(Duration::from_millis(120));
-        diag::info(
-            "theme",
-            format!(
-                "terminal background looks {}",
-                if dark { "dark" } else { "light" }
-            ),
-        );
-        startup.theme = Theme::auto(dark);
+        let palette = term::query_palette(Duration::from_millis(150));
+        match Theme::from_palette(&palette, "auto") {
+            Some(theme) => {
+                diag::info(
+                    "theme",
+                    format!(
+                        "terminal answered {} of 18 colour queries; palette read directly",
+                        palette.known()
+                    ),
+                );
+                startup.theme = theme;
+            }
+            None => {
+                // An older terminal that does not answer. Fall back to naming
+                // ANSI slots and letting it substitute, which is what `auto`
+                // always did.
+                let dark = palette
+                    .background
+                    .map(harrow::theme::is_dark)
+                    .unwrap_or_else(|| term::background_is_dark(Duration::from_millis(0)));
+                diag::info(
+                    "theme",
+                    format!(
+                        "terminal did not report its palette; using ANSI slots on a {} background",
+                        if dark { "dark" } else { "light" }
+                    ),
+                );
+                startup.theme = Theme::auto(dark);
+            }
+        }
     }
 
     let mut app = prepare(&startup, args);
