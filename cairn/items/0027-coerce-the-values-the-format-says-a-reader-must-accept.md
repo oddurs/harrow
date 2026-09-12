@@ -2,7 +2,7 @@
 id: 27
 title: Coerce the values the format says a reader must accept
 type: bug
-status: backlog
+status: done
 milestone: v0.2
 depends_on:
 - 39
@@ -50,8 +50,8 @@ prose.
 
 ## Acceptance criteria
 
-- [ ] `...` closes the frontmatter, and the body after it is the body
-- [ ] A single-string `labels` is split on commas, with surrounding whitespace discarded
-- [ ] `depends_on` accepts a comma-separated string and a leading `#` on each element
-- [ ] Integers and floats resolve under the YAML 1.2 core schema
-- [ ] `no`, `yes`, `on`, `off` and `12:30` stay the strings they are
+- [x] `...` closes the frontmatter, and the body after it is the body
+- [x] A single-string `labels` is split on commas, with surrounding whitespace discarded
+- [x] `depends_on` accepts a comma-separated string and a leading `#` on each element
+- [x] Integers and floats resolve under the YAML 1.2 core schema
+- [x] `no`, `yes`, `on`, `off` and `12:30` stay the strings they are
