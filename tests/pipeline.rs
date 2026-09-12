@@ -172,22 +172,64 @@ fn grouping_cycles_through_what_the_project_actually_has() {
     assert_eq!(app.group_by, start, "cycling has to come back round");
 }
 
+/// `a` is a question about the list. The board has already answered it: a
+/// status is a column because the project wrote `board = true`, and drawing a
+/// column the list's rule then refuses to fill is how `done 0` came to sit
+/// beside `✓ 1 done` in the strip.
 #[test]
-fn the_board_deals_the_same_items_into_columns() {
+fn the_board_deals_what_the_project_gave_a_column_rather_than_what_the_list_shows() {
     let dir = testkit::project();
     let mut app = app_for(dir.path());
     app.pane = harrow::app::Pane::Board;
-    let on_board: usize = app.columns.iter().map(|c| c.items.len()).sum();
+
     let in_list = app
         .rows
         .iter()
         .filter(|r| matches!(r, Row::Item(_)))
         .count();
-    assert_eq!(on_board, in_list, "the two views must show the same work");
+    let on_board: usize = app.columns.iter().map(|c| c.items.len()).sum();
+    assert!(
+        on_board > in_list,
+        "the list hides finished work and the board has a column for it"
+    );
+
+    let done: Vec<u32> = app
+        .columns
+        .iter()
+        .find(|c| c.status == "done")
+        .expect("the fixture declares a done column")
+        .items
+        .iter()
+        .map(|i| app.items[*i].id)
+        .collect();
+    assert_eq!(done, vec![2], "and that column holds the finished item");
+
     assert!(
         !app.columns.iter().any(|c| c.status == "dropped"),
         "a status with board = false has no column"
     );
+}
+
+/// Two readings of one backlog in the same frame. They were disagreeing.
+#[test]
+fn the_strip_and_the_board_agree_about_how_much_is_done() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    app.pane = harrow::app::Pane::Board;
+
+    let in_strip: usize = app
+        .status_counts()
+        .into_iter()
+        .filter(|(status, _)| status.name == "done")
+        .map(|(_, n)| n)
+        .sum();
+    let in_column = app
+        .columns
+        .iter()
+        .find(|c| c.status == "done")
+        .map(|c| c.items.len())
+        .unwrap_or(0);
+    assert_eq!(in_strip, in_column);
 }
 
 #[test]
@@ -276,4 +318,69 @@ fn a_read_only_backlog_says_so_rather_than_appearing_to_work() {
     );
     let (message, _, _) = app.toast.as_ref().expect("and it has to say why");
     assert!(message.contains("cairn"), "{message}");
+}
+
+/// Answering a keystroke by making the thing you pressed it on vanish does not
+/// say what happened; it only stops saying anything. So an item that has just
+/// changed its way off the screen is held where it landed for a moment.
+#[test]
+fn an_item_closed_under_you_is_watched_out_rather_than_deleted() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    let ids = |app: &App| -> Vec<u32> {
+        app.rows
+            .iter()
+            .filter_map(|r| match r {
+                Row::Item(i) => Some(app.items[*i].id),
+                _ => None,
+            })
+            .collect()
+    };
+    assert!(ids(&app).contains(&3), "0003 starts on screen");
+
+    // What `cairn set 3 status=done` leaves behind, read back the way the
+    // watcher would read it.
+    let path = dir.path().join("items/0003-draw-the-list.md");
+    let text = std::fs::read_to_string(&path).expect("the item is there");
+    std::fs::write(&path, text.replace("status: doing", "status: done")).expect("write it back");
+    let mut project = Project::discover(dir.path()).expect("the project is found");
+    app.ingest(project.load().expect("it reloads"));
+
+    let item = app.items.iter().find(|i| i.id == 3).expect("0003");
+    assert!(item.category.is_closed(), "it is done now");
+    assert!(
+        ids(&app).contains(&3),
+        "and still on screen, so the change can be seen happening"
+    );
+    assert!(
+        app.columns
+            .iter()
+            .find(|c| c.status == "done")
+            .is_some_and(|c| c.items.iter().any(|i| app.items[*i].id == 3)),
+        "the board shows it arriving in done"
+    );
+
+    // And then it goes, without waiting for a keystroke to notice.
+    app.now += App::SETTLING + 1;
+    assert!(app.settle(), "the moment is up");
+    assert!(!ids(&app).contains(&3), "so it leaves");
+    assert!(app.check_invariants().is_ok());
+}
+
+/// Typing a filter is a deliberate act of exclusion. A list that answered it by
+/// holding on to what you just excluded would be arguing with you.
+#[test]
+fn narrowing_the_filter_drops_rows_at_once() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    use crossterm::event::{KeyCode, KeyModifiers};
+    let before = app.rows.len();
+    app.handle_key(KeyCode::Char('/'), KeyModifiers::NONE);
+    for c in "priority=p0".chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+    }
+    assert!(
+        app.rows.len() < before,
+        "it narrows now, not in six seconds"
+    );
 }

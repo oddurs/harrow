@@ -317,6 +317,17 @@ pub struct App {
     /// that just moved says so for a moment, so a glance catches what happened
     /// while you were looking at the other pane.
     pub changed: HashMap<u32, u64>,
+    /// What the last rebuild put on screen, so the next one can tell what has
+    /// just left rather than only what is currently there.
+    shown: HashSet<u32>,
+    /// Items on their way out, and when they stopped belonging.
+    ///
+    /// Something that leaves while you are looking at it — an item you closed,
+    /// an item somebody moved out from under your filter — is held where it
+    /// landed for a moment before it goes. Answering a keystroke by making the
+    /// thing you pressed it on vanish does not say what happened; it only
+    /// stops saying anything.
+    leaving: HashMap<u32, u64>,
     pub toast: Option<(String, ToastKind, Instant)>,
     /// Wall-clock seconds, refreshed once per frame rather than read during a
     /// render. Rendering has to be a pure function of state, or a snapshot of
@@ -387,6 +398,8 @@ impl App {
             writable: true,
             warnings: Vec::new(),
             changed: HashMap::new(),
+            shown: HashSet::new(),
+            leaving: HashMap::new(),
             toast: None,
             now: unix_seconds(),
             theme: Theme::auto(true),
@@ -404,6 +417,14 @@ impl App {
     /// How long a change stays marked. Long enough to catch on a glance back,
     /// short enough that the marks are never a second kind of status.
     pub const RECENT: u64 = 45;
+
+    /// How long something that no longer belongs is held where it landed.
+    ///
+    /// Deliberately much shorter than `RECENT`, because the two answer
+    /// different questions. Forty-five seconds is *what moved while I was
+    /// looking at the editor*. Six is *did the key I just pressed do the
+    /// thing* — and past that, a row the filter excludes is only clutter.
+    pub const SETTLING: u64 = 6;
 
     /// Replace the backlog, keeping the cursor on the same item where we can.
     pub fn ingest(&mut self, report: Report) {
@@ -442,7 +463,10 @@ impl App {
         if self.items.is_empty() {
             return Vec::new();
         }
-        let now = unix_seconds();
+        // The frame's clock, not a fresh reading: everything that asks how
+        // long ago this was — the mark, the exit — asks against `now`, and two
+        // clocks a second apart would have an item leaving before it arrived.
+        let now = self.now;
         let mut moved = Vec::new();
         for item in fresh {
             let before = self.by_id.get(&item.id).and_then(|i| self.items.get(*i));
@@ -625,6 +649,20 @@ impl App {
     // ── Building what is on screen ───────────────────────────────────────────
 
     fn visible(&self, item: &Item) -> bool {
+        self.belongs(item) || self.leaving.contains_key(&item.id)
+    }
+
+    /// Whether an item is dealt onto the board.
+    ///
+    /// The filter applies — narrowing to one milestone should narrow the board
+    /// too — and a container is not work and so is not a card. Nothing else:
+    /// what is and is not a column is the project's to say.
+    pub fn on_board(&self, item: &Item) -> bool {
+        !item.container && self.query.matches(item, &self.schema)
+    }
+
+    /// Whether an item is part of what is being shown, on its own merits.
+    fn belongs(&self, item: &Item) -> bool {
         if !self.show_all {
             if item.category.is_closed() {
                 return false;
@@ -638,6 +676,54 @@ impl App {
             }
         }
         self.query.matches(item, &self.schema)
+    }
+
+    /// Start the exit of anything that has just changed its way off the
+    /// screen, and finish the exit of anything whose moment has passed.
+    ///
+    /// Two conditions, and both matter. It has to have been on screen: an item
+    /// somebody moves under a filter it never matched does not appear for six
+    /// seconds to announce itself, because that is noise and the toast already
+    /// covers it. And the *item* has to be what changed, not the view — typing
+    /// a filter is a deliberate act of exclusion, and a list that answered it
+    /// by holding on to what you just excluded would be arguing with you.
+    fn resettle(&mut self) {
+        let now = self.now;
+        for id in &self.shown {
+            let Some(item) = self.by_id.get(id).and_then(|i| self.items.get(*i)) else {
+                continue;
+            };
+            let moved = self
+                .changed
+                .get(id)
+                .is_some_and(|at| now.saturating_sub(*at) <= Self::SETTLING);
+            if moved && !self.belongs(item) {
+                self.leaving.entry(*id).or_insert(now);
+            }
+        }
+        self.leaving
+            .retain(|_, at| now.saturating_sub(*at) <= Self::SETTLING);
+    }
+
+    /// Whether anything is still on its way out. The board asks, so a column
+    /// can be drawn to receive what is landing in it.
+    pub fn is_leaving(&self, id: u32) -> bool {
+        self.leaving.contains_key(&id)
+    }
+
+    /// Let go of whatever has finished leaving, and say whether the screen has
+    /// to be rebuilt because of it. Called once a frame by the shell, so a row
+    /// goes when its moment is up rather than at the next keystroke.
+    pub fn settle(&mut self) -> bool {
+        let now = self.now;
+        let before = self.leaving.len();
+        self.leaving
+            .retain(|_, at| now.saturating_sub(*at) <= Self::SETTLING);
+        if self.leaving.len() == before {
+            return false;
+        }
+        self.rebuild();
+        true
     }
 
     /// The value an item is grouped under, and what to call it.
@@ -726,21 +812,32 @@ impl App {
     }
 
     pub fn rebuild(&mut self) {
+        self.resettle();
         let heading_type = self.heading_type().map(str::to_string);
         let keys: Vec<String> = self.items.iter().map(|i| self.group_key(i)).collect();
         let ranks: Vec<(u8, String, u64)> = keys.iter().map(|k| self.group_rank(k)).collect();
         let sort = self.sort_keys();
 
-        let mut indices: Vec<usize> = (0..self.items.len())
-            .filter(|i| self.visible(&self.items[*i]))
-            .filter(|i| heading_type.as_deref() != Some(self.items[*i].kind.as_str()))
-            .collect();
-        indices.sort_by(|a, b| {
+        let order = |a: &usize, b: &usize| {
             ranks[*a]
                 .cmp(&ranks[*b])
                 .then_with(|| keys[*a].cmp(&keys[*b]))
                 .then_with(|| self.compare(*a, *b, &sort))
-        });
+        };
+
+        let mut indices: Vec<usize> = (0..self.items.len())
+            .filter(|i| self.visible(&self.items[*i]))
+            .filter(|i| heading_type.as_deref() != Some(self.items[*i].kind.as_str()))
+            .collect();
+        indices.sort_by(order);
+
+        // The board's own set, in the list's order: a column reads down the
+        // same way a group does, or the two views of one backlog disagree
+        // about what comes first.
+        let mut cards: Vec<usize> = (0..self.items.len())
+            .filter(|i| self.on_board(&self.items[*i]))
+            .collect();
+        cards.sort_by(order);
 
         self.groups.clear();
         self.rows.clear();
@@ -779,7 +876,10 @@ impl App {
             }
         }
 
-        self.build_board(&indices);
+        self.build_board(&cards);
+        // What this build put on screen, which is what the next one measures
+        // against to know what has just left.
+        self.shown = indices.iter().map(|i| self.items[*i].id).collect();
         self.clamp();
     }
 
@@ -828,7 +928,17 @@ impl App {
     /// The board is the same set of items, dealt into the columns the project
     /// asked for. Items in a status with no column are not lost; they simply
     /// have nowhere to be, which `cairn board` does too.
-    fn build_board(&mut self, indices: &[usize]) {
+    /// The board is the same set of items, dealt into the columns the project
+    /// asked for.
+    ///
+    /// Which set is not the list's. `a` is a question about the list — whether
+    /// finished work is worth a row among the work that is left — and the
+    /// board has already answered it: a status is a column because the project
+    /// wrote `board = true`, and `dropped` is absent here because this project
+    /// wrote `board = false` on it. Applying the list's rule as well is what
+    /// produced a `done` column beside `✓ 1 done` in the strip, permanently
+    /// holding nothing, with cards dragged into it disappearing on arrival.
+    fn build_board(&mut self, cards: &[usize]) {
         self.columns = self
             .schema
             .board_statuses()
@@ -839,7 +949,7 @@ impl App {
                 items: Vec::new(),
             })
             .collect();
-        for &i in indices {
+        for &i in cards {
             let status = &self.items[i].status;
             if let Some(column) = self.columns.iter_mut().find(|c| c.status == *status) {
                 column.items.push(i);
@@ -2283,10 +2393,13 @@ impl App {
                 ));
             }
         }
-        let on_board: usize = self.columns.iter().map(|c| c.items.len()).sum();
-        if on_board > visible {
+        // The board is dealt from its own set, not the list's, so it is held
+        // to that one: every card is an item the board would deal.
+        let dealt: usize = self.columns.iter().map(|c| c.items.len()).sum();
+        let eligible = self.items.iter().filter(|i| self.on_board(i)).count();
+        if dealt > eligible {
             return Err(format!(
-                "the board shows {on_board} items but only {visible} are visible"
+                "the board shows {dealt} cards but only {eligible} items belong on it"
             ));
         }
         Ok(())

@@ -65,6 +65,23 @@ fn the_detail_pane_scrolled_into_a_long_item() {
     );
 }
 
+/// A close reads as a movement between two states rather than a deletion: the
+/// row is still there, drawn as what it has become, with the mark that says it
+/// just moved. A moment later it goes.
+#[test]
+fn an_item_settling_after_it_was_closed() {
+    let mut app = support::app();
+    let mut report = harrow::testkit::report();
+    for item in &mut report.items {
+        if item.id == 3 {
+            item.status = "done".into();
+            item.category = harrow::schema::Category::Done;
+        }
+    }
+    app.ingest(report);
+    support::assert_snapshot("settling", &ui::render_to_string(&mut app, 110, 20, 0));
+}
+
 #[test]
 fn the_help_overlay() {
     let mut app = support::app();
