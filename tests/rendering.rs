@@ -279,3 +279,19 @@ fn what_happened() {
     ));
     support::assert_snapshot("log", &ui::render_to_string(&mut app, 110, 16, 0));
 }
+
+/// Whose work is whose, on a backlog shared with a program: yours is `@`,
+/// somebody else's is `·`, and `owner` appears where it says something the
+/// assignee does not.
+#[test]
+fn two_actors_on_one_backlog() {
+    let mut app = support::app();
+    app.me = "oddur".into();
+    if let Some(item) = app.items.iter_mut().find(|i| i.id == 5) {
+        item.assignee = Some("an agent".into());
+        item.owner = Some("oddur".into());
+    }
+    app.rebuild();
+    app.select_id(5);
+    support::assert_snapshot("actors", &ui::render_to_string(&mut app, 110, 16, 0));
+}

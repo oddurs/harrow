@@ -2,7 +2,7 @@
 id: 68
 title: Whose work is whose
 type: feature
-status: backlog
+status: done
 milestone: v0.5
 depends_on:
 - 64
@@ -47,7 +47,15 @@ which is the rule the state column already follows.
 
 ## Acceptance criteria
 
-- [ ] Two actors are distinguishable at a glance, without reading the names
-- [ ] `owner` is visible where it differs from `assignee`
-- [ ] Your own work is distinguishable from everybody else's
-- [ ] It degrades to something readable with no colour at all
+- [x] Two actors are distinguishable at a glance, without reading the names —
+      as *yours* and *not yours*, which is the first-order question. A colour
+      per actor was tried and rejected: the rank scale is the priority scale,
+      so a contributor would be drawn in the p0 red for no reason but their
+      position in a sorted list, and this row already carries state, type,
+      priority and staleness in colour
+- [x] `owner` is visible where it differs from `assignee`
+- [x] Your own work is distinguishable from everybody else's
+- [x] It degrades to something readable with no colour at all: the glyph
+      carries it, `@` for yours and `·` for somebody else's
+- [x] Where harrow cannot tell who you are, nobody is marked as *not you*,
+      because a distinction that cannot be drawn should not be suggested
