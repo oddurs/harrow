@@ -30,6 +30,15 @@ const SPINNER: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 /// pane beside an editor is usually sixty columns, and two panes in sixty is
 /// two unreadable panes.
 const DETAIL_MIN_WIDTH: u16 = 96;
+/// What the detail needs to be worth drawing beside an arrangement that is
+/// already divided.
+const DETAIL_WIDTH: u16 = 44;
+/// What one board column needs to stay a card rather than a stub.
+const COLUMN_MIN: u16 = 26;
+/// What the stats pane needs to lay itself out in two columns, which is what
+/// it does whenever it has the room: its sections are short, and one column
+/// of them is mostly whitespace.
+const STATS_TWO_COLUMN: u16 = 88;
 /// Below this, the header drops to the identity and the counts.
 const ROOMY: u16 = 74;
 
@@ -86,23 +95,25 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     }
     draw_rule(f, &t, chunks[2]);
 
-    let body = chunks[3];
-    if app.pane == Pane::Stats {
-        draw_stats(f, app, &t, body);
-    } else if app.pane == Pane::Board {
-        app.board_area = body;
-        draw_board(f, app, &t, body);
-    } else if body.width >= DETAIL_MIN_WIDTH {
-        let split = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(56), Constraint::Percentage(44)])
-            .split(body);
-        app.list_area = split[0];
-        draw_list(f, app, &t, split[0]);
-        draw_detail(f, app, &t, split[1]);
-    } else {
-        app.list_area = body;
-        draw_list(f, app, &t, body);
+    // The detail belongs to the selection, not to the list: the same item is
+    // selected whichever lens is showing, and there is no reason a board
+    // should know less about it than a list does. What differs is how much
+    // room a lens needs before it can spare the width — which is a property
+    // of the arrangement, so each lens says.
+    let (body, detail) = split_off_detail(app, chunks[3]);
+    match app.pane {
+        Pane::Stats => draw_stats(f, app, &t, body),
+        Pane::Board => {
+            app.board_area = body;
+            draw_board(f, app, &t, body);
+        }
+        Pane::List => {
+            app.list_area = body;
+            draw_list(f, app, &t, body);
+        }
+    }
+    if let Some(detail) = detail {
+        draw_detail(f, app, &t, detail);
     }
     draw_footer(f, app, &t, chunks[4]);
 
@@ -783,6 +794,47 @@ fn card_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
         spans.push(Span::styled(rank.clone(), rank_style(item, schema, t)));
     }
     ListItem::new(Line::from(spans))
+}
+
+/// Where the arrangement goes, and where the detail goes beside it.
+///
+/// The threshold is the lens's own, and it is the width at which the lens can
+/// still do its job properly with the detail beside it — not the width at
+/// which both technically fit.
+///
+/// A list wants half the terminal and is readable in fifty columns. A board
+/// is already divided, so what it can spare depends on how many columns the
+/// project declared: three can give the detail its width at a hundred and
+/// twenty-two, five not until a hundred and seventy-four. The stats lay out
+/// in two columns whenever they have room, so they keep the detail only when
+/// there is room for both — otherwise a wide terminal would trade a layout
+/// the pane prefers for a pane it did not ask for.
+///
+/// Below its threshold a lens keeps the whole body, which is the rule the
+/// list has always followed: the detail gets out of the way rather than
+/// halving something already too small.
+fn split_off_detail(app: &App, body: Rect) -> (Rect, Option<Rect>) {
+    let needed = match app.pane {
+        // Kept as a proportion rather than a fixed width, because a list
+        // goes on being more useful the wider it is and the recorded screens
+        // are taken at these proportions.
+        Pane::List => DETAIL_MIN_WIDTH,
+        Pane::Board => COLUMN_MIN * app.columns.len().max(1) as u16 + DETAIL_WIDTH,
+        Pane::Stats => STATS_TWO_COLUMN + DETAIL_WIDTH,
+    };
+    if body.width < needed || app.selected_item().is_none() {
+        return (body, None);
+    }
+    let split = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(match app.pane {
+            Pane::List => [Constraint::Percentage(56), Constraint::Percentage(44)],
+            // Everything else keeps the room it needs and the detail takes
+            // what it needs, rather than both growing and neither using it.
+            _ => [Constraint::Min(0), Constraint::Length(DETAIL_WIDTH)],
+        })
+        .split(body);
+    (split[0], Some(split[1]))
 }
 
 // ── The detail pane ──────────────────────────────────────────────────────────
