@@ -668,3 +668,48 @@ fn every_door_leads_somewhere_real() {
         }
     }
 }
+
+/// Three lenses in a cycle means the cost of reaching one depends on where it
+/// sits in an array. With a way back, every lens is one press from every
+/// other — which is also why no direct key per lens was added.
+#[test]
+fn shift_tab_reaches_the_lens_before_this_one() {
+    use harrow::app::Pane;
+    let mut app = app();
+    assert_eq!(app.pane, Pane::List);
+
+    app.run(Command::ViewBack);
+    assert_eq!(app.pane, Pane::Stats, "back from the first is the last");
+    app.run(Command::ViewBack);
+    assert_eq!(app.pane, Pane::Board);
+    app.run(Command::ViewBoard);
+    assert_eq!(app.pane, Pane::Stats, "and forward undoes it");
+
+    // Every lens is one press away from every other.
+    for from in Pane::ALL {
+        for to in Pane::ALL {
+            if from == to {
+                continue;
+            }
+            app.pane = from;
+            let reached = [Command::ViewBoard, Command::ViewBack].iter().any(|c| {
+                app.pane = from;
+                app.run(*c);
+                app.pane == to
+            });
+            assert!(reached, "{from:?} to {to:?} in one press");
+        }
+    }
+}
+
+/// Which is the first thing a lens owes the reader.
+#[test]
+fn the_selection_survives_going_back_as_well_as_forward() {
+    let mut app = app();
+    let was = app.selected_item().map(|i| i.id);
+    assert!(was.is_some());
+    for _ in 0..3 {
+        app.run(Command::ViewBack);
+    }
+    assert_eq!(app.selected_item().map(|i| i.id), was);
+}

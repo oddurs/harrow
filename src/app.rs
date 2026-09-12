@@ -52,6 +52,14 @@ impl Pane {
             Pane::Stats => Pane::List,
         }
     }
+
+    fn previous(self) -> Pane {
+        match self {
+            Pane::List => Pane::Stats,
+            Pane::Board => Pane::List,
+            Pane::Stats => Pane::Board,
+        }
+    }
 }
 
 /// Something on screen you can click.
@@ -2378,9 +2386,15 @@ impl App {
             },
             Command::PrevGroup => self.step_group(false),
             Command::NextGroup => self.step_group(true),
-            Command::ViewBoard => {
+            Command::ViewBoard | Command::ViewBack => {
                 let id = self.selected_item().map(|i| i.id);
-                self.pane = self.pane.next();
+                self.pane = if command == Command::ViewBack {
+                    self.pane.previous()
+                } else {
+                    self.pane.next()
+                };
+                // The selection is the same item in every lens that has one,
+                // which is the first thing a lens owes the reader.
                 if let Some(id) = id {
                     self.select_id(id);
                 }
