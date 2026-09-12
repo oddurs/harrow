@@ -452,3 +452,65 @@ fn a_project_that_names_its_criteria_section_is_obeyed() {
         "the ticked box under Notes is not a criterion met, and the bare box is a placeholder"
     );
 }
+
+/// `milestone: 0042` must not mean either a key or a number depending on what
+/// happens to exist. Two rules keep that unambiguous — a key may not look like
+/// a rendered identifier, and a key-addressed reference resolves by key alone
+/// — and the second is worth nothing without the first.
+#[test]
+fn a_reference_addressed_by_key_resolves_only_by_key() {
+    let dir = testkit::project();
+    // `v0.1` is item 1's key. A reference naming the number instead names
+    // nothing, which is a reference that names nothing, not item 1.
+    std::fs::write(
+        dir.path().join("items/0097-by-the-number.md"),
+        "---\nid: 97\ntitle: Filed against a number\nstatus: backlog\nmilestone: 1\n---\n",
+    )
+    .expect("write it");
+
+    let app = app_for(dir.path());
+    assert!(
+        app.item_named("v0.1").is_some_and(|i| i.id == 1),
+        "the key still resolves"
+    );
+    assert!(app.item_named("1").is_none(), "and the id does not");
+    assert!(
+        app.item_named("V0.1").is_some(),
+        "case is not what distinguishes two keys"
+    );
+
+    let scheduled = app.items.iter().find(|i| i.id == 1).expect("the milestone");
+    assert!(
+        !scheduled.contains.contains(&97),
+        "so nothing was filed under it by number"
+    );
+}
+
+/// An id-addressed field is the other half of the same rule: `part_of: 3`
+/// names item 3, and a key that happens to read as a number names nothing.
+#[test]
+fn an_id_addressed_reference_resolves_only_by_id() {
+    let dir = testkit::project();
+    std::fs::write(
+        dir.path().join("items/0096-composed.md"),
+        "---\nid: 96\ntitle: Composed\nstatus: backlog\npart_of: '#3'\n---\n",
+    )
+    .expect("write it");
+    std::fs::write(
+        dir.path().join("items/0095-by-key.md"),
+        "---\nid: 95\ntitle: Named by a key\nstatus: backlog\npart_of: v0.1\n---\n",
+    )
+    .expect("write it");
+
+    let app = app_for(dir.path());
+    let three = app.items.iter().find(|i| i.id == 3).expect("0003");
+    assert!(
+        three.contains.contains(&96),
+        "a leading # is how references are printed, so it is how they are pasted back"
+    );
+    let milestone = app.items.iter().find(|i| i.id == 1).expect("0001");
+    assert!(
+        !milestone.contains.contains(&95),
+        "an id-addressed field does not fall back to a key"
+    );
+}

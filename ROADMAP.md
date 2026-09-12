@@ -44,13 +44,12 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
 ## v0.3 — Read everything cairn writes, and nothing it does not
 
-`#·········` 10% · 1 of 10 done · due 2027-02-15
+`##········` 20% · 2 of 10 done · due 2027-02-15
 
 harrow reads cairn's files directly. That is the decision the whole program
 
 ### backlog
 
-- [ ] `0030` A reference addressed by key resolves only by key <sup>bug · p2 · read</sup>
 - [ ] `0031` Identifiers rendered the way the project renders them <sup>feature · p2 · read</sup>
 - [ ] `0032` A project from a newer cairn opens read-only rather than being refused <sup>feature · p1 · read</sup>
 - [ ] `0033` A claim that has gone stale says so <sup>feature · p2 · chrome</sup>
@@ -63,6 +62,7 @@ harrow reads cairn's files directly. That is the decision the whole program
 ### done
 
 - [x] `0029` Acceptance criteria are what the convention says they are <sup>bug · p1 · read</sup>
+- [x] `0030` A reference addressed by key resolves only by key <sup>bug · p2 · read</sup>
 
 ## v1.0 — Stable release
 

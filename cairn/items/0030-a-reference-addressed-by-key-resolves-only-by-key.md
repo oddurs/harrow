@@ -2,7 +2,7 @@
 id: 30
 title: A reference addressed by key resolves only by key
 type: bug
-status: backlog
+status: done
 milestone: v0.3
 created: 2026-09-12
 updated: 2026-09-12
@@ -51,6 +51,6 @@ visible — the item shows no milestone — rather than silent.
 
 ## Acceptance criteria
 
-- [ ] A key-addressed reference matching only an id resolves to nothing
-- [ ] Key comparison is exact, including case
-- [ ] An unresolved reference is a reference that names nothing, not a warning storm
+- [x] A key-addressed reference matching only an id resolves to nothing
+- [x] Key comparison is exact, including case
+- [x] An unresolved reference is a reference that names nothing, not a warning storm
