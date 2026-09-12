@@ -25,13 +25,9 @@ Enough to dogfood in a real project.
 
 ## v0.2 — Triage that scales past one item at a time
 
-`##########` 91% · 10 of 11 done · due 2027-01-15
+`##########` 100% · 10 of 10 done · due 2027-01-15
 
 Everything that makes harrow useful on a backlog somebody else wrote: bulk
-
-### backlog
-
-- [ ] `0021` Package it: crates.io and a tap <sup>chore · p1 · packaging</sup>
 
 ### done
 
@@ -67,12 +63,13 @@ harrow reads cairn's files directly. That is the decision the whole program
 
 ## v1.0 — Stable release
 
-`··········` 0% · 0 of 10 done · due 2027-03-01
+`··········` 0% · 0 of 11 done · due 2027-03-01
 
 Documented, tested, and safe to depend on.
 
 ### backlog
 
+- [ ] `0021` Package it: crates.io and a tap <sup>chore · p1 · packaging</sup>
 - [ ] `0041` Undo the last thing you did <sup>feature · p1 · write</sup>
 - [ ] `0042` A rebuild that does not slow down as the backlog grows <sup>bug · p1 · read</sup>
 - [ ] `0043` A man page, and completions for the shell you use <sup>docs · p1 · docs</sup>
