@@ -103,6 +103,7 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     let (body, detail) = split_off_detail(app, chunks[3]);
     match app.pane {
         Pane::Needs => draw_needs(f, app, &t, body),
+        Pane::Log => draw_log(f, app, &t, body),
         Pane::Stats => draw_stats(f, app, &t, body),
         Pane::Board => {
             app.board_area = body;
@@ -832,7 +833,7 @@ fn split_off_detail(app: &App, body: Rect) -> (Rect, Option<Rect>) {
     let needed = match app.pane {
         // A question is one line and the item it is about is the other half
         // of it, so this lens wants the detail more than any of them.
-        Pane::Needs => DETAIL_MIN_WIDTH,
+        Pane::Needs | Pane::Log => DETAIL_MIN_WIDTH,
         // Kept as a proportion rather than a fixed width, because a list
         // goes on being more useful the wider it is and the recorded screens
         // are taken at these proportions.
@@ -1392,6 +1393,88 @@ fn draw_needs(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
                 height: 1,
             },
             Hit::Question(n),
+        );
+    }
+}
+
+/// What changed across the project, most recent first.
+///
+/// The second question somebody sitting down asks, after *what needs me*.
+/// The answer is in git — every item is a file and every change is a commit
+/// — and cairn already proves it will read that, one item at a time.
+fn draw_log(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(t.border))
+        .padding(Padding::horizontal(1))
+        .title(Span::styled(
+            " What happened ",
+            Style::default().fg(t.muted),
+        ));
+
+    let say = |f: &mut Frame, line: &str, colour: ratatui::style::Color| {
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                line.to_string(),
+                Style::default().fg(colour),
+            )))
+            .alignment(Alignment::Center)
+            .block(block.clone()),
+            area,
+        );
+    };
+    match &app.moments {
+        None => return say(f, "Asking the repository…", t.faint),
+        Some(Err(why)) => return say(f, why, t.warn),
+        Some(Ok(m)) if m.is_empty() => {
+            return say(f, "Nothing has changed here yet.", t.faint);
+        }
+        Some(Ok(_)) => {}
+    }
+
+    let inner = block.inner(area);
+    let width = inner.width as usize;
+    let me = app.me.clone();
+    let rows: Vec<ListItem> = app
+        .moments()
+        .iter()
+        .map(|m| {
+            let reference = app.schema.format_id(m.id);
+            // Telling *I did that* from *something else did that* is most of
+            // what this lens is for.
+            let mine = m.who.eq_ignore_ascii_case(&me);
+            let who = truncate(&m.who, 14);
+            let lead = 11 + 15 + reference.chars().count() + 3;
+            ListItem::new(Line::from(vec![
+                Span::styled(format!("  {} ", m.when), Style::default().fg(t.faint)),
+                Span::styled(
+                    format!("{who:<14} "),
+                    Style::default().fg(if mine { t.person } else { t.secondary }),
+                ),
+                Span::styled(format!("{reference} "), Style::default().fg(t.faint)),
+                Span::styled(
+                    truncate(&m.what, width.saturating_sub(lead)),
+                    Style::default().fg(t.muted),
+                ),
+            ]))
+        })
+        .collect();
+
+    let mut state = ListState::default().with_selected(Some(app.moment()));
+    f.render_stateful_widget(
+        List::new(rows).block(block).highlight_style(t.selected()),
+        area,
+        &mut state,
+    );
+    for n in 0..app.moments().len() {
+        app.hit(
+            Rect {
+                x: inner.x,
+                y: inner.y + n as u16,
+                width: inner.width,
+                height: 1,
+            },
+            Hit::Moment(n),
         );
     }
 }

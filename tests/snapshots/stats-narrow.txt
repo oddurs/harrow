@@ -1,4 +1,4 @@
- sample    needs  list  board  stats                 starting
+ sample    needs  list  board  stats  log            starting
  ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
 ──────────────────────────────────────────────────────────────
 ╭ sample ────────────────────────────────────────────────────╮

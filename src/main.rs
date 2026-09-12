@@ -212,7 +212,28 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
     let view = flag_value(args, "--view").unwrap_or_else(|| startup.config.view.clone());
     app.view = (!view.trim().is_empty()).then_some(view);
     app.readonly = (!on_path(&startup.config.cairn)).then_some(harrow::app::ReadOnly::NoCairn);
+    app.me = whoami();
     app
+}
+
+/// Who this is, asked the way cairn asks it — `CAIRN_USER`, then git's
+/// configured name — so that harrow and cairn agree about whose work is
+/// whose. An agent's writes carry the agent's name, and telling them apart
+/// from yours is the whole point of recording either.
+fn whoami() -> String {
+    if let Ok(v) = std::env::var("CAIRN_USER")
+        && !v.trim().is_empty()
+    {
+        return v.trim().to_string();
+    }
+    std::process::Command::new("git")
+        .args(["config", "--get", "user.name"])
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_default()
 }
 
 /// Whether `cairn` can be run at all. Read-only is a legitimate way to work — a
@@ -625,6 +646,30 @@ fn dispatch(
             )
             .map_err(|e| e.to_string());
             app.show_history(id, result);
+        }
+        Action::Activity => {
+            // git, directly. Reading history is a read, and harrow already
+            // reads this repository's files rather than asking for them —
+            // cairn does the same for one item's history.
+            let dir = app.schema.items_dir();
+            let result = harrow::exec::run(
+                "git",
+                &[
+                    "-C",
+                    &app.schema.root.display().to_string(),
+                    "log",
+                    "-n",
+                    "300",
+                    "--no-merges",
+                    "--name-only",
+                    "--pretty=format:%h\x1f%an\x1f%aI\x1f%s",
+                    "--",
+                    &dir.display().to_string(),
+                ],
+                startup.config.write_timeout(),
+            )
+            .map_err(|_| "not a git repository, so there is no history to read".to_string());
+            app.show_activity(result);
         }
         Action::Check => {
             // The project's own validator, on the project's own rules. harrow

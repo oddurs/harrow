@@ -19,7 +19,19 @@ use crate::keys::{Command, Keymap};
 use crate::schema::{Category, Schema};
 use crate::theme::Theme;
 
-/// Which of the three ways of looking at a backlog is on screen.
+/// One item changing, once, as the repository recorded it.
+///
+/// The unit is a change rather than a commit, because the reader is asking
+/// about items: a commit that moves four of them is four lines.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Moment {
+    pub id: u32,
+    pub when: String,
+    pub who: String,
+    pub what: String,
+}
+
+/// Which way of looking at a backlog is on screen.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Pane {
     /// Everything addressed to a person: proposals to decide, claims gone
@@ -32,14 +44,18 @@ pub enum Pane {
     List,
     Board,
     Stats,
+    /// What changed across the project, most recent first, out of the git
+    /// that is already underneath it.
+    Log,
 }
 
 impl Pane {
-    pub const ALL: [Pane; 4] = [Pane::Needs, Pane::List, Pane::Board, Pane::Stats];
+    pub const ALL: [Pane; 5] = [Pane::Needs, Pane::List, Pane::Board, Pane::Stats, Pane::Log];
 
     pub fn name(self) -> &'static str {
         match self {
             Pane::Needs => "needs",
+            Pane::Log => "log",
             Pane::List => "list",
             Pane::Board => "board",
             Pane::Stats => "stats",
@@ -94,6 +110,8 @@ pub enum Hit {
     Figure(usize),
     /// A question on the needs-you lens, by index into `questions`.
     Question(usize),
+    /// A change on the log lens, by index into `moments`.
+    Moment(usize),
 }
 
 /// Something addressed to a person.
@@ -211,6 +229,8 @@ pub enum Action {
     History(u32),
     /// Ask cairn whether the project is valid against its own schema.
     Check,
+    /// Ask the repository what has changed across the whole backlog.
+    Activity,
     /// Ask cairn to change something.
     Write(Change),
 }
@@ -487,8 +507,20 @@ pub struct App {
     /// pressing a key.
     pub readonly: Option<ReadOnly>,
     pub warnings: Vec<String>,
+    /// Who harrow is, asked the way cairn asks it, so that *I did that* and
+    /// *something else did that* can be told apart.
+    pub me: String,
     /// The change waiting on a reason before it is proposed.
     proposing: Option<(u32, String, String)>,
+    /// What the repository says has happened, most recent first.
+    ///
+    /// `None` until asked, because it is a process and harrow reloads on
+    /// every file change; asking on a watch would be asking three times a
+    /// keystroke. Cleared when the backlog changes, so the next visit to the
+    /// lens asks again.
+    pub moments: Option<Result<Vec<Moment>, String>>,
+    /// Which moment the cursor is on.
+    moment: usize,
     /// What `cairn check` last said, if it has been asked.
     ///
     /// Kept apart from `warnings`, which is what harrow found reading the
@@ -593,7 +625,10 @@ impl App {
             watcher_alive: true,
             readonly: None,
             warnings: Vec::new(),
+            me: String::new(),
             proposing: None,
+            moments: None,
+            moment: 0,
             checked: None,
             changed: HashMap::new(),
             shown: HashSet::new(),
@@ -658,6 +693,8 @@ impl App {
             }
             _ => None,
         };
+        // The repository said something new, so what it said before is old.
+        self.moments = None;
         self.check_settings();
         self.follow_view();
         self.reparse_filter();
@@ -1516,6 +1553,10 @@ impl App {
     }
 
     fn selected_index(&self) -> Option<usize> {
+        if self.pane == Pane::Log {
+            let id = self.moments().get(self.moment)?.id;
+            return self.items.iter().position(|i| i.id == id);
+        }
         if self.pane == Pane::Needs {
             let id = match self.needs_anchor {
                 Some(anchor) => anchor,
@@ -1537,6 +1578,16 @@ impl App {
 
     pub fn move_by(&mut self, delta: isize) {
         if delta == 0 {
+            return;
+        }
+        if self.pane == Pane::Log {
+            let len = self.moments().len() as isize;
+            if len == 0 {
+                return;
+            }
+            let at = (self.moment as isize + delta.signum() * delta.abs().min(len)).rem_euclid(len)
+                as usize;
+            self.select_moment(at);
             return;
         }
         if self.pane == Pane::Needs {
@@ -1596,6 +1647,10 @@ impl App {
     }
 
     pub fn jump(&mut self, to_end: bool) {
+        if self.pane == Pane::Log {
+            self.select_moment(if to_end { usize::MAX } else { 0 });
+            return;
+        }
         if self.pane == Pane::Needs {
             self.needs_anchor = None;
             self.question = if to_end {
@@ -2334,6 +2389,84 @@ impl App {
         }
     }
 
+    pub fn moment(&self) -> usize {
+        self.moment
+    }
+
+    /// Move the log's cursor.
+    pub fn select_moment(&mut self, n: usize) {
+        let len = self.moments().len();
+        if len > 0 {
+            self.moment = n.min(len - 1);
+        }
+    }
+
+    /// What the log lens is showing, which is nothing until it has asked.
+    ///
+    /// The filter applies, because *what happened* means *what happened to
+    /// what I am looking at* — the same set the board is dealt from. An item
+    /// the repository remembers and the backlog no longer has is dropped: a
+    /// row whose detail cannot be shown is a row that breaks the contract.
+    pub fn moments(&self) -> Vec<&Moment> {
+        let Some(Ok(moments)) = &self.moments else {
+            return Vec::new();
+        };
+        moments
+            .iter()
+            .filter(|m| self.items.iter().any(|i| i.id == m.id && self.on_board(i)))
+            .collect()
+    }
+
+    /// Read what the repository said.
+    ///
+    /// `git log` was asked for `%h\x1f%an\x1f%aI\x1f%s` and then the paths,
+    /// so a line with three separators begins a commit and everything after
+    /// it until the blank line is what that commit touched.
+    ///
+    /// One record per item per commit: a commit that moved four items is
+    /// four lines, because the reader is asking about items, not commits.
+    pub fn show_activity(&mut self, result: Result<String, String>) {
+        self.moment = 0;
+        self.moments = Some(result.map(|text| {
+            let mut out: Vec<Moment> = Vec::new();
+            let mut head: Option<(String, String, String)> = None;
+            for line in text.lines() {
+                let fields: Vec<&str> = line.split('\u{1f}').collect();
+                if let [_hash, who, when, what] = fields.as_slice() {
+                    head = Some((
+                        // The day, which is the resolution a person reads a
+                        // backlog at. The time of day answers nothing here.
+                        when.split('T').next().unwrap_or(when).to_string(),
+                        who.to_string(),
+                        what.to_string(),
+                    ));
+                    continue;
+                }
+                let Some((when, who, what)) = &head else {
+                    continue;
+                };
+                let Some(id) = crate::item::id_from_path(std::path::Path::new(line.trim())) else {
+                    continue;
+                };
+                // A commit that touches one item twice — renamed and edited
+                // — is still one thing happening to it.
+                if out
+                    .iter()
+                    .any(|m| m.id == id && m.when == *when && m.what == *what)
+                {
+                    continue;
+                }
+                out.push(Moment {
+                    id,
+                    when: when.clone(),
+                    who: who.clone(),
+                    what: what.clone(),
+                });
+            }
+            out
+        }));
+    }
+
     /// Take what cairn said about the project.
     ///
     /// Every line kept, including the one that says it passed: an empty
@@ -2602,6 +2735,7 @@ impl App {
             Command::NextGroup => self.step_group(true),
             Command::ViewBoard | Command::ViewBack => {
                 let id = self.selected_item().map(|i| i.id);
+                let ask = self.pane != Pane::Log;
                 self.pane = if command == Command::ViewBack {
                     self.pane.previous()
                 } else {
@@ -2613,12 +2747,25 @@ impl App {
                     self.select_id(id);
                 }
                 self.clamp();
+                // Arriving asks the repository, once. It is a process, and
+                // the answer only changes when the backlog does.
+                if ask && self.pane == Pane::Log && self.moments.is_none() {
+                    return Action::Activity;
+                }
             }
             Command::GroupBy => self.cycle_grouping(),
             // On the stats pane, `enter` is how you follow a figure to what
             // it counted; everywhere else it reads the selected item.
             Command::Read if self.pane == Pane::Stats && !self.doors.is_empty() => {
                 return self.open_door(self.figure);
+            }
+            // On the log, `enter` goes from *this item changed* to *how this
+            // item got the way it is*, which is the overlay that exists.
+            Command::Read if self.pane == Pane::Log => {
+                let Some(item) = self.selected_item() else {
+                    return Action::None;
+                };
+                return Action::History(item.id);
             }
             Command::Read => {
                 if self.selected_item().is_some() {
@@ -2883,7 +3030,7 @@ impl App {
         match self.pane {
             // One cursor, one list: scrolling and moving are the same thing
             // where every row is a question rather than a line of text.
-            Pane::Needs => self.move_by(delta.signum()),
+            Pane::Needs | Pane::Log => self.move_by(delta.signum()),
             Pane::Stats => {
                 self.stats_scroll = self
                     .stats_scroll
@@ -3022,6 +3169,7 @@ impl App {
             // Selecting it, not answering it: the answers are keys, and a
             // click that closed an item would be a click nobody meant.
             Hit::Question(n) => self.select_question(n),
+            Hit::Moment(n) => self.select_moment(n),
         }
         Action::None
     }

@@ -41,6 +41,11 @@ enum Owes {
 /// asked what it does when it has the space, not what it does when squeezed.
 const WIDE: (u16, u16) = (140, 34);
 
+/// What `git log` would have said, in the shape the shell hands over. A lens
+/// that has to ask a process still has to meet the contract, so the test
+/// gives it the answer the shell would.
+const HISTORY: &str = "abc123\u{1f}Oddur\u{1f}2026-09-10T09:00:00Z\u{1f}close the reader\n     items/0003-draw-the-list.md\n     items/0005-the-detail-pane-scrolls-past-its-pane.md\n     \n     def456\u{1f}an agent\u{1f}2026-09-09T17:00:00Z\u{1f}file the readme\n     items/0006-write-the-readme.md\n";
+
 fn app_on(lens: Pane) -> App {
     let mut app = testkit::app();
     app.loading = false;
@@ -50,6 +55,7 @@ fn app_on(lens: Pane) -> App {
     app.now = 1_789_084_800;
     app.rebuild();
     app.pane = lens;
+    app.show_activity(Ok(HISTORY.to_string()));
     app.select_id(3);
     app
 }
@@ -114,6 +120,7 @@ fn shown(app: &mut App, lens: Pane) -> usize {
         Pane::Board => app.columns.iter().map(|c| c.items.len()).sum(),
         Pane::Stats => app.stats().total,
         Pane::Needs => app.questions.len(),
+        Pane::Log => app.moments().len(),
     }
 }
 
@@ -144,7 +151,7 @@ fn every_lens_owes_the_reader_the_same_things() {
 fn the_contract_covers_every_lens_there_is() {
     assert_eq!(
         Pane::ALL.len(),
-        4,
+        5,
         "a lens was added or removed — the contract above covers every one"
     );
 }

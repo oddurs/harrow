@@ -52,9 +52,14 @@ out again.
 So: one keystroke per decision, the cursor stays where it was, and the whole
 thing is read-mostly. Writing prose still belongs in `$EDITOR`, which `e` opens.
 
-## Four ways to look at it
+## Five ways to look at it
 
 `tab` moves between them, `shift-tab` goes back.
+
+**What happened** is the other question you arrive with: who changed what,
+when, most recent first, read out of the repository's own history. One row
+per item changed rather than per commit, because the question is about
+items. `↵` opens that item's full history.
 
 **Needs you** is everything addressed to a person and nothing else: a
 proposal waiting on a decision, a claim nobody has honoured, work whose

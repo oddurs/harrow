@@ -1,4 +1,4 @@
- harrow  sample    needs  list  board  stats    1 needs you                                          just now
+ harrow  sample    needs  list  board  stats  log    1 needs you                                     just now
  ○ 3 backlog   ✓ 2 done   ⊘ 1 blocked
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Backlog · by milestone ────────────────────────────────────╮╭ 0005 ────────────────────────────────────────╮

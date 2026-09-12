@@ -260,3 +260,22 @@ fn nothing_needs_you() {
     app.questions.clear();
     support::assert_snapshot("needs-empty", &ui::render_to_string(&mut app, 110, 14, 0));
 }
+
+/// What changed across the project, most recent first, out of the git that
+/// is already underneath it.
+#[test]
+fn what_happened() {
+    let mut app = support::app();
+    app.pane = harrow::app::Pane::Log;
+    app.me = "Oddur".into();
+    app.show_activity(Ok(
+        "abc123\u{1f}Oddur\u{1f}2026-09-10T09:00:00Z\u{1f}close the reader\n\
+         items/0003-draw-the-list.md\n\
+         items/0005-the-detail-pane-scrolls-past-its-pane.md\n\
+         \n\
+         def456\u{1f}an agent\u{1f}2026-09-09T17:00:00Z\u{1f}file the readme\n\
+         items/0006-write-the-readme.md\n"
+            .into(),
+    ));
+    support::assert_snapshot("log", &ui::render_to_string(&mut app, 110, 16, 0));
+}
