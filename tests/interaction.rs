@@ -700,25 +700,37 @@ fn shift_tab_reaches_the_lens_before_this_one() {
     }
 }
 
-/// 0062 recorded *every lens is one press from every other* as the reason for
-/// adding no direct key per lens, and wrote this so the reason would fail
-/// rather than be quietly outgrown. A fourth lens outgrew it. 0069 is the
-/// direct route; until then this says what it costs.
+/// 0062 recorded *every lens is one press from every other* as the reason
+/// for adding no direct key per lens, and wrote a test so the reason would
+/// fail rather than be quietly outgrown. Two more lenses outgrew it. This is
+/// the rule that replaced it: positional, one key each, in the order the
+/// tabs are in — so what you see is what you count.
 #[test]
-fn reaching_the_far_lens_costs_more_than_one_press() {
+fn every_lens_has_a_direct_key_in_the_order_the_tabs_are_in() {
     use harrow::app::Pane;
     let mut app = app();
-    let far = Pane::ALL[Pane::ALL.len() / 2];
-    app.pane = Pane::ALL[0];
-    let reached_in_one = [Command::ViewBoard, Command::ViewBack].iter().any(|c| {
-        app.pane = Pane::ALL[0];
-        app.run(*c);
-        app.pane == far
-    });
-    assert!(
-        !reached_in_one,
-        "every lens is one press away again — delete this test and close 0069"
-    );
+    for (n, lens) in Pane::ALL.iter().enumerate() {
+        app.pane = Pane::ALL[Pane::ALL.len() - 1];
+        app.run(Command::ViewLens(n as u8 + 1));
+        assert_eq!(
+            app.pane,
+            *lens,
+            "the {}th key is the {}th tab",
+            n + 1,
+            n + 1
+        );
+    }
+}
+
+/// A key for a lens that is not there does nothing rather than wrapping
+/// round, because nine on a five-lens screen never meant anything.
+#[test]
+fn a_key_past_the_last_lens_does_nothing() {
+    use harrow::app::Pane;
+    let mut app = app();
+    app.pane = Pane::List;
+    app.run(Command::ViewLens(9));
+    assert_eq!(app.pane, Pane::List);
 }
 
 /// Which is the first thing a lens owes the reader.

@@ -264,8 +264,8 @@ editor = "{editor}"
 # Keys, bound to action names. See `harrow --help`, or press `?`, for the
 # defaults — the help overlay is generated from your bindings, not from ours.
 # Actions: down up page-down page-up first last detail-down detail-up
-#          toggle-group next-group prev-group view-board view-back group-by
-#          read edit note history accept propose claim release close reopen
+#          toggle-group next-group prev-group view-board view-back lens-1..5
+#          group-by read edit note history accept propose claim release close
 #          new status priority milestone advance retreat copy filter back
 #          toggle-all refresh reload diagnostics check help toggle-mouse quit
 [keys]

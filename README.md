@@ -54,7 +54,8 @@ thing is read-mostly. Writing prose still belongs in `$EDITOR`, which `e` opens.
 
 ## Five ways to look at it
 
-`tab` moves between them, `shift-tab` goes back.
+`tab` moves between them, `shift-tab` goes back, and `1` to `5` go straight
+to one, in the order the tabs are in.
 
 **What happened** is the other question you arrive with: who changed what,
 when, most recent first, read out of the repository's own history. One row
