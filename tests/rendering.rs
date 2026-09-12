@@ -53,6 +53,18 @@ fn reading_an_item() {
     support::assert_snapshot("reader", &ui::render_to_string(&mut app, 110, 24, 0));
 }
 
+/// The end of a long item, beside the list rather than in an overlay over it.
+#[test]
+fn the_detail_pane_scrolled_into_a_long_item() {
+    let mut app = support::app();
+    app.select_id(3);
+    app.detail.by(3, 6);
+    support::assert_snapshot(
+        "detail-scrolled",
+        &ui::render_to_string(&mut app, 110, 22, 0),
+    );
+}
+
 #[test]
 fn the_help_overlay() {
     let mut app = support::app();

@@ -101,7 +101,8 @@ harrow --fix-terminal         # undo a terminal left in mouse-reporting mode
 
 | key | |
 |---|---|
-| `↑` `↓` / `j` `k` | move between items |
+| `↑` `↓` / `j` `k` | move between items — the stats pane, on the stats |
+| `K` / `J` | scroll the detail pane |
 | `←` `→` | previous or next group — a column, on the board |
 | `space` | mark it for the next change — on a heading, fold |
 | `g` / `G` | first / last |
@@ -143,7 +144,7 @@ It is meant to be usable without learning any of the above.
 | double-click | read the item |
 | drag a card | to another column, which sets its status |
 | click a hint | run it — the footer is a row of buttons |
-| scroll | move the view, which takes the cursor along only when it must |
+| scroll | move the pane under the pointer, which takes the cursor along only when it must |
 
 `m` turns mouse capture off when you want your terminal's own text selection
 back.

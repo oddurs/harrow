@@ -253,3 +253,60 @@ fn an_overlay_takes_the_click_rather_than_the_list_behind_it() {
     let (x, y) = find(&app, &Hit::Option(1));
     assert!(matches!(app.hit_at(x, y), Some(Hit::Option(1))));
 }
+
+/// The reason the panes are beside each other: one can be read without
+/// disturbing the other.
+#[test]
+fn the_wheel_moves_the_pane_under_the_pointer_rather_than_the_one_with_the_cursor() {
+    let mut app = testkit::app();
+    app.select_id(3);
+    drawn(&mut app);
+
+    let (offset, selected) = (app.offset, app.selected);
+    let (x, y) = find(&app, &Hit::Detail);
+    app.handle_mouse(at(MouseEventKind::ScrollDown, x + 2, y + 2));
+
+    assert!(app.detail.at(3) > 0, "the detail pane has to have moved");
+    assert_eq!(app.offset, offset, "and the list stayed where it was");
+    assert_eq!(app.selected, selected, "along with the cursor in it");
+}
+
+#[test]
+fn a_board_column_scrolls_where_it_sits_without_moving_the_selection() {
+    let mut app = testkit::app();
+    app.pane = Pane::Board;
+    // Everything, so that some column has more cards than a short board shows.
+    app.show_all = true;
+    app.rebuild();
+
+    let (tallest, cards) = app
+        .columns
+        .iter()
+        .enumerate()
+        .map(|(i, c)| (i, c.items.len()))
+        .max_by_key(|(_, n)| *n)
+        .expect("the fixture deals a board");
+    assert!(cards >= 2, "the fixture has to overflow a column");
+
+    // Two borders and the chrome above and below, less one row than the column
+    // needs: the height at which that column cannot show its last card.
+    let _ = ui::render_frame(&mut app, 110, cards as u16 + 4, 0);
+
+    // The cursor somewhere else, so anything that moved it would be visible.
+    let elsewhere = (0..app.columns.len())
+        .find(|i| *i != tallest && !app.columns[*i].items.is_empty())
+        .expect("a second column with something in it");
+    app.column = elsewhere;
+    app.column_row = 0;
+    let was = app.selected_item().map(|i| i.id);
+
+    let (x, y) = find(&app, &Hit::Column(tallest));
+    app.handle_mouse(at(MouseEventKind::ScrollDown, x + 1, y + 1));
+
+    assert!(
+        app.column_offsets[tallest] > 0,
+        "the column under the pointer has to have moved"
+    );
+    assert_eq!(app.column, elsewhere, "and the cursor stayed in its own");
+    assert_eq!(app.selected_item().map(|i| i.id), was);
+}

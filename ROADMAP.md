@@ -25,13 +25,17 @@ Enough to dogfood in a real project.
 
 ## v0.2 — Triage that scales past one item at a time
 
-`########··` 80% · 4 of 5 done · due 2027-01-15
+`#######···` 67% · 4 of 6 done · due 2027-01-15
 
 Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
 ### backlog
 
 - [ ] `0021` Package it: crates.io and a tap <sup>chore · p1 · packaging</sup>
+
+### in progress
+
+- [ ] `0024` Every pane scrolls on its own <sup>feature · p1 · chrome</sup>
 
 ### done
 

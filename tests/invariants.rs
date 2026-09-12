@@ -39,6 +39,8 @@ impl Rng {
 const KEYS: &[KeyCode] = &[
     KeyCode::Char('j'),
     KeyCode::Char('k'),
+    KeyCode::Char('J'),
+    KeyCode::Char('K'),
     KeyCode::Char('g'),
     KeyCode::Char('G'),
     KeyCode::Char(' '),
