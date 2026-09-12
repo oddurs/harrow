@@ -96,7 +96,7 @@ The work is somebody else's. The deciding is yours.
 
 ## v1.0 — Stable release
 
-`##········` 14% · 2 of 14 done · due 2027-05-01
+`###·······` 21% · 3 of 14 done · due 2027-05-01
 
 Documented, tested, and safe to depend on.
 
@@ -107,7 +107,6 @@ Documented, tested, and safe to depend on.
 - [ ] `0042` A rebuild that does not slow down as the backlog grows <sup>bug · p1 · read</sup>
 - [ ] `0043` A man page, and completions for the shell you use <sup>docs · p1 · docs</sup>
 - [ ] `0044` Say what is stable, and what harrow will never be <sup>docs · p1 · docs</sup>
-- [ ] `0045` Soak it against backlogs nobody wrote by hand <sup>chore · p1 · testing</sup>
 - [ ] `0047` Say which platforms harrow runs on, and prove it <sup>chore · p2 · packaging</sup>
 - [ ] `0048` A terminal without the glyphs still gets the interface <sup>feature · p2 · theme</sup>
 - [ ] `0049` File an item the way the project files them <sup>feature · p2 · write</sup>
@@ -117,6 +116,7 @@ Documented, tested, and safe to depend on.
 
 ### done
 
+- [x] `0045` Soak it against backlogs nobody wrote by hand <sup>chore · p1 · testing</sup>
 - [x] `0046` Every screen, at every size it can be given <sup>chore · p2 · testing</sup>
 - [x] `0070` The randomised suite has never pressed half the keys <sup>bug · p1 · testing</sup>
 

@@ -2,7 +2,7 @@
 id: 45
 title: Soak it against backlogs nobody wrote by hand
 type: chore
-status: backlog
+status: done
 milestone: v1.0
 created: 2026-09-12
 updated: 2026-09-12
@@ -52,8 +52,19 @@ contract, and it is the contract harrow has to survive.
 
 ## Acceptance criteria
 
-- [ ] A seeded generator produces a schema and a backlog against it
-- [ ] Everything it produces would pass `cairn check`
-- [ ] The randomised driver runs against generated projects, not only the fixture
-- [ ] A failure prints the seed, and the seed reproduces it
-- [ ] The default run is small enough to belong in every `scripts/task check`
+- [x] A seeded generator produces a schema and a backlog against it
+- [x] Everything it produces would pass `cairn check` — held by a test, run
+      by hand because it needs cairn on PATH and a test that silently stops
+      running is worse than none. Getting there took four corrections to the
+      generator: unquoted titles containing colons, a field used before it was
+      declared, filenames that did not match the project's own id rendering,
+      and a dependency on itself. All four were the generator writing things
+      cairn would never write
+- [x] The randomised driver runs against generated projects, not only the fixture
+- [x] A failure prints the seed, the key and how far in, and the seed
+      reproduces it
+- [x] Each run gets its own directory. The first thing the soak found was two
+      of its own tests sharing one and reading each other's items — which is
+      the hazard `testkit` documents, and which only shows up on a fast
+      machine
+- [x] The default run is small enough to belong in every `scripts/task check`
