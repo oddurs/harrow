@@ -489,3 +489,30 @@ fn a_note_says_it_goes_on_one_item_rather_than_guessing() {
         .unwrap_or_default();
     assert!(said.contains("one item"), "{said}");
 }
+
+/// harrow reports what it could not read. `cairn check` reports what the
+/// project's own rules will not accept. They are different questions, and a
+/// finding of cairn's read as a bug of harrow's is the confusion worth
+/// avoiding.
+#[test]
+fn the_projects_own_check_is_asked_of_cairn_and_kept_apart() {
+    let mut app = app();
+    assert_eq!(app.run(Command::Check), Action::Check);
+    assert!(app.diagnostics, "and it opens where the answer will appear");
+    assert!(app.checked.is_none(), "nothing said until cairn answers");
+
+    app.show_check(Ok("ok: 6 item(s), 0 warning(s)\n".into()));
+    assert_eq!(
+        app.checked,
+        Some(Ok(vec!["ok: 6 item(s), 0 warning(s)".to_string()])),
+        "including the line that says it passed — an empty section under a \
+         heading is indistinguishable from a validator that never ran"
+    );
+
+    app.show_check(Err("no such file or directory".into()));
+    assert!(matches!(app.checked, Some(Err(_))), "and a failure says so");
+    assert!(
+        app.warnings.is_empty(),
+        "none of which became one of harrow's own warnings"
+    );
+}

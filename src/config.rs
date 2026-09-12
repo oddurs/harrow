@@ -267,7 +267,7 @@ editor = "{editor}"
 #          toggle-group next-group prev-group view-board group-by read edit
 #          note history accept claim release close reopen new status priority
 #          milestone advance retreat copy filter back toggle-all refresh
-#          reload diagnostics help toggle-mouse quit
+#          reload diagnostics check help toggle-mouse quit
 [keys]
 # "ctrl-r" = "reload"
 # "s"      = "status"

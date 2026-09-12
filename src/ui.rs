@@ -1863,6 +1863,52 @@ fn draw_diagnostics(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
             ]));
         }
     }
+    // What cairn says, under its own heading. A finding of cairn's read as a
+    // bug of harrow's is the confusion this separation exists to prevent.
+    match &app.checked {
+        None => {
+            lines.push(Line::from(""));
+            // From the bindings in force rather than from ours.
+            let key = app
+                .keymap
+                .keys_for(Command::Check)
+                .first()
+                .cloned()
+                .unwrap_or_default();
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(key, Style::default().fg(t.accent).bold()),
+                Span::styled(
+                    " runs the project's own `cairn check`",
+                    Style::default().fg(t.faint),
+                ),
+            ]));
+        }
+        Some(Err(why)) => {
+            lines.push(Line::from(""));
+            lines.push(section("cairn check", t, width as usize - 2));
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(
+                    truncate(why, width.saturating_sub(6) as usize),
+                    Style::default().fg(t.error),
+                ),
+            ]));
+        }
+        Some(Ok(said)) => {
+            lines.push(Line::from(""));
+            lines.push(section("cairn check", t, width as usize - 2));
+            for line in said.iter().take(8) {
+                lines.push(Line::from(vec![
+                    Span::raw("  "),
+                    Span::styled(
+                        truncate(line, width.saturating_sub(6) as usize),
+                        Style::default().fg(if line.starts_with("ok") { t.ok } else { t.warn }),
+                    ),
+                ]));
+            }
+        }
+    }
     lines.push(Line::from(""));
 
     let room = height.saturating_sub(lines.len() as u16 + 3) as usize;

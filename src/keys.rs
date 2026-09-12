@@ -52,13 +52,14 @@ pub enum Command {
     Refresh,
     Reload,
     Diagnostics,
+    Check,
     Help,
     ToggleMouse,
     Quit,
 }
 
 impl Command {
-    pub const ALL: [Command; 38] = [
+    pub const ALL: [Command; 39] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -94,6 +95,7 @@ impl Command {
         Command::Refresh,
         Command::Reload,
         Command::Diagnostics,
+        Command::Check,
         Command::Help,
         Command::ToggleMouse,
         Command::Quit,
@@ -138,6 +140,7 @@ impl Command {
             Command::Refresh => "refresh",
             Command::Reload => "reload",
             Command::Diagnostics => "diagnostics",
+            Command::Check => "check",
             Command::Help => "help",
             Command::ToggleMouse => "toggle-mouse",
             Command::Quit => "quit",
@@ -186,6 +189,7 @@ impl Command {
             Command::Refresh => "re-read the backlog now",
             Command::Reload => "reload the config and theme",
             Command::Diagnostics => "diagnostics — what failed, and why",
+            Command::Check => "validate the project against its own schema",
             Command::Help => "this help",
             Command::ToggleMouse => "mouse capture — off restores text selection",
             Command::Quit => "quit",
@@ -193,7 +197,7 @@ impl Command {
     }
 
     /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 29] {
+    pub fn help_order() -> [Command; 30] {
         [
             Command::Down,
             Command::First,
@@ -222,6 +226,7 @@ impl Command {
             Command::Back,
             Command::Refresh,
             Command::Diagnostics,
+            Command::Check,
             Command::Help,
             Command::Quit,
         ]
@@ -285,6 +290,7 @@ impl Default for Keymap {
                 (K::Char('r'), n, C::Refresh),
                 (K::Char('r'), ctrl, C::Reload),
                 (K::Char('D'), n, C::Diagnostics),
+                (K::Char('k'), ctrl, C::Check),
                 (K::Char('?'), n, C::Help),
                 (K::Char('m'), n, C::ToggleMouse),
                 (K::Char('q'), n, C::Quit),

@@ -607,6 +607,18 @@ fn dispatch(
             .map_err(|e| e.to_string());
             app.show_history(id, result);
         }
+        Action::Check => {
+            // The project's own validator, on the project's own rules. harrow
+            // reports what it could not read; this reports what cairn will
+            // not accept, and the two are different questions.
+            let result = harrow::exec::run(
+                &startup.config.cairn,
+                &["check", "--color", "never"],
+                startup.config.write_timeout(),
+            )
+            .map_err(|e| e.to_string());
+            app.show_check(result);
+        }
         Action::Write(change) => run_change(app, handle, &startup.config, change),
     }
     Ok(false)
