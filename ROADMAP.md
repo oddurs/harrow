@@ -68,6 +68,25 @@ harrow reads cairn's files directly. That is the decision the whole program
 - [ ] `0037` Hand an item back with what you learned <sup>feature · p3 · write</sup>
 - [ ] `0038` Run the project's own check and show what it says <sup>feature · p2 · chrome</sup>
 
+## v1.0 — Stable release
+
+`··········` 0% · 0 of 10 done · due 2027-03-01
+
+Documented, tested, and safe to depend on.
+
+### backlog
+
+- [ ] `0041` Undo the last thing you did <sup>feature · p1 · write</sup>
+- [ ] `0042` A rebuild that does not slow down as the backlog grows <sup>bug · p1 · read</sup>
+- [ ] `0043` A man page, and completions for the shell you use <sup>docs · p1 · docs</sup>
+- [ ] `0044` Say what is stable, and what harrow will never be <sup>docs · p1 · docs</sup>
+- [ ] `0045` Soak it against backlogs nobody wrote by hand <sup>chore · p1 · testing</sup>
+- [ ] `0046` Every screen, at every size it can be given <sup>chore · p2 · testing</sup>
+- [ ] `0047` Say which platforms harrow runs on, and prove it <sup>chore · p2 · packaging</sup>
+- [ ] `0048` A terminal without the glyphs still gets the interface <sup>feature · p2 · theme</sup>
+- [ ] `0049` File an item the way the project files them <sup>feature · p2 · write</sup>
+- [ ] `0050` Suspend it, and come back to it <sup>feature · p3 · runtime</sup>
+
 ## later — Someday
 
 `··········` 0% · 0 of 2 done
