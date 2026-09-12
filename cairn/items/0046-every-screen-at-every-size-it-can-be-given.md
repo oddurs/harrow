@@ -2,7 +2,7 @@
 id: 46
 title: Every screen, at every size it can be given
 type: chore
-status: backlog
+status: done
 milestone: v1.0
 created: 2026-09-12
 updated: 2026-09-12
@@ -37,7 +37,14 @@ inside the lines.
 
 ## Acceptance criteria
 
-- [ ] Every pane and every overlay renders at every size in a grid down to the smallest
-- [ ] Nothing is drawn outside the area it was given
-- [ ] The test names the size that failed
-- [ ] It runs in `scripts/task check` without noticeably slowing it
+- [x] Every pane and every overlay renders at every size in a grid down to
+      the smallest, and survives being driven there rather than merely drawn
+- [x] Nothing is *registered as clickable* outside the screen — which is the
+      testable half, and it found 445 such regions. The header lays the tabs
+      out at fixed offsets and registered all of them however narrow the
+      terminal, so on forty columns the last tab was truncated away and still
+      clickable: a click on the blank at the right edge switched to a lens
+      that was not on screen. Clipped in `App::hit`, where there is one of it
+      rather than a dozen
+- [x] The test names the size that failed
+- [x] It runs in `scripts/task check` without noticeably slowing it

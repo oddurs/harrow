@@ -112,6 +112,7 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     // Where everything clickable lands is recorded as it is drawn, so the two
     // can never disagree about what is where.
     app.hits.clear();
+    app.screen = area;
     let strip = u16::from(area.height >= 12 && !app.status_counts().is_empty());
 
     let chunks = Layout::default()
