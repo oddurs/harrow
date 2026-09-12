@@ -5,10 +5,10 @@ title: Stable release
 type: milestone
 status: backlog
 depends_on:
-- 55
+- 63
 created: 2026-09-08
 updated: 2026-09-12
-due: 2027-04-15
+due: 2027-05-01
 ---
 
 Documented, tested, and safe to depend on.
