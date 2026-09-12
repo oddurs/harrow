@@ -2,7 +2,7 @@
 id: 40
 title: Watch a change land instead of watching it vanish
 type: bug
-status: doing
+status: done
 milestone: v0.2
 created: 2026-09-12
 updated: 2026-09-12

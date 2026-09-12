@@ -25,7 +25,7 @@ Enough to dogfood in a real project.
 
 ## v0.2 — Triage that scales past one item at a time
 
-`####······` 36% · 4 of 11 done · due 2027-01-15
+`######····` 55% · 6 of 11 done · due 2027-01-15
 
 Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
@@ -37,17 +37,14 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 - [ ] `0028` Find items the way the specification says to find them <sup>bug · p1 · read</sup>
 - [ ] `0039` Hold the reader to cairn's own conformance corpus <sup>chore · p1 · testing</sup>
 
-### in progress
-
-- [ ] `0024` Every pane scrolls on its own <sup>feature · p1 · chrome</sup>
-- [ ] `0040` Watch a change land instead of watching it vanish <sup>bug · p1 · chrome</sup>
-
 ### done
 
 - [x] `0017` Watch the directory instead of re-reading it <sup>feature · p2 · runtime</sup>
 - [x] `0018` Multi-select, for triage that is actually bulk <sup>feature · p1 · chrome</sup>
 - [x] `0019` Show what changed, from the repository's own history <sup>feature · p2 · chrome</sup>
 - [x] `0020` Answer proposals without leaving the board <sup>feature · p2 · write</sup>
+- [x] `0024` Every pane scrolls on its own <sup>feature · p1 · chrome</sup>
+- [x] `0040` Watch a change land instead of watching it vanish <sup>bug · p1 · chrome</sup>
 
 ## v0.3 — Read everything cairn writes, and nothing it does not
 

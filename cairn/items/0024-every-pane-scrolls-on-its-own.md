@@ -2,7 +2,7 @@
 id: 24
 title: Every pane scrolls on its own
 type: feature
-status: doing
+status: done
 milestone: v0.2
 created: 2026-09-12
 updated: 2026-09-12
