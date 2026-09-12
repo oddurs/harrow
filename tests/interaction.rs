@@ -28,10 +28,50 @@ fn args(action: &Action) -> Vec<String> {
 }
 
 #[test]
-fn claiming_and_releasing_are_the_commands_they_look_like() {
+fn claiming_is_the_command_it_looks_like() {
     let mut app = app();
     assert_eq!(args(&press(&mut app, 'c')), vec!["claim", "3"]);
-    assert_eq!(args(&press(&mut app, 'C')), vec!["release", "3"]);
+}
+
+/// The one moment where the person letting go knows exactly why and the next
+/// person to pick it up is about to need it. cairn records the reason as a
+/// note and shows it on the next claim.
+#[test]
+fn handing_an_item_back_asks_why_and_takes_no_answer_for_an_answer() {
+    let mut app = app();
+    press(&mut app, 'C');
+    assert!(app.editing.is_some(), "it asks before it writes");
+    for c in "blocked on the parser".chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+    }
+    assert_eq!(
+        args(&app.handle_key(KeyCode::Enter, KeyModifiers::NONE)),
+        vec!["release", "3", "--reason", "blocked on the parser"]
+    );
+}
+
+/// A prompt on a one-keystroke gesture has to be answerable with one
+/// keystroke, or it gets muscle-memoried past — which is worse than not
+/// asking at all.
+#[test]
+fn skipping_the_reason_hands_it_back_the_way_it_always_did() {
+    let mut app = app();
+    press(&mut app, 'C');
+    assert_eq!(
+        args(&app.handle_key(KeyCode::Enter, KeyModifiers::NONE)),
+        vec!["release", "3"]
+    );
+}
+
+#[test]
+fn esc_keeps_the_item_rather_than_handing_it_back_without_a_reason() {
+    let mut app = app();
+    press(&mut app, 'C');
+    assert_eq!(
+        app.handle_key(KeyCode::Esc, KeyModifiers::NONE),
+        Action::None
+    );
+    assert!(app.editing.is_none(), "and the box closes");
 }
 
 #[test]

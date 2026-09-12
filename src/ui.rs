@@ -1974,6 +1974,7 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             Editing::Filter => (" filter ", "   enter to keep · esc to clear"),
             Editing::NewItem => (" title  ", "   enter to create · esc to cancel"),
             Editing::Note => (" note   ", "   enter to append · esc to cancel"),
+            Editing::Reason => (" why?   ", "   enter to hand it back · esc to keep it"),
         };
         let mut spans = vec![
             Span::styled(label, Style::default().bg(t.accent).fg(t.background).bold()),
