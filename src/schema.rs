@@ -214,6 +214,9 @@ pub struct Schema {
     /// Where item files live, relative to the root.
     pub dir: PathBuf,
     pub id_width: usize,
+    /// The heading acceptance criteria live under, where the project keeps
+    /// them somewhere specific. Absent, every box in a body counts.
+    pub criteria_section: Option<String>,
     pub url: Option<String>,
     pub format: u32,
     pub types: Vec<ItemType>,
@@ -365,6 +368,7 @@ impl Schema {
             description: project.description,
             dir: PathBuf::from(project.dir.unwrap_or_else(|| "items".to_string())),
             id_width: project.id_width.unwrap_or(4).clamp(1, 12),
+            criteria_section: project.criteria_section.filter(|s| !s.trim().is_empty()),
             url: project.url,
             format,
             types,
@@ -556,6 +560,7 @@ struct ProjectFile {
     description: Option<String>,
     dir: Option<String>,
     id_width: Option<usize>,
+    criteria_section: Option<String>,
     url: Option<String>,
 }
 

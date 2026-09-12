@@ -179,6 +179,13 @@ fn name_of(path: &Path) -> String {
 pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
     items.sort_by_key(|i| i.id);
 
+    let section = schema.criteria_section.as_deref();
+    for item in items.iter_mut() {
+        let (met, total) = crate::item::count_criteria(&item.body, section);
+        item.criteria_met = met;
+        item.criteria_total = total;
+    }
+
     let mut duplicates: Vec<u32> = Vec::new();
     let mut known: HashSet<u32> = HashSet::new();
     for i in items.iter() {

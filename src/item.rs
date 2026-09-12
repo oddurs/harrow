@@ -98,6 +98,10 @@ pub struct Item {
 
     // ── Derived once, when the set is loaded ─────────────────────────────────
     pub category: Category,
+    /// Counted once when the set is loaded, because the count depends on the
+    /// project's configuration and every row of every frame asks for it.
+    pub criteria_met: u32,
+    pub criteria_total: u32,
     /// Waiting on something unfinished.
     pub blocked: bool,
     pub blockers: Vec<u32>,
@@ -163,23 +167,7 @@ impl Item {
 
     /// Checkbox lines in the body — cairn's acceptance criteria.
     pub fn criteria(&self) -> (u32, u32) {
-        let mut done = 0;
-        let mut total = 0;
-        for line in self.body.lines() {
-            let t = line.trim_start();
-            if let Some(rest) = t.strip_prefix("- [") {
-                match rest.as_bytes().first() {
-                    Some(b']') => continue,
-                    Some(b' ') => total += 1,
-                    Some(_) => {
-                        total += 1;
-                        done += 1;
-                    }
-                    None => continue,
-                }
-            }
-        }
-        (done, total)
+        (self.criteria_met, self.criteria_total)
     }
 
     /// The haystack a free-text filter searches. Body included: `oauth` should
@@ -300,6 +288,68 @@ fn comma_separated(value: &Value) -> Vec<String> {
         .filter(|s| !s.is_empty())
         .map(str::to_string)
         .collect()
+}
+
+/// Acceptance criteria in a body, as the convention defines them.
+///
+/// A line counts when, after leading whitespace, it begins with a list marker
+/// — `-`, `*` or `+` — a space, a box, and then *something else*. A box with
+/// nothing after it is a placeholder rather than a criterion: the templates
+/// cairn ships end with a bare `- [ ]` prompting the author to write one, so
+/// counting it would leave every item ever created permanently one short of
+/// its own criteria. That is the noise that gets a feature switched off.
+///
+/// A project may confine the count to one section. With none named, the whole
+/// body counts — an item that keeps its criteria under a different heading
+/// still meant them.
+pub fn count_criteria(body: &str, section: Option<&str>) -> (u32, u32) {
+    let (mut met, mut total) = (0, 0);
+    // Before any heading, with no section named, we are already counting, so
+    // a body with no headings at all still works.
+    let mut counting = section.is_none();
+
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if let Some(heading) = trimmed.strip_prefix('#') {
+            if let Some(want) = section {
+                // Any level, and without regard to case: a project that says
+                // `Acceptance criteria` should not care whether the item
+                // wrote `##` or `###`.
+                counting = heading
+                    .trim_start_matches('#')
+                    .trim()
+                    .eq_ignore_ascii_case(want);
+            }
+            continue;
+        }
+        if !counting {
+            continue;
+        }
+        let Some(rest) = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+            .or_else(|| trimmed.strip_prefix("+ "))
+        else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        let (ticked, after) = if let Some(after) = rest.strip_prefix("[ ]") {
+            (false, after)
+        } else if let Some(after) = rest
+            .strip_prefix("[x]")
+            .or_else(|| rest.strip_prefix("[X]"))
+        {
+            (true, after)
+        } else {
+            continue;
+        };
+        if !after.starts_with(char::is_whitespace) || after.trim().is_empty() {
+            continue;
+        }
+        total += 1;
+        met += u32::from(ticked);
+    }
+    (met, total)
 }
 
 /// The leading run of digits in a filename, which is how cairn names an item
@@ -635,7 +685,38 @@ priority: p1\n\
         let i = item();
         assert!(i.body.starts_with("## Problem"), "{:?}", i.body);
         assert!(i.body.ends_with("- [ ] not this one\n"), "{:?}", i.body);
-        assert_eq!(i.criteria(), (1, 2));
+    }
+
+    /// The rule the convention states, including the part that makes every
+    /// item created from a template stop reporting a criterion nobody wrote.
+    #[test]
+    fn a_box_is_a_criterion_only_when_something_follows_it() {
+        let body = "- [x] done one\n- [ ] not this one\n- [ ]\n- [ ]   \n";
+        assert_eq!(count_criteria(body, None), (1, 2));
+    }
+
+    #[test]
+    fn every_list_marker_carries_a_criterion() {
+        let body = "- [x] dash\n* [x] star\n+ [ ] plus\n  - [X] nested and ticked\n";
+        assert_eq!(count_criteria(body, None), (3, 4));
+    }
+
+    /// A ticked box in a note is not an acceptance criterion met.
+    #[test]
+    fn a_project_may_confine_the_count_to_one_section() {
+        let body = "## Notes\n\n- [x] not a criterion\n\n### acceptance CRITERIA\n\n                    - [x] one\n- [ ] two\n\n## After\n\n- [x] nor this\n";
+        assert_eq!(count_criteria(body, Some("Acceptance criteria")), (1, 2));
+        assert_eq!(
+            count_criteria(body, None),
+            (3, 4),
+            "unconfined, all of them"
+        );
+    }
+
+    #[test]
+    fn a_section_that_no_heading_matches_counts_nothing() {
+        let body = "## Problem\n\n- [x] a\n";
+        assert_eq!(count_criteria(body, Some("Acceptance criteria")), (0, 0));
     }
 
     #[test]

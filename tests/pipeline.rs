@@ -416,3 +416,39 @@ fn what_the_format_says_is_not_an_item_is_neither_an_item_nor_a_warning() {
     assert_eq!(app.items.len(), 6, "still only the six");
     assert!(app.warnings.is_empty(), "and silently: {:?}", app.warnings);
 }
+
+/// The counter is unit-tested; this is the wiring — that a heading named in
+/// `cairn.toml` reaches the count every row of the list asks for.
+#[test]
+fn a_project_that_names_its_criteria_section_is_obeyed() {
+    let dir = testkit::project();
+    let cfg = dir.path().join("cairn.toml");
+    let text = std::fs::read_to_string(&cfg).expect("the fixture config");
+    std::fs::write(
+        &cfg,
+        text.replace(
+            "id_width = 4",
+            "id_width = 4\ncriteria_section = \"Acceptance\"",
+        ),
+    )
+    .expect("name a section");
+    std::fs::write(
+        dir.path().join("items/0098-sectioned.md"),
+        "---\nid: 98\ntitle: Sectioned\nstatus: backlog\n---\n\n\
+         ## Notes\n\n- [x] not a criterion\n\n## Acceptance\n\n- [x] one\n- [ ] two\n- [ ]\n",
+    )
+    .expect("write an item");
+
+    let app = app_for(dir.path());
+    assert_eq!(
+        app.schema.criteria_section.as_deref(),
+        Some("Acceptance"),
+        "the project said where they live"
+    );
+    let item = app.items.iter().find(|i| i.id == 98).expect("0098");
+    assert_eq!(
+        item.criteria(),
+        (1, 2),
+        "the ticked box under Notes is not a criterion met, and the bare box is a placeholder"
+    );
+}
