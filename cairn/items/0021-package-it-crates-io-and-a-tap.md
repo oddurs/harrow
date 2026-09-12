@@ -73,3 +73,31 @@ they go together.
 - [ ] `brew install oddurs/tap/harrow`
 - [ ] `cargo install <whatever this is called>`, decided after the rename question is settled
 - [ ] cairn is installable first, or at the same time
+
+## What shipped, 2026-09-12
+
+Everything except the publishing.
+
+A tag now builds macOS and Linux on arm64 and x86_64 — musl on Linux, so one
+file works on any distro — attaches them with checksums and a build
+attestation, and generates the Homebrew formula from those checksums rather
+than leaving four of them to be transcribed. `scripts/formula` does that and is
+tested; a missing checksum fails loudly rather than producing a formula with a
+blank one.
+
+No Windows binary. harrow owns the terminal through `poll`, `signal` and
+`atexit`, none of which Windows has. The matrix says so where somebody would go
+looking rather than leaving it to be discovered.
+
+Verified by `workflow_dispatch`, which runs the build and the packaging and
+stops before publishing anything. The first run failed three targets out of
+four with "can't find crate for `std`": `rust-toolchain.toml` pins the compiler
+and rustup honours it per directory, so an action installing `stable` and
+adding the target to *it* adds the target to a toolchain cargo will not use.
+Only the runner's own architecture built. `rustup show` then `rustup target
+add` fixed it, and all four now build.
+
+What is left is a decision rather than work: cut a tag, then copy the formula
+the release attaches into `oddurs/homebrew-tap`. `GITHUB_TOKEN` cannot write to
+another repository, and automating it means a personal access token with write
+access to the tap — a bigger secret than this deserves.
