@@ -25,7 +25,7 @@ Enough to dogfood in a real project.
 
 ## v0.2 — Triage that scales past one item at a time
 
-`####······` 40% · 4 of 10 done · due 2027-01-15
+`####······` 36% · 4 of 11 done · due 2027-01-15
 
 Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
@@ -40,6 +40,7 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 ### in progress
 
 - [ ] `0024` Every pane scrolls on its own <sup>feature · p1 · chrome</sup>
+- [ ] `0040` Watch a change land instead of watching it vanish <sup>bug · p1 · chrome</sup>
 
 ### done
 

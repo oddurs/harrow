@@ -490,6 +490,11 @@ fn event_loop(
         let had_toast = app.toast.is_some();
         app.tick_clock();
         app.expire_toast();
+        // A row on its way out leaves when its moment is up, rather than
+        // waiting for the next keystroke to notice.
+        if app.settle() {
+            dirty = true;
+        }
         let alive = handle.is_alive();
         if alive != app.watcher_alive {
             app.watcher_alive = alive;

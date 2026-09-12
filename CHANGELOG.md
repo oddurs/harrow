@@ -35,7 +35,23 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 - `a` and `--all` mean *all*: finished, dropped, and containers. The config key
   is `show_all`, replacing `show_closed`.
 
+### Fixed
+
+- The board drew a `done` column and refused to put anything in it: `done 0`
+  sat beside `✓ 1 done` in the strip, in the same frame, about the same
+  backlog, and a card dragged onto it disappeared on arrival. The board is now
+  dealt from its own set — the filter, and the rule that a container is not a
+  card. Whether finished work is worth a row is a question about the list, and
+  the board answered it when the project wrote `board = true`.
+
 ### Added
+
+- A change is watched out rather than deleted. An item that has just moved off
+  the screen — closed, most often — is held where it landed for a few seconds,
+  drawn as what it has become, before it goes. A close reads as a movement
+  between two states instead of the row vanishing under the cursor. Narrowing
+  a filter still drops rows at once: the item has to be what changed, not the
+  view.
 
 - Every pane scrolls on its own, and the wheel moves the one under the pointer
   rather than always the list. The detail pane shows a whole item by scrolling
