@@ -3417,6 +3417,40 @@ impl App {
                 ));
             }
         }
+        // Every lens's cursor is an index into a `Vec` something else
+        // rebuilds, which is exactly the shape of bug these exist to catch.
+        for (lens, at, len) in [
+            ("needs", self.question, self.questions.len()),
+            ("stats", self.figure, self.doors.len()),
+            ("log", self.moment(), self.moments().len()),
+        ] {
+            if len == 0 {
+                if at != 0 {
+                    return Err(format!("{lens} cursor at {at} with nothing to point at"));
+                }
+            } else if at >= len {
+                return Err(format!("{lens} cursor at {at} of {len}"));
+            }
+        }
+        // The anchor names an item, or it names nothing.
+        if let Some(id) = self.needs_anchor
+            && !self.items.iter().any(|i| i.id == id)
+        {
+            return Err(format!("the queue is holding item {id}, which is not here"));
+        }
+        // Whoever is in the cast has work here, and nobody is in it twice.
+        for (n, who) in self.actors.iter().enumerate() {
+            if self.actors[..n].contains(who) {
+                return Err(format!("{who} is in the cast twice"));
+            }
+            if !self
+                .items
+                .iter()
+                .any(|i| i.assignee.as_ref() == Some(who) || i.owner.as_ref() == Some(who))
+            {
+                return Err(format!("{who} is in the cast with no work here"));
+            }
+        }
         let heading_type = self.heading_type().map(str::to_string);
         let visible = self
             .items

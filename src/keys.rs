@@ -416,6 +416,15 @@ impl Keymap {
 
     /// No key may resolve to two commands: `lookup` takes the first, so a
     /// duplicate is a binding that silently does nothing.
+    /// Every key this map binds, with its modifiers.
+    ///
+    /// Exists so that the randomised suite can ask the program what its keys
+    /// are rather than keeping a list beside it — the list fell behind and
+    /// nobody noticed, which is the failure a test cannot report.
+    pub fn every_key(&self) -> Vec<(KeyCode, KeyModifiers)> {
+        self.bindings.iter().map(|(c, m, _)| (*c, *m)).collect()
+    }
+
     pub fn no_key_is_bound_twice(&self) -> bool {
         let mut seen: Vec<(KeyCode, KeyModifiers)> = Vec::new();
         for (code, mods, _) in &self.bindings {
