@@ -2,7 +2,7 @@
 id: 29
 title: Acceptance criteria are what the convention says they are
 type: bug
-status: backlog
+status: done
 milestone: v0.3
 created: 2026-09-12
 updated: 2026-09-12
@@ -43,7 +43,7 @@ correction.
 
 ## Acceptance criteria
 
-- [ ] A bare `- [ ]` is not counted
-- [ ] `*` and `+` markers count, and indentation is allowed
-- [ ] With `criteria_section` set, only boxes under a heading of that name count, at any level, matched without regard to case
-- [ ] With it unset, the whole body counts, as it does now
+- [x] A bare `- [ ]` is not counted
+- [x] `*` and `+` markers count, and indentation is allowed
+- [x] With `criteria_section` set, only boxes under a heading of that name count, at any level, matched without regard to case
+- [x] With it unset, the whole body counts, as it does now
