@@ -89,19 +89,20 @@ impl Source for Project {
         let mut warnings = schema.problems();
         let dir = schema.items_dir();
 
-        let entries = std::fs::read_dir(&dir).map_err(|e| LoadError {
+        // Fail on the items directory itself, but never on a subdirectory
+        // inside it: half a backlog read as the whole backlog is worse than a
+        // warning, and the top level not being there at all is the case that
+        // means "this is not a project".
+        let mut files = Vec::new();
+        walk(&dir, &mut files, &mut warnings).map_err(|e| LoadError {
             detail: format!("{}: {e}", dir.display()),
             transient: e.kind() != std::io::ErrorKind::NotFound,
         })?;
 
         let mut items = Vec::new();
         let mut stamp: Option<SystemTime> = None;
-        for entry in entries.filter_map(Result::ok) {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("md") {
-                continue;
-            }
-            if let Ok(meta) = entry.metadata()
+        for path in files {
+            if let Ok(meta) = std::fs::metadata(&path)
                 && let Ok(modified) = meta.modified()
             {
                 stamp = Some(stamp.map_or(modified, |s: SystemTime| s.max(modified)));
@@ -130,6 +131,41 @@ impl Source for Project {
             stamp,
         })
     }
+}
+
+/// Every item file under a directory, subdirectories included.
+///
+/// The format says subdirectories must be searched, and that entries whose
+/// names begin with `.` or `_`, and `README.md`, are not items. Those three
+/// are skipped in silence rather than warned about: a project that keeps a
+/// README beside its items has not made a mistake, and a warning per reload
+/// per file is how a diagnostics pane becomes something nobody reads.
+fn walk(dir: &Path, out: &mut Vec<PathBuf>, warnings: &mut Vec<String>) -> std::io::Result<()> {
+    let mut subdirectories = Vec::new();
+    for entry in std::fs::read_dir(dir)?.filter_map(Result::ok) {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if name.starts_with('.') || name.starts_with('_') || name == "README.md" {
+            continue;
+        }
+        match entry.file_type() {
+            Ok(t) if t.is_dir() => subdirectories.push(path),
+            _ if path.extension().and_then(|e| e.to_str()) == Some("md") => out.push(path),
+            _ => {}
+        }
+    }
+    // Sorted, so the order a backlog loads in is the order it is stored in
+    // rather than whatever the filesystem felt like saying this time.
+    subdirectories.sort();
+    for sub in subdirectories {
+        if let Err(e) = walk(&sub, out, warnings) {
+            warnings.push(format!("{}: {e}", name_of(&sub)));
+        }
+    }
+    out.sort();
+    Ok(())
 }
 
 fn name_of(path: &Path) -> String {

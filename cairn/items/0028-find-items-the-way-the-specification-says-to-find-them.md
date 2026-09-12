@@ -2,7 +2,7 @@
 id: 28
 title: Find items the way the specification says to find them
 type: bug
-status: backlog
+status: done
 milestone: v0.2
 created: 2026-09-12
 updated: 2026-09-12
@@ -40,6 +40,6 @@ debounced behind the watcher.
 
 ## Acceptance criteria
 
-- [ ] An item in a subdirectory of the items directory is loaded
-- [ ] `README.md`, `.hidden.md` and `_template.md` are neither items nor warnings
-- [ ] A change in a subdirectory is noticed by the watcher, not only by the next poll
+- [x] An item in a subdirectory of the items directory is loaded
+- [x] `README.md`, `.hidden.md` and `_template.md` are neither items nor warnings
+- [x] A change in a subdirectory is noticed by the watcher, not only by the next poll

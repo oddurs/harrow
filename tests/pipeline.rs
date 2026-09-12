@@ -384,3 +384,35 @@ fn narrowing_the_filter_drops_rows_at_once() {
         "it narrows now, not in six seconds"
     );
 }
+
+/// A project that files its items in subdirectories showed harrow an empty
+/// backlog, with nothing saying there was anything to miss.
+#[test]
+fn an_item_in_a_subdirectory_is_still_an_item() {
+    let dir = testkit::project();
+    let deep = dir.path().join("items/archive/2026");
+    std::fs::create_dir_all(&deep).expect("make a subdirectory");
+    std::fs::write(
+        deep.join("0099-filed-away.md"),
+        "---\nid: 99\ntitle: Filed away\nstatus: done\n---\n\nBody.\n",
+    )
+    .expect("write it");
+
+    let app = app_for(dir.path());
+    assert_eq!(app.items.len(), 7, "six at the top level and one below");
+    assert!(app.items.iter().any(|i| i.id == 99));
+    assert!(app.warnings.is_empty(), "{:?}", app.warnings);
+}
+
+/// A project that keeps a README beside its items has not made a mistake, and
+/// a warning per file per reload is how a diagnostics pane stops being read.
+#[test]
+fn what_the_format_says_is_not_an_item_is_neither_an_item_nor_a_warning() {
+    let dir = testkit::project();
+    for name in ["README.md", "_template.md", ".draft.md"] {
+        std::fs::write(dir.path().join("items").join(name), "not an item\n").expect("write it");
+    }
+    let app = app_for(dir.path());
+    assert_eq!(app.items.len(), 6, "still only the six");
+    assert!(app.warnings.is_empty(), "and silently: {:?}", app.warnings);
+}
