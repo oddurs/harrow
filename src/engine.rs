@@ -204,6 +204,7 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
 
     let mut closed: HashSet<u32> = HashSet::new();
     let mut by_key: HashMap<String, u32> = HashMap::new();
+    let mut kind_of: HashMap<u32, String> = HashMap::new();
     for item in items.iter_mut() {
         item.category = schema.category(&item.status);
         if item.category.is_closed() {
@@ -212,7 +213,16 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
         if let Some(key) = &item.key {
             by_key.insert(key.to_lowercase(), item.id);
         }
+        kind_of.insert(item.id, item.kind.clone());
     }
+
+    // A reference may declare what it points at, and one that does does not
+    // point at anything else: `milestone: v0.1` names a milestone, and a
+    // feature that happened to take the key `v0.1` is not one.
+    let of_target = |field: &crate::schema::Field, id: u32| match field.target.as_deref() {
+        None | Some("*") => true,
+        Some(want) => kind_of.get(&id).is_some_and(|k| k == want),
+    };
 
     // Dependencies. A reference to an item that does not exist is a schema
     // problem, not a blocker: refusing to surface work because of a typo
@@ -248,11 +258,22 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
                 if raw.is_empty() {
                     continue;
                 }
-                let parent = raw
-                    .parse::<u32>()
-                    .ok()
-                    .filter(|id| known.contains(id))
-                    .or_else(|| by_key.get(&raw.to_lowercase()).copied());
+                // How a field names its target is declared, not guessed.
+                // Accepting both would make `milestone: 42` mean the item
+                // with that key or the item with that id depending on which
+                // happens to exist, and two spellings must not be able to
+                // name different items.
+                let parent = match field.by {
+                    crate::schema::Addressing::Key => by_key
+                        .get(&raw.to_lowercase())
+                        .copied()
+                        .filter(|id| of_target(field, *id)),
+                    crate::schema::Addressing::Id => raw
+                        .trim_start_matches('#')
+                        .parse::<u32>()
+                        .ok()
+                        .filter(|id| known.contains(id) && of_target(field, *id)),
+                };
                 if let Some(parent) = parent
                     && parent != item.id
                 {

@@ -169,6 +169,22 @@ impl FieldKind {
     }
 }
 
+/// How a reference names what it points at.
+///
+/// Declared per field, and the reason it has to be declared: a key is not a
+/// second identity. Identity is the integer under `id`; a key is a handle,
+/// unique only among items of one type and permitted to change. Which of the
+/// two a field uses is the project's to say, and a reader that guessed would
+/// make `milestone: 42` mean two things depending on what happens to exist.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Addressing {
+    /// The identifier. What identity is, and the default.
+    #[default]
+    Id,
+    /// A short handle, which is what keeps `milestone: v0.1` readable.
+    Key,
+}
+
 #[derive(Clone, Debug)]
 pub struct Field {
     pub name: String,
@@ -180,6 +196,7 @@ pub struct Field {
     pub description: Option<String>,
     pub column: bool,
     pub target: Option<String>,
+    pub by: Addressing,
     pub many: bool,
     /// Whether the reference composes a hierarchy. `milestone` and `part_of` do;
     /// `depends_on` names a prerequisite rather than a parent, and does not.
@@ -317,6 +334,10 @@ impl Schema {
                 description: f.description,
                 column: f.column.unwrap_or(false),
                 target: f.target,
+                by: match f.by.as_deref().map(str::trim) {
+                    Some("key") => Addressing::Key,
+                    _ => Addressing::Id,
+                },
                 many: f.cardinality.as_deref() == Some("many") || f.kind.as_deref() == Some("list"),
                 rollup: f.rollup.unwrap_or(false),
                 agent: f.agent.unwrap_or_default(),
@@ -342,6 +363,9 @@ impl Schema {
                 description: kind.description.clone(),
                 column: false,
                 target: Some(kind.name.clone()),
+                // By key, which is the whole point of a grouping type: the
+                // field exists so that `milestone: v0.1` reads as itself.
+                by: Addressing::Key,
                 many: groups == Groups::Many,
                 rollup: true,
                 agent: Agent::default(),
@@ -595,6 +619,7 @@ struct FieldFile {
     description: Option<String>,
     column: Option<bool>,
     target: Option<String>,
+    by: Option<String>,
     cardinality: Option<String>,
     rollup: Option<bool>,
     agent: Option<Agent>,

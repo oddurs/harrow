@@ -778,12 +778,22 @@ impl App {
 
     /// The item a group key names, for the reference fields where a group is
     /// itself an item: `v0.1` is a milestone with a title and a progress bar.
+    /// Only by key, which is the rule and not a shortcut.
+    ///
+    /// A project may render its identifiers with padding, so `milestone: 0042`
+    /// could name either a key or a number depending on what happens to exist.
+    /// What keeps it unambiguous is a pair of rules — a key may not look like
+    /// a rendered identifier, and a key-addressed reference resolves by key
+    /// alone — and the second is worth nothing without the first. Falling back
+    /// to an id here is what made the pair worthless.
+    ///
+    /// Case-insensitively, as the reference implementation compares them, but
+    /// by key and by nothing else.
     pub fn item_named(&self, key: &str) -> Option<&Item> {
         self.items.iter().find(|i| {
             i.key
                 .as_deref()
                 .is_some_and(|k| k.eq_ignore_ascii_case(key))
-                || key.parse::<u32>().is_ok_and(|id| id == i.id)
         })
     }
 
