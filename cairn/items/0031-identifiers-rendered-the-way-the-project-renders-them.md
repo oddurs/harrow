@@ -2,7 +2,7 @@
 id: 31
 title: Identifiers rendered the way the project renders them
 type: feature
-status: backlog
+status: done
 milestone: v0.3
 created: 2026-09-12
 updated: 2026-09-12
@@ -42,7 +42,7 @@ does with it too.
 
 ## Acceptance criteria
 
-- [ ] A project declaring `id_format = "MP-{n}"` shows `MP-1002` in the list, the board, the detail pane and the reader
-- [ ] `id_width` still works, and means `{n:0W}`
-- [ ] Both `MP-1002` and `1002` find the item in the filter
-- [ ] A template that does not compile is a warning and the padding is used, rather than a refusal to open
+- [x] A project declaring `id_format = "MP-{n}"` shows `MP-1002` in the list, the board, the detail pane and the reader
+- [x] `id_width` still works, and means `{n:0W}`
+- [x] Both `MP-1002` and `1002` find the item in the filter
+- [x] A template that does not compile is a warning and the padding is used, rather than a refusal to open

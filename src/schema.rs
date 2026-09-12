@@ -169,6 +169,98 @@ impl FieldKind {
     }
 }
 
+/// How a project writes its identifiers.
+///
+/// `MP-{n}` gives `MP-1002`, `A{n}` gives `A24`, `{n:04}` gives `0001`. It is
+/// a rendering and nothing more: the value under `id` is an unsigned integer
+/// whatever this says, so adopting a project key is a display change rather
+/// than a change to any file.
+///
+/// One template rather than three settings for prefix, separator and padding,
+/// because a template shows you what it produces.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IdFormat {
+    prefix: String,
+    pad: usize,
+    suffix: String,
+}
+
+impl Default for IdFormat {
+    fn default() -> Self {
+        IdFormat::padded(4)
+    }
+}
+
+impl IdFormat {
+    /// The older `id_width` spelling: `0001`.
+    pub fn padded(width: usize) -> IdFormat {
+        IdFormat {
+            prefix: String::new(),
+            pad: width,
+            suffix: String::new(),
+        }
+    }
+
+    /// `MP-{n}`, `A{n}`, `{n:04}`. An unusable template is an error here and
+    /// a warning at the call site: a project whose identifiers are spelled
+    /// oddly should still open.
+    pub fn compile(template: &str) -> Result<IdFormat, String> {
+        let open = template
+            .find('{')
+            .ok_or_else(|| format!("id_format `{template}` has no `{{n}}`"))?;
+        let close = template[open..]
+            .find('}')
+            .map(|i| open + i)
+            .ok_or_else(|| format!("id_format `{template}`: `{{` is never closed"))?;
+        let suffix = template[close + 1..].to_string();
+        if suffix.contains('{') {
+            return Err(format!(
+                "id_format `{template}` has more than one placeholder: an item has one identifier"
+            ));
+        }
+        let inner = &template[open + 1..close];
+        let pad = match inner {
+            "n" => 1,
+            _ => inner
+                .strip_prefix("n:0")
+                .and_then(|d| d.parse::<usize>().ok())
+                .ok_or_else(|| {
+                    format!("id_format `{template}`: `{{{inner}}}` should be `{{n}}` or `{{n:0W}}`")
+                })?,
+        };
+        Ok(IdFormat {
+            prefix: template[..open].to_string(),
+            pad: pad.clamp(1, 12),
+            suffix,
+        })
+    }
+
+    pub fn render(&self, id: u32) -> String {
+        format!(
+            "{}{:0width$}{}",
+            self.prefix,
+            id,
+            self.suffix,
+            width = self.pad
+        )
+    }
+
+    /// An identifier as somebody typed it: rendered, or the bare number, with
+    /// or without the `#` that references are printed with.
+    ///
+    /// Both, because a reader that accepts identifiers as input should accept
+    /// both — the number is what the file says and the rendering is what every
+    /// screen shows, and a person has no reason to prefer one.
+    pub fn parse(&self, text: &str) -> Option<u32> {
+        let s = text.trim().trim_start_matches('#').trim();
+        let bare = s
+            .strip_prefix(self.prefix.as_str())
+            .and_then(|r| r.strip_suffix(self.suffix.as_str()))
+            .unwrap_or(s);
+        bare.parse().ok()
+    }
+}
+
 /// How a reference names what it points at.
 ///
 /// Declared per field, and the reason it has to be declared: a key is not a
@@ -230,7 +322,7 @@ pub struct Schema {
     pub description: Option<String>,
     /// Where item files live, relative to the root.
     pub dir: PathBuf,
-    pub id_width: usize,
+    pub id_format: IdFormat,
     /// The heading acceptance criteria live under, where the project keeps
     /// them somewhere specific. Absent, every box in a body counts.
     pub criteria_section: Option<String>,
@@ -286,6 +378,16 @@ impl Schema {
         }
 
         let project = file.project.unwrap_or_default();
+        // A template that will not compile is a warning and the padding is
+        // used, rather than a project that refuses to open because its
+        // identifiers are spelled oddly.
+        let id_format = match project.id_format.as_deref().map(str::trim) {
+            Some(t) if !t.is_empty() => IdFormat::compile(t).unwrap_or_else(|why| {
+                diag::warn("schema", why);
+                IdFormat::padded(project.id_width.unwrap_or(4))
+            }),
+            _ => IdFormat::padded(project.id_width.unwrap_or(4)),
+        };
         let mut statuses: Vec<Status> = file
             .status
             .into_iter()
@@ -391,7 +493,7 @@ impl Schema {
             }),
             description: project.description,
             dir: PathBuf::from(project.dir.unwrap_or_else(|| "items".to_string())),
-            id_width: project.id_width.unwrap_or(4).clamp(1, 12),
+            id_format,
             criteria_section: project.criteria_section.filter(|s| !s.trim().is_empty()),
             url: project.url,
             format,
@@ -478,7 +580,7 @@ impl Schema {
 
     /// `0042`, as the filenames and the printed references spell it.
     pub fn format_id(&self, id: u32) -> String {
-        format!("{:0width$}", id, width = self.id_width)
+        self.id_format.render(id)
     }
 
     /// Fields worth offering as a grouping axis: the enums and the references,
@@ -584,6 +686,7 @@ struct ProjectFile {
     description: Option<String>,
     dir: Option<String>,
     id_width: Option<usize>,
+    id_format: Option<String>,
     criteria_section: Option<String>,
     url: Option<String>,
 }
@@ -696,6 +799,42 @@ filter = "category=active"
 
     fn sample() -> Schema {
         Schema::parse(SAMPLE, PathBuf::from("/tmp/project")).expect("the sample parses")
+    }
+
+    #[test]
+    fn a_project_may_spell_its_identifiers_its_own_way() {
+        let f = IdFormat::compile("MP-{n}").expect("compiles");
+        assert_eq!(f.render(1002), "MP-1002");
+        assert_eq!(f.render(7), "MP-7");
+        assert_eq!(
+            IdFormat::compile("A{n}").expect("compiles").render(24),
+            "A24"
+        );
+        assert_eq!(
+            IdFormat::compile("{n:04}").expect("compiles").render(1),
+            "0001"
+        );
+        // The older spelling means the same thing.
+        assert_eq!(IdFormat::padded(4).render(1), "0001");
+    }
+
+    /// A reader that accepts identifiers as input should accept both the
+    /// rendered form and the bare integer, because one is what the screen
+    /// shows and the other is what the file says.
+    #[test]
+    fn an_identifier_is_accepted_however_it_is_written() {
+        let f = IdFormat::compile("MP-{n:04}").expect("compiles");
+        for written in ["MP-0042", "42", "#42", " MP-0042 ", "#MP-0042"] {
+            assert_eq!(f.parse(written), Some(42), "{written}");
+        }
+        assert_eq!(f.parse("nonsense"), None);
+    }
+
+    #[test]
+    fn a_template_that_cannot_work_is_refused_rather_than_guessed_at() {
+        for bad in ["no placeholder", "{n", "{n}-{n}", "{nope}"] {
+            assert!(IdFormat::compile(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]

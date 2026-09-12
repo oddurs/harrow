@@ -187,7 +187,18 @@ pub fn resolve(item: &Item, schema: &Schema, key: &str) -> Field {
         }
     };
     match key {
-        "id" => Field::Text(item.id.to_string()),
+        // Both spellings of the same thing. A project rendering `MP-1002`
+        // shows that everywhere, and asking for the item by what is on the
+        // screen has to work as well as asking by what is in the file.
+        "id" => {
+            let bare = item.id.to_string();
+            let rendered = schema.format_id(item.id);
+            if rendered == bare {
+                Field::Text(bare)
+            } else {
+                Field::List(vec![bare, rendered])
+            }
+        }
         "ref" => Field::Text(item.reference(schema)),
         "key" => item.key.clone().map(Field::Text).unwrap_or(Field::Missing),
         "title" => Field::Text(item.title.clone()),
