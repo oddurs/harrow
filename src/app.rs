@@ -401,6 +401,8 @@ pub struct Picker {
     pub permission: crate::schema::Agent,
     /// Whether Enter proposes the choice instead of making it.
     pub propose: bool,
+    /// Whether the options are acceptance criteria, chosen to be ticked.
+    pub tick: bool,
 }
 
 /// A line of text being typed: the filter box, or a new item's title.
@@ -479,6 +481,12 @@ pub struct App {
 
     pub reading: bool,
     pub read_scroll: u16,
+    /// Which acceptance criterion the detail pane is pointing at.
+    ///
+    /// Ticking one is the single judgement in cairn's agent loop that is
+    /// explicitly a person's — *tick what is true, not what would let you
+    /// close* — and it was the one thing harrow made you leave to do.
+    pub criterion: usize,
     /// The detail pane's own scroll, so a long item can be read beside the
     /// list rather than in an overlay over it.
     pub detail: DetailScroll,
@@ -510,6 +518,9 @@ pub struct App {
     /// Who harrow is, asked the way cairn asks it, so that *I did that* and
     /// *something else did that* can be told apart.
     pub me: String,
+    /// Whether the installed cairn can tick a criterion. Asked once at
+    /// startup; an older cairn simply is not offered the gesture.
+    pub can_tick: bool,
     /// The change waiting on a reason before it is proposed.
     proposing: Option<(u32, String, String)>,
     /// What the repository says has happened, most recent first.
@@ -611,6 +622,7 @@ impl App {
             pane: Pane::List,
             reading: false,
             read_scroll: 0,
+            criterion: 0,
             detail: DetailScroll::default(),
             stats_scroll: 0,
             history: None,
@@ -626,6 +638,7 @@ impl App {
             readonly: None,
             warnings: Vec::new(),
             me: String::new(),
+            can_tick: false,
             proposing: None,
             moments: None,
             moment: 0,
@@ -2223,6 +2236,7 @@ impl App {
             // proposal would have been addressed to, so it is a default and
             // not a restriction — the toggle is right there.
             propose: self.permission_for(field) == crate::schema::Agent::Propose,
+            tick: false,
         });
     }
 
@@ -2293,6 +2307,26 @@ impl App {
             return Action::None;
         };
         self.select_id(picker.id);
+        if picker.tick {
+            let reference = self.schema.format_id(picker.id);
+            let what = picker
+                .options
+                .get(picker.selected)
+                .map(|(_, label, _)| label.clone())
+                .unwrap_or_default();
+            return self.write(
+                Change {
+                    args: vec!["tick".into(), picker.id.to_string(), value],
+                    describe: format!(
+                        "{reference} · {}",
+                        what.chars().take(44).collect::<String>()
+                    ),
+                    undo: None,
+                },
+                1,
+                "tick",
+            );
+        }
         if picker.propose {
             // A proposal without a reason is a preference rather than an
             // argument, which is cairn's phrasing and the reason to ask.
@@ -2678,6 +2712,7 @@ impl App {
                 | Command::Advance
                 | Command::Retreat
                 | Command::Note
+                | Command::Tick
         );
         if writes && let Some(why) = self.readonly.clone() {
             self.refuse(&why);
@@ -2854,6 +2889,52 @@ impl App {
                     ToastKind::Info,
                 ),
             },
+            // Reusing the picker rather than inventing a cursor in the
+            // detail pane: choosing one of a small numbered set is exactly
+            // what it is for, and `cairn tick` takes the same number.
+            Command::Tick => {
+                if !self.can_tick {
+                    self.toast(
+                        "this cairn cannot tick a criterion — `cairn tick` is newer",
+                        ToastKind::Info,
+                    );
+                    return Action::None;
+                }
+                let Some(item) = self.selected_item() else {
+                    return Action::None;
+                };
+                let (id, reference) = (item.id, self.schema.format_id(item.id));
+                let all =
+                    crate::item::criteria_in(&item.body, self.schema.criteria_section.as_deref());
+                if all.is_empty() {
+                    self.toast("this one has no acceptance criteria", ToastKind::Info);
+                    return Action::None;
+                }
+                let options: Vec<(String, String, String)> = all
+                    .iter()
+                    .enumerate()
+                    .map(|(n, (ticked, text))| {
+                        (
+                            (n + 1).to_string(),
+                            text.clone(),
+                            if *ticked { "ticked" } else { "" }.to_string(),
+                        )
+                    })
+                    .collect();
+                // The first one that is not true yet, which is the one
+                // somebody reaching for this key almost always means.
+                let selected = all.iter().position(|(t, _)| !t).unwrap_or(0);
+                self.picker = Some(Picker {
+                    title: format!("tick on {reference}"),
+                    options,
+                    selected,
+                    permission: crate::schema::Agent::default(),
+                    field: "criteria".to_string(),
+                    id,
+                    propose: false,
+                    tick: true,
+                });
+            }
             Command::Claim => return self.claim(true),
             Command::Release => return self.claim(false),
             Command::Close => self.ask_close(),

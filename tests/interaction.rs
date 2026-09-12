@@ -800,3 +800,51 @@ fn moving_in_the_queue_replaces_what_you_arrived_with() {
         app.questions.get(app.question()).map(|q| q.id)
     );
 }
+
+/// The one judgement in cairn's agent loop that is explicitly a person's:
+/// tick what is true, not what would let you close.
+#[test]
+fn ticking_a_criterion_goes_through_cairn() {
+    let mut app = app();
+    app.can_tick = true;
+    press(&mut app, 't');
+    let picker = app.picker.as_ref().expect("the criteria to choose from");
+    assert!(picker.tick);
+    assert_eq!(picker.options.len(), 2, "0003 has two criteria");
+    assert_eq!(
+        picker.selected, 1,
+        "starting on the first that is not true yet"
+    );
+
+    // cairn numbers them from one, and takes the number.
+    assert_eq!(
+        args(&app.handle_key(KeyCode::Enter, KeyModifiers::NONE)),
+        vec!["tick", "3", "2"]
+    );
+}
+
+/// A key that offers something and then reports `unrecognized subcommand` is
+/// worse than a key that is not offered.
+#[test]
+fn a_cairn_too_old_to_tick_says_so_rather_than_failing() {
+    let mut app = app();
+    app.can_tick = false;
+    assert_eq!(press(&mut app, 't'), Action::None);
+    assert!(app.picker.is_none(), "nothing is offered");
+    let said = app
+        .toast
+        .as_ref()
+        .map(|(m, _, _)| m.clone())
+        .unwrap_or_default();
+    assert!(said.contains("cairn tick"), "{said}");
+}
+
+#[test]
+fn an_item_with_no_criteria_says_so() {
+    let mut app = app();
+    app.can_tick = true;
+    // 0004 is work with a problem statement and nothing ticked out of it.
+    app.select_id(4);
+    assert_eq!(press(&mut app, 't'), Action::None);
+    assert!(app.picker.is_none());
+}
