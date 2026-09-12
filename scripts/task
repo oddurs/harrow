@@ -24,6 +24,9 @@ usage: scripts/task <target>
   test       the full test suite
   build      compile everything, including the tests
   check      fmt:check, lint, test, build — what CI runs
+
+  conformance:refresh   re-take cairn's item-format corpus
+                        (CAIRN_REPO=path, defaults to ../cairn)
 USAGE
 }
 
@@ -53,6 +56,35 @@ case "${1:-}" in
     step 'build'
     "$0" build
     printf '\n\033[1;32m✓ green\033[0m\n'
+    ;;
+  conformance:refresh)
+    # The corpus is vendored rather than read from a sibling checkout, because
+    # the suite has to pass on a machine that has never heard of cairn — the
+    # same reason harrow reads the files rather than shelling out. Vendored
+    # means it can go stale, so refreshing it is one command and its diff is
+    # the review.
+    src=${CAIRN_REPO:-../cairn}/tests/golden
+    dst=tests/fixtures/conformance
+    [ -d "$src" ] || {
+      printf 'scripts/task: no corpus at %s; set CAIRN_REPO\n' "$src" >&2
+      exit 1
+    }
+    version=$(git -C "${CAIRN_REPO:-../cairn}" describe --tags --abbrev=0 2>/dev/null || echo unknown)
+    sha=$(git -C "${CAIRN_REPO:-../cairn}" rev-parse --short HEAD 2>/dev/null || echo unknown)
+    # The note says where the corpus came from and why it is here. The first
+    # two lines are the part that goes stale, so they are rewritten and the
+    # rest is kept — otherwise refreshing would silently drop the reason.
+    why=$(tail -n +3 "$dst/PROVENANCE")
+    rm -rf "$dst"
+    mkdir -p "$dst"
+    cp -R "$src"/. "$dst"/
+    rm -f "$dst/README.md"
+    {
+      printf 'cairn %s (%s)\n' "$version" "$sha"
+      printf 'taken %s\n' "$(date +%Y-%m-%d)"
+      printf '%s\n' "$why"
+    } >"$dst/PROVENANCE"
+    printf 'corpus refreshed from cairn %s (%s); read the diff\n' "$version" "$sha"
     ;;
   -h | --help | help)
     usage

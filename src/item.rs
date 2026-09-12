@@ -216,7 +216,15 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
     let map = parse_frontmatter(front);
 
     let mut item = Item {
-        body: body.to_string(),
+        // Normalised, because this body is only ever drawn. A stray carriage
+        // return inside a line is a control character the terminal acts on,
+        // and harrow hands `$EDITOR` the path rather than the text, so there
+        // is nothing here that owes the file its own line endings back.
+        body: if body.contains('\r') {
+            body.replace("\r\n", "\n")
+        } else {
+            body.to_string()
+        },
         path: path.to_path_buf(),
         ..Default::default()
     };
@@ -380,7 +388,20 @@ fn split(text: &str) -> Option<(&str, &str)> {
         // YAML writer emits when it means *the document ends here*; a reader
         // that only knows one of them silently swallows the body.
         if matches!(line.trim_end(), "---" | "...") {
-            return Some((&rest[..offset], &rest[offset + line.len()..]));
+            let body = &rest[offset + line.len()..];
+            // The blank line writers leave under the delimiter is part of the
+            // punctuation, not of the body. The specification does not say
+            // either way — §3 is explicit that two readers may disagree about
+            // what a body is — so harrow reads it the way the reference
+            // implementation does, because one fewer difference is worth
+            // more than the freedom to have this one.
+            let body = body
+                .strip_prefix("\r\n")
+                .or_else(|| body.strip_prefix('\n'));
+            return Some((
+                &rest[..offset],
+                body.unwrap_or(&rest[offset + line.len()..]),
+            ));
         }
         offset += line.len();
     }
@@ -607,10 +628,13 @@ priority: p1\n\
         assert_eq!(i.title, "Fix this: properly");
     }
 
+    /// Everything below the delimiter, less the blank line under it — which
+    /// is punctuation rather than body, and is how the reference reads it.
     #[test]
     fn the_body_survives_intact() {
         let i = item();
-        assert!(i.body.starts_with("\n## Problem"), "{:?}", i.body);
+        assert!(i.body.starts_with("## Problem"), "{:?}", i.body);
+        assert!(i.body.ends_with("- [ ] not this one\n"), "{:?}", i.body);
         assert_eq!(i.criteria(), (1, 2));
     }
 

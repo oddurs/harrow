@@ -1,0 +1,18 @@
+cairn v0.2.0 (b02e2e7)
+taken 2026-09-12
+
+Vendored from cairn's own `tests/golden`, unmodified. Refresh with:
+
+    scripts/task conformance:refresh
+
+harrow reads cairn's files directly rather than shelling out, which makes it a
+second implementation of somebody else's format. A second implementation held
+only to its own author's reading of the specification is a rumour about the
+specification. This is the corpus the reference implementation holds itself to.
+
+`format-N/` holds items as that format wrote them, with the values they parsed
+to then. Those directories are frozen by definition: an implementation that
+intends to read what people have already written has to keep reading them.
+
+Editing an expectation here is not a fix. It means claiming the format changed,
+which needs a format number and a migration — take it up with cairn.
