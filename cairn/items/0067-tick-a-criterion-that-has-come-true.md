@@ -2,7 +2,7 @@
 id: 67
 title: Tick a criterion that has come true
 type: feature
-status: backlog
+status: done
 milestone: v0.5
 depends_on:
 - 64
@@ -43,7 +43,9 @@ had to care which cairn it is talking to, and it will not be the last.
 
 ## Acceptance criteria
 
-- [ ] Criteria are listed individually, not only counted
-- [ ] One can be ticked, through `cairn tick`
-- [ ] The gesture is offered only where the installed cairn supports it
-- [ ] A cairn too old to tick says so once, rather than failing per keystroke
+- [x] Criteria are listed individually, not only counted — in the picker, which
+      is what harrow already has for choosing one of a small numbered set, and
+      which numbers them the way `cairn tick` does
+- [x] One can be ticked, through `cairn tick`
+- [x] The gesture is offered only where the installed cairn supports it
+- [x] A cairn too old to tick says so once, rather than failing per keystroke

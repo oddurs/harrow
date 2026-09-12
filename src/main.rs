@@ -213,6 +213,7 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
     app.view = (!view.trim().is_empty()).then_some(view);
     app.readonly = (!on_path(&startup.config.cairn)).then_some(harrow::app::ReadOnly::NoCairn);
     app.me = whoami();
+    app.can_tick = app.writable() && cairn_can(&startup.config.cairn, "tick");
     app
 }
 
@@ -241,6 +242,17 @@ fn whoami() -> String {
 /// than whether it starts.
 fn on_path(cairn: &str) -> bool {
     harrow::exec::run(cairn, &["--version"], Duration::from_secs(5)).is_ok()
+}
+
+/// Whether the cairn on this machine knows a command.
+///
+/// The first time harrow has had to care *which* cairn it is talking to, and
+/// it will not be the last: the format version says what a project is, and
+/// nothing until now said what the tool can do. Asked once, because a key
+/// that offers something and then reports `unrecognized subcommand` is worse
+/// than a key that is not offered.
+fn cairn_can(cairn: &str, command: &str) -> bool {
+    harrow::exec::run(cairn, &[command, "--help"], Duration::from_secs(5)).is_ok()
 }
 
 enum Colour {

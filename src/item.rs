@@ -309,7 +309,15 @@ fn comma_separated(value: &Value) -> Vec<String> {
 /// body counts — an item that keeps its criteria under a different heading
 /// still meant them.
 pub fn count_criteria(body: &str, section: Option<&str>) -> (u32, u32) {
-    let (mut met, mut total) = (0, 0);
+    let all = criteria_in(body, section);
+    let met = all.iter().filter(|(ticked, _)| *ticked).count() as u32;
+    (met, all.len() as u32)
+}
+
+/// Each criterion, ticked or not, in the order cairn numbers them — which is
+/// document order, one-based, and is what `cairn tick <ID> <N>` takes.
+pub fn criteria_in(body: &str, section: Option<&str>) -> Vec<(bool, String)> {
+    let mut out = Vec::new();
     // Before any heading, with no section named, we are already counting, so
     // a body with no headings at all still works.
     let mut counting = section.is_none();
@@ -352,10 +360,9 @@ pub fn count_criteria(body: &str, section: Option<&str>) -> (u32, u32) {
         if !after.starts_with(char::is_whitespace) || after.trim().is_empty() {
             continue;
         }
-        total += 1;
-        met += u32::from(ticked);
+        out.push((ticked, after.trim().to_string()));
     }
-    (met, total)
+    out
 }
 
 /// The leading run of digits in a filename, which is how cairn names an item
