@@ -102,6 +102,7 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     // of the arrangement, so each lens says.
     let (body, detail) = split_off_detail(app, chunks[3]);
     match app.pane {
+        Pane::Needs => draw_needs(f, app, &t, body),
         Pane::Stats => draw_stats(f, app, &t, body),
         Pane::Board => {
             app.board_area = body;
@@ -184,11 +185,14 @@ fn draw_header(f: &mut Frame, app: &mut App, t: &Theme, area: Rect, tick: usize)
         ));
     }
 
-    let proposed = app.proposed();
-    if proposed > 0 && roomy {
+    // Absent when there is nothing, because a counter that is always there
+    // is a counter nobody reads. This is the whole of how the queue asks for
+    // attention from the other lenses; it does not nag beyond it.
+    let needs = app.questions.len();
+    if needs > 0 && roomy {
         left.push(Span::raw("   "));
         left.push(Span::styled(
-            format!("{proposed} proposed"),
+            format!("{needs} needs you"),
             Style::default().fg(t.accent),
         ));
     }
@@ -826,6 +830,9 @@ fn card_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
 /// halving something already too small.
 fn split_off_detail(app: &App, body: Rect) -> (Rect, Option<Rect>) {
     let needed = match app.pane {
+        // A question is one line and the item it is about is the other half
+        // of it, so this lens wants the detail more than any of them.
+        Pane::Needs => DETAIL_MIN_WIDTH,
         // Kept as a proportion rather than a fixed width, because a list
         // goes on being more useful the wider it is and the recorded screens
         // are taken at these proportions.
@@ -1298,6 +1305,95 @@ fn wrap(text: &str, width: usize) -> Vec<String> {
         out.push(line);
     }
     out
+}
+
+// ── What needs you ───────────────────────────────────────────────────────────
+
+/// Everything addressed to a person, and what answers it.
+///
+/// Every other lens answers *what is the shape of this*. This one answers
+/// *what is waiting for me*, which is the question somebody sitting down
+/// asks first and which nothing else here could be read for.
+fn draw_needs(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(t.border))
+        .padding(Padding::horizontal(1))
+        .title(Span::styled(" Needs you ", Style::default().fg(t.muted)));
+
+    if app.questions.is_empty() {
+        // The best screen this program can show, and until now there was no
+        // way to see it. Said plainly and without decoration: an empty queue
+        // is not an error state and should not look like one.
+        f.render_widget(
+            Paragraph::new(vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Nothing needs you.",
+                    Style::default().fg(t.muted),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "No proposals waiting, no claim gone cold, nothing finished and left open.",
+                    Style::default().fg(t.faint),
+                )),
+            ])
+            .alignment(Alignment::Center)
+            .block(block),
+            area,
+        );
+        return;
+    }
+
+    let inner = block.inner(area);
+    let width = inner.width as usize;
+    let cursor = app.question().min(app.questions.len() - 1);
+
+    let rows: Vec<ListItem> = app
+        .questions
+        .iter()
+        .map(|q| {
+            let reference = app.schema.format_id(q.id);
+            let colour = match &q.asking {
+                // A proposal has somebody blocked on an answer; the rest are
+                // degrees of untidy.
+                crate::app::Asking::Proposal { .. } => t.accent,
+                crate::app::Asking::ColdClaim { .. } => t.warn,
+                crate::app::Asking::Finished => t.done,
+                crate::app::Asking::Unowned { .. } => t.faint,
+            };
+            let question = q.asking.question(&reference);
+            let answers = q.asking.answers();
+            let room = width.saturating_sub(answers.chars().count() + 5);
+            let shown = truncate(&question, room);
+            let pad = room.saturating_sub(shown.chars().count());
+            ListItem::new(Line::from(vec![
+                Span::styled("  ", Style::default()),
+                Span::styled(shown, Style::default().fg(colour)),
+                Span::raw(" ".repeat(pad)),
+                // What the keys will do, said before they are pressed.
+                Span::styled(format!("{answers}  "), Style::default().fg(t.faint)),
+            ]))
+        })
+        .collect();
+
+    let mut state = ListState::default().with_selected(Some(cursor));
+    f.render_stateful_widget(
+        List::new(rows).block(block).highlight_style(t.selected()),
+        area,
+        &mut state,
+    );
+    for n in 0..app.questions.len() {
+        app.hit(
+            Rect {
+                x: inner.x,
+                y: inner.y + n as u16,
+                width: inner.width,
+                height: 1,
+            },
+            Hit::Question(n),
+        );
+    }
 }
 
 // ── The statistics ───────────────────────────────────────────────────────────

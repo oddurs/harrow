@@ -895,3 +895,91 @@ fn dragging_sets_the_field_the_board_is_grouped_by() {
         other => panic!("expected a priority change, got {other:?}"),
     }
 }
+
+/// Everything addressed to a person, in one place, ranked by what is waiting
+/// on a human rather than by severity in the abstract.
+#[test]
+fn the_queue_collects_every_question_addressed_to_a_person() {
+    use harrow::app::Asking;
+    let dir = testkit::project();
+    let cfg = dir.path().join("cairn.toml");
+    let text = std::fs::read_to_string(&cfg).expect("the fixture config");
+    std::fs::write(
+        &cfg,
+        text.replace("id_width = 4", "id_width = 4\nclaim_stale_after = 5"),
+    )
+    .expect("a project with an opinion about cold claims");
+    // Something an agent filed and nobody owns.
+    std::fs::write(
+        dir.path().join("items/0094-filed-by-a-program.md"),
+        "---\nid: 94\ntitle: Filed by a program\nstatus: backlog\ncreated_by: an agent\n---\n",
+    )
+    .expect("write it");
+
+    let mut app = app_for(dir.path());
+    app.now = 1_789_084_800; // 2026-09-11, past the fixture's claim
+    app.rebuild();
+
+    let kinds: Vec<(&u32, &str)> = app
+        .questions
+        .iter()
+        .map(|q| {
+            (
+                &q.id,
+                match q.asking {
+                    Asking::Proposal { .. } => "proposal",
+                    Asking::ColdClaim { .. } => "cold",
+                    Asking::Finished => "finished",
+                    Asking::Unowned { .. } => "unowned",
+                },
+            )
+        })
+        .collect();
+
+    assert!(
+        kinds.iter().any(|(id, k)| **id == 6 && *k == "proposal"),
+        "the fixture's proposal: {kinds:?}"
+    );
+    assert!(
+        kinds.iter().any(|(id, k)| **id == 3 && *k == "cold"),
+        "0003 has been claimed since the 3rd: {kinds:?}"
+    );
+    assert!(
+        kinds.iter().any(|(id, k)| **id == 94 && *k == "unowned"),
+        "a program filed 0094 and nobody owns it: {kinds:?}"
+    );
+
+    // A proposal blocks a person; a missing owner is a question about later.
+    let first = kinds.first().map(|(_, k)| *k);
+    assert_eq!(first, Some("proposal"), "ranked by what is waiting");
+    assert_eq!(kinds.last().map(|(_, k)| *k), Some("unowned"));
+}
+
+/// The queue is dealt from the same set as the board, so the filter reaches
+/// it and a milestone nobody owns is not somebody failing to own it.
+#[test]
+fn a_container_never_raises_a_question() {
+    let dir = testkit::project();
+    let app = app_for(dir.path());
+    assert!(
+        app.questions
+            .iter()
+            .all(|q| !app.items.iter().any(|i| i.id == q.id && i.container)),
+        "a milestone is not work and cannot be asking anything"
+    );
+}
+
+/// Answering one question must not move the cursor onto the next one, which
+/// is how a queue gets answered by accident.
+#[test]
+fn the_cursor_stays_on_the_same_question_across_a_rebuild() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    app.pane = harrow::app::Pane::Needs;
+    assert!(!app.questions.is_empty());
+    app.select_question(app.questions.len() - 1);
+    let was = app.questions[app.question()].clone();
+
+    app.rebuild();
+    assert_eq!(app.questions[app.question()], was);
+}

@@ -676,30 +676,49 @@ fn every_door_leads_somewhere_real() {
 fn shift_tab_reaches_the_lens_before_this_one() {
     use harrow::app::Pane;
     let mut app = app();
-    assert_eq!(app.pane, Pane::List);
+    let first = Pane::ALL[0];
+    let last = Pane::ALL[Pane::ALL.len() - 1];
+    app.pane = first;
 
     app.run(Command::ViewBack);
-    assert_eq!(app.pane, Pane::Stats, "back from the first is the last");
-    app.run(Command::ViewBack);
-    assert_eq!(app.pane, Pane::Board);
+    assert_eq!(app.pane, last, "back from the first is the last");
     app.run(Command::ViewBoard);
-    assert_eq!(app.pane, Pane::Stats, "and forward undoes it");
+    assert_eq!(app.pane, first, "and forward undoes it");
 
-    // Every lens is one press away from every other.
+    // Every lens is reachable from every other, which is the part that has
+    // to stay true however many there are.
     for from in Pane::ALL {
         for to in Pane::ALL {
-            if from == to {
-                continue;
-            }
             app.pane = from;
-            let reached = [Command::ViewBoard, Command::ViewBack].iter().any(|c| {
-                app.pane = from;
-                app.run(*c);
-                app.pane == to
-            });
-            assert!(reached, "{from:?} to {to:?} in one press");
+            let mut presses = 0;
+            while app.pane != to && presses < Pane::ALL.len() {
+                app.run(Command::ViewBoard);
+                presses += 1;
+            }
+            assert_eq!(app.pane, to, "{from:?} never reaches {to:?}");
         }
     }
+}
+
+/// 0062 recorded *every lens is one press from every other* as the reason for
+/// adding no direct key per lens, and wrote this so the reason would fail
+/// rather than be quietly outgrown. A fourth lens outgrew it. 0069 is the
+/// direct route; until then this says what it costs.
+#[test]
+fn reaching_the_far_lens_costs_more_than_one_press() {
+    use harrow::app::Pane;
+    let mut app = app();
+    let far = Pane::ALL[Pane::ALL.len() / 2];
+    app.pane = Pane::ALL[0];
+    let reached_in_one = [Command::ViewBoard, Command::ViewBack].iter().any(|c| {
+        app.pane = Pane::ALL[0];
+        app.run(*c);
+        app.pane == far
+    });
+    assert!(
+        !reached_in_one,
+        "every lens is one press away again — delete this test and close 0069"
+    );
 }
 
 /// Which is the first thing a lens owes the reader.
@@ -712,4 +731,60 @@ fn the_selection_survives_going_back_as_well_as_forward() {
         app.run(Command::ViewBack);
     }
     assert_eq!(app.selected_item().map(|i| i.id), was);
+}
+
+/// Every answer is a key that already exists, on the item the question is
+/// about — which is the point of the queue selecting that item.
+#[test]
+fn the_answer_to_a_question_is_the_key_that_already_did_it() {
+    let mut app = app();
+    app.pane = harrow::app::Pane::Needs;
+    let at = app
+        .questions
+        .iter()
+        .position(|q| matches!(q.asking, harrow::app::Asking::Proposal { .. }))
+        .expect("the fixture has a proposal");
+    app.select_question(at);
+    let id = app.questions[at].id;
+
+    assert_eq!(
+        app.selected_item().map(|i| i.id),
+        Some(id),
+        "the cursor selects the item the question is about"
+    );
+    app.run(Command::Accept);
+    assert!(app.confirm.is_some(), "and A accepts it, asking first");
+}
+
+/// Passing through a queue that cannot show your item must not lose it, the
+/// way passing through the board does not lose an item it has no column for.
+#[test]
+fn going_through_the_queue_keeps_a_selection_it_cannot_show() {
+    let mut app = app();
+    let was = app.selected_item().map(|i| i.id);
+    assert!(
+        !app.questions.iter().any(|q| Some(q.id) == was),
+        "0003 raises no question, which is what makes this the interesting case"
+    );
+
+    app.pane = harrow::app::Pane::Needs;
+    app.select_id(was.expect("something selected"));
+    assert_eq!(app.selected_item().map(|i| i.id), was, "held on the way in");
+
+    app.pane = harrow::app::Pane::List;
+    assert_eq!(app.selected_item().map(|i| i.id), was, "and on the way out");
+}
+
+/// Moving the cursor there is a choice, and takes over from what you brought.
+#[test]
+fn moving_in_the_queue_replaces_what_you_arrived_with() {
+    let mut app = app();
+    app.pane = harrow::app::Pane::Needs;
+    app.select_id(3);
+    app.move_by(1);
+    assert_ne!(app.selected_item().map(|i| i.id), Some(3));
+    assert_eq!(
+        app.selected_item().map(|i| i.id),
+        app.questions.get(app.question()).map(|q| q.id)
+    );
 }
