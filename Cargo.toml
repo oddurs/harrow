@@ -34,3 +34,7 @@ codegen-units = 1
 
 [dev-dependencies]
 tempfile = "3.27.0"
+# Only to read cairn's conformance corpus, which records its expectations as
+# JSON. Hand-rolling a second parser in order to check the first one would be
+# testing my reading of two formats against itself.
+serde_json = "1.0.145"

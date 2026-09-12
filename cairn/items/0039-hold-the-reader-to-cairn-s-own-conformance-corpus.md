@@ -2,7 +2,7 @@
 id: 39
 title: Hold the reader to cairn's own conformance corpus
 type: chore
-status: backlog
+status: done
 milestone: v0.2
 created: 2026-09-12
 updated: 2026-09-12
@@ -53,7 +53,7 @@ are by definition frozen.
 
 ## Acceptance criteria
 
-- [ ] Every file in the current corpus parses to the values recorded beside it
-- [ ] The per-format corpora parse too, so a project written by an older cairn still reads
-- [ ] The corpus records which cairn version it was taken from
-- [ ] A refresh is one command, and its diff is reviewable
+- [x] Every file in the current corpus parses to the values recorded beside it
+- [x] The per-format corpora parse too, so a project written by an older cairn still reads
+- [x] The corpus records which cairn version it was taken from
+- [x] A refresh is one command, and its diff is reviewable

@@ -5,6 +5,12 @@
 tests/snapshots/*.txt text eol=lf
 tests/fixtures/* text eol=lf
 
+# cairn's conformance corpus, vendored unmodified. Byte-exact for a stronger
+# reason than the snapshots: one of its cases is a file written with CRLF
+# endings, so a filter that normalised line endings here would not alter the
+# test, it would delete it.
+tests/fixtures/conformance/** -text
+
 # cairn item files, which are also the project's roadmap.
 cairn/items/*.md text eol=lf
 
