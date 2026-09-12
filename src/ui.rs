@@ -1716,10 +1716,29 @@ fn draw_picker(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
                 .border_style(Style::default().fg(t.border_focus))
                 .title(Span::styled(
                     format!(" {} ", picker.title),
-                    Style::default().fg(t.accent).bold(),
+                    Style::default()
+                        .fg(if picker.propose { t.warn } else { t.accent })
+                        .bold(),
                 ))
+                // What the project says a program may do with this field, and
+                // which of the two things Enter is about to do. Both belong
+                // here rather than in a toast afterwards: this is where the
+                // choice is made.
+                .title_top(
+                    Line::from(match picker.permission.note() {
+                        Some(note) => {
+                            Span::styled(format!(" project: {note} "), Style::default().fg(t.warn))
+                        }
+                        None => Span::raw(""),
+                    })
+                    .right_aligned(),
+                )
                 .title_bottom(Span::styled(
-                    " ↵ set · esc cancel ",
+                    if picker.propose {
+                        " ↵ propose · ctrl-p to set instead · esc cancel "
+                    } else {
+                        " ↵ set · ctrl-p to propose · esc cancel "
+                    },
                     Style::default().fg(t.faint),
                 )),
         ),
@@ -2021,6 +2040,10 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             Editing::NewItem => (" title  ", "   enter to create · esc to cancel"),
             Editing::Note => (" note   ", "   enter to append · esc to cancel"),
             Editing::Reason => (" why?   ", "   enter to hand it back · esc to keep it"),
+            Editing::Why => (
+                " why?   ",
+                "   enter to propose it · a proposal with no reason is a preference",
+            ),
         };
         let mut spans = vec![
             Span::styled(label, Style::default().bg(t.accent).fg(t.background).bold()),

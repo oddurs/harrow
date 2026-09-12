@@ -35,6 +35,7 @@ pub enum Command {
     Note,
     History,
     Accept,
+    Propose,
     Claim,
     Release,
     Close,
@@ -59,7 +60,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 39] = [
+    pub const ALL: [Command; 40] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -78,6 +79,7 @@ impl Command {
         Command::Note,
         Command::History,
         Command::Accept,
+        Command::Propose,
         Command::Claim,
         Command::Release,
         Command::Close,
@@ -123,6 +125,7 @@ impl Command {
             Command::Note => "note",
             Command::History => "history",
             Command::Accept => "accept",
+            Command::Propose => "propose",
             Command::Claim => "claim",
             Command::Release => "release",
             Command::Close => "close",
@@ -172,6 +175,7 @@ impl Command {
             Command::Note => "add a line to the item's body — why, what you tried",
             Command::History => "how this item got the way it is",
             Command::Accept => "accept the change somebody proposed",
+            Command::Propose => "in a picker: ask for the change rather than make it",
             Command::Claim => "claim it — assign it to you and start it",
             Command::Release => "give it back",
             Command::Close => "close it, with a confirm",
@@ -197,7 +201,7 @@ impl Command {
     }
 
     /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 30] {
+    pub fn help_order() -> [Command; 31] {
         [
             Command::Down,
             Command::First,
@@ -211,6 +215,7 @@ impl Command {
             Command::Note,
             Command::History,
             Command::Accept,
+            Command::Propose,
             Command::Claim,
             Command::Release,
             Command::Status,
@@ -271,6 +276,7 @@ impl Default for Keymap {
                 (K::Char('N'), n, C::Note),
                 (K::Char('H'), n, C::History),
                 (K::Char('A'), n, C::Accept),
+                (K::Char('p'), ctrl, C::Propose),
                 (K::Char('c'), n, C::Claim),
                 (K::Char('C'), n, C::Release),
                 (K::Char('x'), n, C::Close),

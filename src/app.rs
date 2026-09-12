@@ -281,6 +281,12 @@ pub struct Picker {
     /// The field being set. `status` is a field like any other here.
     pub field: String,
     pub id: u32,
+    /// What the project says a program may do with this field. Shown rather
+    /// than enforced: the write goes through cairn, which decides. Showing it
+    /// where the choice is made is what keeps a refusal from being a surprise.
+    pub permission: crate::schema::Agent,
+    /// Whether Enter proposes the choice instead of making it.
+    pub propose: bool,
 }
 
 /// A line of text being typed: the filter box, or a new item's title.
@@ -288,6 +294,8 @@ pub struct Picker {
 pub enum Editing {
     Filter,
     NewItem,
+    /// Why a change is being proposed rather than made.
+    Why,
     /// A sentence to append to an item's body.
     Note,
     /// Why an item is being handed back, which cairn records as a note and
@@ -365,6 +373,8 @@ pub struct App {
     /// pressing a key.
     pub readonly: Option<ReadOnly>,
     pub warnings: Vec<String>,
+    /// The change waiting on a reason before it is proposed.
+    proposing: Option<(u32, String, String)>,
     /// What `cairn check` last said, if it has been asked.
     ///
     /// Kept apart from `warnings`, which is what harrow found reading the
@@ -460,6 +470,7 @@ impl App {
             watcher_alive: true,
             readonly: None,
             warnings: Vec::new(),
+            proposing: None,
             checked: None,
             changed: HashMap::new(),
             shown: HashSet::new(),
@@ -1776,9 +1787,41 @@ impl App {
             title: format!("{field} for {}", self.schema.format_id(id)),
             options,
             selected,
+            permission: self.permission_for(field),
             field: field.to_string(),
             id,
+            // A field the project says a program should propose rather than
+            // set opens in that mode. A person at a terminal is the person a
+            // proposal would have been addressed to, so it is a default and
+            // not a restriction — the toggle is right there.
+            propose: self.permission_for(field) == crate::schema::Agent::Propose,
         });
+    }
+
+    /// What the project allows a program to do with a field.
+    ///
+    /// `status` is a field like any other to the picker, but it is declared
+    /// on the status table rather than in `[[field]]`, so both are asked.
+    fn permission_for(&self, field: &str) -> crate::schema::Agent {
+        if field == "status" {
+            // The strictest thing any status says, because the picker offers
+            // all of them and the answer has to cover the one you pick.
+            return self
+                .schema
+                .statuses
+                .iter()
+                .map(|s| s.agent)
+                .max_by_key(|a| match a {
+                    crate::schema::Agent::Unrestricted => 0,
+                    crate::schema::Agent::Propose => 1,
+                    crate::schema::Agent::ReadOnly => 2,
+                })
+                .unwrap_or_default();
+        }
+        self.schema
+            .field(field)
+            .map(|f| f.agent)
+            .unwrap_or_default()
     }
 
     fn resolve_picker(&mut self, go: bool) -> Action {
@@ -1792,6 +1835,14 @@ impl App {
             return Action::None;
         };
         self.select_id(picker.id);
+        if picker.propose {
+            // A proposal without a reason is a preference rather than an
+            // argument, which is cairn's phrasing and the reason to ask.
+            self.proposing = Some((picker.id, picker.field, value));
+            self.editing = Some(Editing::Why);
+            self.input.clear();
+            return Action::None;
+        }
         self.set_field(&picker.field, &value)
     }
 
@@ -1835,6 +1886,31 @@ impl App {
             // prompt on a one-keystroke gesture has to be answerable with one
             // keystroke, or it gets muscle-memoried past, which is worse than
             // not asking.
+            Some(Editing::Why) => {
+                let Some((id, field, value)) = self.proposing.take() else {
+                    return Action::None;
+                };
+                let reference = self.schema.format_id(id);
+                let why = text.trim().to_string();
+                let mut args = vec![
+                    "propose".to_string(),
+                    id.to_string(),
+                    format!("{field}={value}"),
+                ];
+                if !why.is_empty() {
+                    args.push("--why".into());
+                    args.push(why);
+                }
+                self.write(
+                    Change {
+                        args,
+                        describe: format!("{reference} {field} → {value} proposed"),
+                        undo: None,
+                    },
+                    1,
+                    "propose",
+                )
+            }
             Some(Editing::Reason) => self.release_with(Some(text.trim()).filter(|t| !t.is_empty())),
             Some(Editing::NewItem) => {
                 let title = text.trim().to_string();
@@ -2191,6 +2267,18 @@ impl App {
                     return Action::Edit(item.path.clone());
                 }
             }
+            // A modifier on the gesture that already exists rather than a
+            // second set of keys, so there is one way to choose a value and
+            // the confirmation says which of the two it is about to do.
+            Command::Propose => match self.picker.as_mut() {
+                Some(picker) => {
+                    picker.propose = !picker.propose;
+                }
+                None => self.toast(
+                    "open a picker first — proposing is a way of choosing",
+                    ToastKind::Info,
+                ),
+            },
             Command::Claim => return self.claim(true),
             Command::Release => return self.claim(false),
             Command::Close => self.ask_close(),

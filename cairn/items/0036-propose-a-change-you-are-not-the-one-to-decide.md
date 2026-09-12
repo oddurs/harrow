@@ -2,7 +2,7 @@
 id: 36
 title: Propose a change you are not the one to decide
 type: feature
-status: backlog
+status: done
 milestone: v0.3
 created: 2026-09-12
 updated: 2026-09-12
@@ -49,6 +49,6 @@ a second set of keys, and the confirmation says which it is about to do.
 
 ## Acceptance criteria
 
-- [ ] A field the project declares `propose` or `read-only` is marked as such where it is set
-- [ ] A change can be sent as a proposal, with a reason, through `cairn propose`
-- [ ] What is waiting to be decided is reachable as a filter, not only item by item
+- [x] A field the project declares `propose` or `read-only` is marked as such where it is set
+- [x] A change can be sent as a proposal, with a reason, through `cairn propose`
+- [x] What is waiting to be decided is reachable as a filter, not only item by item
