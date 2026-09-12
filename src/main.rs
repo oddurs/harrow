@@ -400,46 +400,61 @@ fn flag_value(args: &[String], name: &str) -> Option<String> {
     None
 }
 
+/// Ask the terminal what colours it is actually using, and wear them.
+///
+/// Only `auto` cares: every other theme names its own colours. The query is
+/// OSC 11, OSC 10 and OSC 4 for all sixteen slots, and the answers are what
+/// let surfaces be mixed from the real page rather than approximated by
+/// naming ANSI slots and hoping.
+///
+/// One function because both paths need it. Reload used to skip it, which
+/// replaced eighteen measured colours with a flat sixteen-slot fallback and
+/// made `ctrl-r` quietly downgrade the interface — and asking again is also
+/// the only way a terminal theme *changed since harrow started* is noticed,
+/// which is the reason somebody presses the key.
+fn wear_the_terminal(theme: Theme) -> Theme {
+    if theme.source != harrow::theme::Source::Auto || theme.name != "auto" {
+        return theme;
+    }
+    let palette = term::query_palette(Duration::from_millis(150));
+    match Theme::from_palette(&palette, "auto") {
+        Some(fresh) => {
+            diag::info(
+                "theme",
+                format!(
+                    "terminal answered {} of 18 colour queries; palette read directly",
+                    palette.known()
+                ),
+            );
+            fresh
+        }
+        None => {
+            // An older terminal that does not answer. Fall back to naming
+            // ANSI slots and letting it substitute, which is what `auto`
+            // always did.
+            let dark = palette
+                .background
+                .map(harrow::theme::is_dark)
+                .unwrap_or_else(|| term::background_is_dark(Duration::from_millis(0)));
+            diag::info(
+                "theme",
+                format!(
+                    "terminal did not report its palette; using ANSI slots on a {} background",
+                    if dark { "dark" } else { "light" }
+                ),
+            );
+            Theme::auto(dark)
+        }
+    }
+}
+
 fn run_tui(mut startup: Startup, args: &[String]) -> Result<()> {
     let project = open_project(&startup);
     let settings = Settings::from_config(&startup.config);
 
     let (mut guard, mut terminal) = Guard::new()?;
 
-    // Asked once, in raw mode, before anything else reads stdin. `auto` is the
-    // only theme whose choices depend on the answer.
-    if startup.theme.source == harrow::theme::Source::Auto && startup.theme.name == "auto" {
-        let palette = term::query_palette(Duration::from_millis(150));
-        match Theme::from_palette(&palette, "auto") {
-            Some(theme) => {
-                diag::info(
-                    "theme",
-                    format!(
-                        "terminal answered {} of 18 colour queries; palette read directly",
-                        palette.known()
-                    ),
-                );
-                startup.theme = theme;
-            }
-            None => {
-                // An older terminal that does not answer. Fall back to naming
-                // ANSI slots and letting it substitute, which is what `auto`
-                // always did.
-                let dark = palette
-                    .background
-                    .map(harrow::theme::is_dark)
-                    .unwrap_or_else(|| term::background_is_dark(Duration::from_millis(0)));
-                diag::info(
-                    "theme",
-                    format!(
-                        "terminal did not report its palette; using ANSI slots on a {} background",
-                        if dark { "dark" } else { "light" }
-                    ),
-                );
-                startup.theme = Theme::auto(dark);
-            }
-        }
-    }
+    startup.theme = wear_the_terminal(startup.theme);
 
     let mut app = prepare(&startup, args);
     app.theme = startup.theme.clone();
@@ -559,8 +574,12 @@ fn dispatch(
         Action::Refresh => handle.refresh(),
         Action::Reload => {
             let fresh = resolve(args);
-            let name = fresh.theme.name.clone();
-            app.theme = fresh.theme;
+            // Ask the terminal again rather than reusing what it said at
+            // startup: reload exists to pick up what changed, and the
+            // terminal's own theme is one of the things that can have.
+            let theme = wear_the_terminal(fresh.theme);
+            let name = theme.name.clone();
+            app.theme = theme;
             app.keymap = fresh.keymap;
             app.rebuild();
             // Deliberately no `terminal.clear()`. It issues a cursor-position

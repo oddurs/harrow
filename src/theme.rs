@@ -1053,6 +1053,47 @@ mod tests {
         assert!(Theme::from_palette(&crate::term::Palette::default(), "x").is_none());
     }
 
+    /// What reload was throwing away. `auto` names ANSI slots and leaves the
+    /// page, the panes and the selection all at `Reset`; a palette answers
+    /// with real colours and the surfaces are mixed from them. Reload
+    /// replaced the second with the first and said nothing.
+    #[test]
+    fn a_queried_palette_says_more_than_naming_ansi_slots() {
+        let mut palette = crate::term::Palette {
+            background: Some(Color::Rgb(0x0c, 0x10, 0x14)),
+            foreground: Some(Color::Rgb(0xc5, 0xc8, 0xc6)),
+            ..Default::default()
+        };
+        for (n, c) in [
+            (1usize, Color::Rgb(0xd7, 0x4e, 0x4e)),
+            (2, Color::Rgb(0x6f, 0xb3, 0x6f)),
+            (3, Color::Rgb(0xd7, 0xa6, 0x4e)),
+            (6, Color::Rgb(0x5f, 0xa8, 0xc8)),
+        ] {
+            palette.slots[n] = Some(c);
+        }
+        let worn = Theme::from_palette(&palette, "auto").expect("builds");
+        let fallback = Theme::auto(true);
+
+        // The page itself is known rather than deferred to.
+        assert_ne!(worn.background, Color::Reset);
+        assert_eq!(fallback.background, Color::Reset);
+
+        // And a pane sits above it, which `Reset` on everything cannot say.
+        for (role, worn, flat) in [
+            ("surface", worn.surface, fallback.surface),
+            ("overlay", worn.overlay, fallback.overlay),
+            ("selection", worn.selection, fallback.selection),
+        ] {
+            assert_ne!(worn, flat, "{role} is the same in both");
+            assert_ne!(worn, Color::Reset, "{role} should be a colour");
+        }
+        assert!(
+            !worn.selection_reverse,
+            "a real selection tint, rather than inverting the page"
+        );
+    }
+
     #[test]
     fn a_light_terminal_is_recognised_as_one() {
         let mut palette = crate::term::Palette {
