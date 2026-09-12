@@ -178,6 +178,46 @@ pub struct Failure {
     pub count: u32,
 }
 
+/// Why a backlog cannot be changed from here.
+///
+/// Both are legitimate ways to be reading one, and neither is an error — but
+/// they ask different things of the reader, so the reason travels rather than
+/// a flag that would have to be interpreted at every place it is shown.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum ReadOnly {
+    /// No `cairn` to run. A backlog is a directory of Markdown, so reading it
+    /// needs nothing; changing it needs the tool that owns the lock.
+    NoCairn,
+    /// The project is written in a format harrow does not know. Its items
+    /// still read — no format bump has ever changed what a key means — but
+    /// what harrow understands of the schema may be short of what is there,
+    /// and cairn will refuse the write itself until the project is migrated.
+    Format(u32),
+}
+
+impl ReadOnly {
+    /// For the edge of the screen, where there is room for a few words.
+    pub fn briefly(&self) -> String {
+        match self {
+            ReadOnly::NoCairn => "read-only".to_string(),
+            ReadOnly::Format(n) => format!("read-only · format {n}"),
+        }
+    }
+
+    /// For a toast and the diagnostics, where there is room to say what to do.
+    pub fn at_length(&self) -> String {
+        match self {
+            ReadOnly::NoCairn => {
+                "cairn is not on PATH — harrow can read this backlog but not change it".to_string()
+            }
+            ReadOnly::Format(n) => format!(
+                "this project is cairn format {n} and harrow reads {} —                  it reads but will not write; `cairn migrate` brings it up to date",
+                crate::schema::KNOWN_FORMAT
+            ),
+        }
+    }
+}
+
 pub struct Confirm {
     pub prompt: String,
     pub detail: String,
@@ -306,9 +346,13 @@ pub struct App {
     pub failure: Option<Failure>,
     /// False if the background thread has died — the UI keeps working and says so.
     pub watcher_alive: bool,
-    /// Whether `cairn` is available to write with. Read-only is a legitimate
-    /// way to run, and is said out loud rather than discovered by pressing a key.
-    pub writable: bool,
+    /// Why harrow cannot change this backlog, when it cannot.
+    ///
+    /// A reason rather than a flag, because there are two of them and they
+    /// call for different things of the reader. Read-only is a legitimate way
+    /// to run either way, and is said out loud rather than discovered by
+    /// pressing a key.
+    pub readonly: Option<ReadOnly>,
     pub warnings: Vec<String>,
 
     /// When harrow noticed each item change, by id, in wall-clock seconds.
@@ -395,7 +439,7 @@ impl App {
             last_load: None,
             failure: None,
             watcher_alive: true,
-            writable: true,
+            readonly: None,
             warnings: Vec::new(),
             changed: HashMap::new(),
             shown: HashSet::new(),
@@ -412,6 +456,10 @@ impl App {
             board_area: Rect::default(),
             should_quit: false,
         }
+    }
+
+    pub fn writable(&self) -> bool {
+        self.readonly.is_none()
     }
 
     /// How long a change stays marked. Long enough to catch on a glance back,
@@ -443,6 +491,17 @@ impl App {
         self.loading = false;
         self.failure = None;
         self.last_load = Some(Instant::now());
+        // Decided here rather than at startup, because the format arrives
+        // with the schema and the schema is re-read on every change. Nothing
+        // to run outranks it: without cairn there is no `cairn migrate`
+        // either, so that reason is the one worth saying.
+        self.readonly = match self.readonly {
+            Some(ReadOnly::NoCairn) => Some(ReadOnly::NoCairn),
+            _ if self.schema.format > crate::schema::KNOWN_FORMAT => {
+                Some(ReadOnly::Format(self.schema.format))
+            }
+            _ => None,
+        };
         self.check_settings();
         self.reparse_filter();
         self.rebuild();
@@ -1286,8 +1345,8 @@ impl App {
     /// One keystroke changing forty things is exactly the gesture that wants a
     /// sentence between the intention and the write.
     fn write(&mut self, change: Change, count: usize, what: &str) -> Action {
-        if !self.writable {
-            self.refuse_readonly();
+        if let Some(why) = self.readonly.clone() {
+            self.refuse(&why);
             return Action::None;
         }
         if count <= 1 {
@@ -1307,11 +1366,8 @@ impl App {
         Action::None
     }
 
-    fn refuse_readonly(&mut self) {
-        self.toast(
-            "cairn is not on PATH — harrow can read this backlog but not change it",
-            ToastKind::Bad,
-        );
+    fn refuse(&mut self, why: &ReadOnly) {
+        self.toast(why.at_length(), ToastKind::Bad);
     }
 
     fn set_field(&mut self, field: &str, value: &str) -> Action {
@@ -1508,8 +1564,8 @@ impl App {
         if !go {
             return Action::None;
         }
-        if !self.writable {
-            self.refuse_readonly();
+        if let Some(why) = self.readonly.clone() {
+            self.refuse(&why);
             return Action::None;
         }
         Action::Write(c.change)
@@ -1641,8 +1697,8 @@ impl App {
                 if title.is_empty() {
                     return Action::None;
                 }
-                if !self.writable {
-                    self.refuse_readonly();
+                if let Some(why) = self.readonly.clone() {
+                    self.refuse(&why);
                     return Action::None;
                 }
                 Action::Write(Change {
@@ -1851,8 +1907,8 @@ impl App {
                 | Command::Advance
                 | Command::Retreat
         );
-        if writes && !self.writable {
-            self.refuse_readonly();
+        if writes && let Some(why) = self.readonly.clone() {
+            self.refuse(&why);
             return Action::None;
         }
 
@@ -2318,8 +2374,8 @@ impl App {
         let Some(status) = self.columns.get(to).map(|c| c.status.clone()) else {
             return Action::None;
         };
-        if !self.writable {
-            self.refuse_readonly();
+        if let Some(why) = self.readonly.clone() {
+            self.refuse(&why);
             return Action::None;
         }
         let id = item.id;

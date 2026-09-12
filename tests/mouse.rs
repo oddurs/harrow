@@ -155,7 +155,7 @@ fn a_card_dropped_where_it_started_changes_nothing() {
 fn a_read_only_backlog_refuses_a_drag_rather_than_appearing_to_work() {
     let mut app = testkit::app();
     app.pane = Pane::Board;
-    app.writable = false;
+    app.readonly = Some(harrow::app::ReadOnly::NoCairn);
     drawn(&mut app);
 
     let (x, y) = find(&app, &Hit::Card(0, 0));
