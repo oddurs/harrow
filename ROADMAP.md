@@ -44,7 +44,7 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
 ## v0.3 — Read everything cairn writes, and nothing it does not
 
-`#######···` 70% · 7 of 10 done · due 2027-02-15
+`########··` 80% · 8 of 10 done · due 2027-02-15
 
 harrow reads cairn's files directly. That is the decision the whole program
 
@@ -52,7 +52,6 @@ harrow reads cairn's files directly. That is the decision the whole program
 
 - [ ] `0034` A saved view brings its grouping and its columns <sup>feature · p2 · filter</sup>
 - [ ] `0036` Propose a change you are not the one to decide <sup>feature · p2 · write</sup>
-- [ ] `0038` Run the project's own check and show what it says <sup>feature · p2 · chrome</sup>
 
 ### done
 
@@ -63,10 +62,11 @@ harrow reads cairn's files directly. That is the decision the whole program
 - [x] `0033` A claim that has gone stale says so <sup>feature · p2 · chrome</sup>
 - [x] `0035` Write down why, without leaving <sup>feature · p1 · write</sup>
 - [x] `0037` Hand an item back with what you learned <sup>feature · p3 · write</sup>
+- [x] `0038` Run the project's own check and show what it says <sup>feature · p2 · chrome</sup>
 
 ## v1.0 — Stable release
 
-`··········` 0% · 0 of 11 done · due 2027-03-01
+`··········` 0% · 0 of 12 done · due 2027-03-01
 
 Documented, tested, and safe to depend on.
 
@@ -83,6 +83,7 @@ Documented, tested, and safe to depend on.
 - [ ] `0048` A terminal without the glyphs still gets the interface <sup>feature · p2 · theme</sup>
 - [ ] `0049` File an item the way the project files them <sup>feature · p2 · write</sup>
 - [ ] `0050` Suspend it, and come back to it <sup>feature · p3 · runtime</sup>
+- [ ] `0051` Select the item a cairn check finding names <sup>feature · p3 · chrome</sup>
 
 ## later — Someday
 

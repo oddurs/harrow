@@ -2,7 +2,7 @@
 id: 38
 title: Run the project's own check and show what it says
 type: feature
-status: backlog
+status: done
 milestone: v0.3
 created: 2026-09-12
 updated: 2026-09-12
@@ -41,7 +41,10 @@ which is which obvious or a cairn complaint will be read as a harrow bug.
 
 ## Acceptance criteria
 
-- [ ] A key runs `cairn check` and shows its output in the diagnostics overlay
-- [ ] cairn's findings are visibly distinct from harrow's own
-- [ ] A finding that names an item selects it
-- [ ] With cairn unavailable, the overlay says so rather than showing an empty section
+- [x] A key runs `cairn check` and shows its output in the diagnostics overlay
+- [x] cairn's findings are visibly distinct from harrow's own
+- [ ] A finding that names an item selects it — not done: cairn's output is
+      prose, and parsing an identifier back out of it would be harrow guessing
+      at a format cairn has not promised. Worth doing when `cairn check
+      --json` exists; raised as its own item rather than left ticked here.
+- [x] With cairn unavailable, the overlay says so rather than showing an empty section

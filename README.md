@@ -126,6 +126,7 @@ harrow --fix-terminal         # undo a terminal left in mouse-reporting mode
 | `r` | re-read the backlog now |
 | `ctrl-r` | reload the config and theme |
 | `D` | diagnostics — what failed, and why |
+| `ctrl-k` | run the project's own `cairn check` |
 | `m` | toggle mouse capture — off restores native text selection |
 | `?` | help |
 | `q` | quit |

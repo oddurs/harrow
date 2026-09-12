@@ -117,6 +117,8 @@ pub enum Action {
     Edit(std::path::PathBuf),
     /// Ask cairn how an item got the way it is.
     History(u32),
+    /// Ask cairn whether the project is valid against its own schema.
+    Check,
     /// Ask cairn to change something.
     Write(Change),
 }
@@ -359,6 +361,13 @@ pub struct App {
     /// pressing a key.
     pub readonly: Option<ReadOnly>,
     pub warnings: Vec<String>,
+    /// What `cairn check` last said, if it has been asked.
+    ///
+    /// Kept apart from `warnings`, which is what harrow found reading the
+    /// files. The two answer different questions — what could not be read,
+    /// and what is invalid against the project's own rules — and a cairn
+    /// complaint read as a harrow bug is the failure mode to avoid.
+    pub checked: Option<Result<Vec<String>, String>>,
 
     /// When harrow noticed each item change, by id, in wall-clock seconds.
     ///
@@ -446,6 +455,7 @@ impl App {
             watcher_alive: true,
             readonly: None,
             warnings: Vec::new(),
+            checked: None,
             changed: HashMap::new(),
             shown: HashSet::new(),
             leaving: HashMap::new(),
@@ -1814,6 +1824,21 @@ impl App {
         }
     }
 
+    /// Take what cairn said about the project.
+    ///
+    /// Every line kept, including the one that says it passed: an empty
+    /// section under a heading that says a validator ran is indistinguishable
+    /// from a validator that did not.
+    pub fn show_check(&mut self, result: Result<String, String>) {
+        self.checked = Some(result.map(|out| {
+            out.lines()
+                .map(str::trim_end)
+                .filter(|l| !l.is_empty())
+                .map(str::to_string)
+                .collect()
+        }));
+    }
+
     /// Take what cairn said about an item's history.
     pub fn show_history(&mut self, id: u32, result: Result<String, String>) {
         self.history = Some(match result {
@@ -2121,6 +2146,13 @@ impl App {
                     return Action::None;
                 };
                 return Action::History(item.id);
+            }
+            // On demand, never on load: `check` is a process, harrow reloads
+            // on every file change, and a validator on a watch is a validator
+            // that runs three times a keystroke.
+            Command::Check => {
+                self.diagnostics = true;
+                return Action::Check;
             }
             Command::Edit => {
                 if let Some(item) = self.selected_item() {
