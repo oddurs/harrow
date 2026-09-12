@@ -43,23 +43,11 @@ struct Gap {
     item: &'static str,
 }
 
-const GAPS: &[Gap] = &[
-    Gap {
-        lens: Pane::Stats,
-        owes: Owes::AnswersTheMouse,
-        item: "0061",
-    },
-    Gap {
-        lens: Pane::Stats,
-        owes: Owes::ShowsTheDetail,
-        item: "0058",
-    },
-    Gap {
-        lens: Pane::Board,
-        owes: Owes::ShowsTheDetail,
-        item: "0058",
-    },
-];
+const GAPS: &[Gap] = &[Gap {
+    lens: Pane::Stats,
+    owes: Owes::AnswersTheMouse,
+    item: "0061",
+}];
 
 fn expected(lens: Pane, owes: Owes) -> bool {
     !GAPS.iter().any(|g| g.lens == lens && g.owes == owes)

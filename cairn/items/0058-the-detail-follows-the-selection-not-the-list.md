@@ -2,7 +2,7 @@
 id: 58
 title: The detail follows the selection, not the list
 type: feature
-status: backlog
+status: done
 milestone: v0.4
 depends_on:
 - 56
@@ -56,7 +56,10 @@ it is one somebody chose.
 
 ## Acceptance criteria
 
-- [ ] The selected card's detail is reachable from the board
-- [ ] The narrow rule still drops the detail before it halves anything
-- [ ] A recorded screen shows a board with the detail, at a width where both read
-- [ ] Whatever the answer is for a narrow board, it is a decision with a reason beside it
+- [x] The selected card's detail is reachable from the board
+- [x] The narrow rule still drops the detail before it halves anything
+- [x] A recorded screen shows a board with the detail, at a width where both read
+- [x] Whatever the answer is for a narrow board, it is a decision with a reason beside it
+- [x] The stats keep the detail only where they can still lay out in two columns,
+      so a wide terminal is not made to trade a layout the pane prefers for one
+      it did not ask for

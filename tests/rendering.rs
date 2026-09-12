@@ -23,6 +23,16 @@ fn the_board() {
     support::assert_snapshot("board", &ui::render_to_string(&mut app, 110, 20, 0));
 }
 
+/// The detail belongs to the selection, not to the list. A board wide enough
+/// to spare the width knows as much about the selected card as the list does.
+#[test]
+fn a_board_wide_enough_for_the_detail() {
+    let mut app = support::app();
+    app.pane = harrow::app::Pane::Board;
+    app.select_id(3);
+    support::assert_snapshot("board-detail", &ui::render_to_string(&mut app, 140, 22, 0));
+}
+
 #[test]
 fn the_statistics() {
     let mut app = support::app();
