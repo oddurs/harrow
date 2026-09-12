@@ -5,16 +5,16 @@
 │ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  3 left ││ ◐ Draw the list                              │
 │  ○ 0005 The detail pane scrolls past its pane           p1 ││   in progress · feature · v0.1 · @oddur      │
 │  ⊘ 0004 Draw the board                                  p2 ││                                              │
-│  ◐ 0003 Draw the list     ╭ status for 0003 ───────────────────────────────────╮─────────────────────────  │
-│ ▾ no milestone            │ 1 backlog                                 open     │ 2 ticked                  │
-│  ○ 0006 Write the readme  │ 2 in progress                             active   │                           │
-│                           │ 3 done                                    done     │─────────────────────────  │
-│                           │ 4 dropped                                 dropped  │                           │
-│                           ╰ ↵ set · ctrl-p to propose · esc cancel ────────────╯                           │
-│                                                            ││   A backlog you cannot move through is a     │
-│                                                            ││   file you could have opened.                │
+│  ◐ 0003 Draw the list                      1/2  @oddur  p1 ││   Latest ──────────────────────────────────  │
+│ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left ││   2026-09-11                                 │
+│  ○ 0006 Write the readme                             ?  p3 ││   It is the lock ordering rather than the    │
+│                                                            ││   lock.                                      │
 │                                                            ││                                              │
-│                                                            ││   ✓ rows                                     │
-│                                                            ││   ☐ groups                                   │
+│                                                            ││   Acceptance ──────────────────────────────  │
+│                                                            ││   ▰▰▰▰▰▱▱▱▱▱  1 of 2 ticked                  │
+│                                                            ││                                              │
+│                                                            ││   Body ────────────────────────────────────  │
+│                                                            ││   Problem                                    │
+│                                                            ││                                              │
 ╰────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

@@ -295,3 +295,20 @@ fn two_actors_on_one_backlog() {
     app.select_id(5);
     support::assert_snapshot("actors", &ui::render_to_string(&mut app, 110, 16, 0));
 }
+
+/// On an item somebody else is working on, the newest thing said about it is
+/// the reason you opened it — so it is above the reference material rather
+/// than below the fold under it.
+#[test]
+fn an_item_with_a_thread_on_it() {
+    let mut app = support::app();
+    if let Some(item) = app.items.iter_mut().find(|i| i.id == 3) {
+        item.body.push_str(
+            "\n## 2026-09-10\n\nTried the obvious fix; it deadlocks the other way.\n\n\
+             ## 2026-09-11\n\nIt is the lock ordering rather than the lock.\n",
+        );
+    }
+    app.rebuild();
+    app.select_id(3);
+    support::assert_snapshot("thread", &ui::render_to_string(&mut app, 110, 20, 0));
+}

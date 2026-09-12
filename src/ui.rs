@@ -1028,6 +1028,26 @@ fn detail_lines(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'st
         ]));
     }
 
+    // The newest thing anybody said, at the top, because on an item somebody
+    // else is working on that is the reason you opened it. The body below
+    // still reads in its own order — a thread is oldest to newest, and
+    // reversing it to put the news first would make the history unreadable
+    // to save a keystroke.
+    if let Some((when, said)) = crate::item::latest_entry(&item.body) {
+        lines.push(Line::from(""));
+        lines.push(section("Latest", t, width));
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(when, Style::default().fg(t.faint)),
+        ]));
+        for part in wrap(&said, width.saturating_sub(2)).into_iter().take(3) {
+            lines.push(Line::from(Span::styled(
+                format!("  {part}"),
+                Style::default().fg(t.text),
+            )));
+        }
+    }
+
     if item.blocked {
         lines.push(Line::from(""));
         lines.push(section("Waiting on", t, width));
@@ -1118,6 +1138,17 @@ fn detail_lines(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'st
         ]));
     }
 
+    if !item.body.trim().is_empty() {
+        lines.push(Line::from(""));
+        lines.push(section("Body", t, width));
+        lines.extend(body_lines(&item.body, t, width.saturating_sub(2)));
+    }
+
+    // Below the body, not above it. A grid of fields is reference material
+    // and it is static; it had the top of the pane because it is easy to lay
+    // out, not because it answers anything. What a reader wants from an item
+    // somebody else is working on is the newest thing said about it.
+    //
     // A grid, not a list: one column of labels, one of values, so the eye runs
     // down the labels instead of reading every line to find the one it wants.
     let mut fields: Vec<(String, String)> = Vec::new();
@@ -1161,12 +1192,6 @@ fn detail_lines(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'st
                 Span::styled(truncate(&value, room), Style::default().fg(t.muted)),
             ]));
         }
-    }
-
-    if !item.body.trim().is_empty() {
-        lines.push(Line::from(""));
-        lines.push(section("Body", t, width));
-        lines.extend(body_lines(&item.body, t, width.saturating_sub(2)));
     }
 
     lines

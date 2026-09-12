@@ -8,9 +8,9 @@
 │                                                                ││   Acceptance ──────────────────────────  │
 │                                                                ││   ▰▰▰▰▰▱▱▱▱▱  1 of 2 ticked              │
 │                                                                ││                                          │
-│                                                                ││   Fields ──────────────────────────────  │
-│                                                                ││   priority p1                            │
-│                                                                ││   area     ui                            │
-│                                                                ││   created  2026-09-02                    │
+│                                                                ││   Body ────────────────────────────────  │
+│                                                                ││   Problem                                │
+│                                                                ││                                          │
+│                                                                ││   A backlog you cannot move through is a │
 ╰────────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help
