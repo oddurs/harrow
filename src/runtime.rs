@@ -194,7 +194,15 @@ fn watch(paths: &[PathBuf], wake: Sender<()>) -> Option<notify::RecommendedWatch
 
     let mut watching = 0;
     for path in paths {
-        match watcher.watch(path, RecursiveMode::NonRecursive) {
+        // Recursive, because items may be filed in subdirectories and a
+        // change below the top level would otherwise wait for the poll — the
+        // watcher exists precisely so that it does not.
+        let mode = if path.is_dir() {
+            RecursiveMode::Recursive
+        } else {
+            RecursiveMode::NonRecursive
+        };
+        match watcher.watch(path, mode) {
             Ok(()) => watching += 1,
             Err(e) => diag::warn("watch", format!("{}: {e}", path.display())),
         }
