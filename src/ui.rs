@@ -61,6 +61,42 @@ pub fn category_glyph(category: Category) -> &'static str {
     }
 }
 
+/// How somebody's name is drawn.
+///
+/// Two groups: yours, and everybody else's. That is the first-order question
+/// on a backlog you share with programs, and it is as far as colour should
+/// be pushed here.
+///
+/// The rank scale was the obvious way to give every actor its own colour and
+/// is the wrong one: those four are the priority colours, so a contributor
+/// would be drawn in the p0 red for no reason but their position in a sorted
+/// list. Colour on this row already carries state, type, priority and
+/// staleness; a fifth meaning that is merely decorative is how a screen
+/// becomes colourful instead of legible.
+///
+/// A stale claim outranks both, because *this is not moving* matters more
+/// than *whose it is*. And with no colour at all the glyph carries it, the
+/// way the state column does: yours is `@name`, somebody else's is `·name`.
+fn actor_style(app: &App, who: &str, stale: bool, t: &Theme) -> (String, Style) {
+    // `·` only where there is a *you* for it to mean *not you*. Where harrow
+    // cannot tell — no `CAIRN_USER`, no git name — everybody is `@`, because
+    // marking a distinction that cannot be drawn is worse than not drawing
+    // it. The colours still separate the cast either way.
+    let mark = if app.me.is_empty() || app.is_me(who) {
+        "@"
+    } else {
+        "·"
+    };
+    let colour = if stale {
+        t.warn
+    } else if app.me.is_empty() || app.is_me(who) {
+        t.person
+    } else {
+        t.secondary
+    };
+    (mark.to_string(), Style::default().fg(colour))
+}
+
 fn state_color(item: &Item, t: &Theme, schema: &Schema) -> ratatui::style::Color {
     if item.blocked && !item.category.is_closed() {
         return t.blocked;
@@ -509,10 +545,15 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
         (_, 0) => String::new(),
         (done, total) => format!("{done}/{total}"),
     };
+    let (mark, who_style) = item
+        .assignee
+        .as_deref()
+        .map(|a| actor_style(app, a, app.claim_is_stale(item), t))
+        .unwrap_or_else(|| (String::new(), Style::default()));
     let who = item
         .assignee
         .as_deref()
-        .map(|a| format!("@{}", truncate(a, 8)))
+        .map(|a| format!("{mark}{}", truncate(a, 8)))
         .unwrap_or_default();
     let proposed = !item.proposals.is_empty();
 
@@ -595,15 +636,7 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
     }
     if show_who && !who.is_empty() {
         spans.push(Span::raw("  "));
-        // An item that looks taken and is not looks exactly like an item
-        // somebody is working on right now, which is the one thing a pane
-        // beside the work is supposed to distinguish.
-        let colour = if app.claim_is_stale(item) {
-            t.warn
-        } else {
-            t.person
-        };
-        spans.push(Span::styled(who, Style::default().fg(colour)));
+        spans.push(Span::styled(who, who_style));
     }
     if proposed {
         // Somebody is waiting on an answer, which is a different kind of fact
@@ -965,10 +998,8 @@ fn detail_lines(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'st
     if let Some(who) = &item.assignee {
         state.push(Span::styled(" · ", Style::default().fg(t.faint)));
         let stale = app.claim_is_stale(item);
-        state.push(Span::styled(
-            format!("@{who}"),
-            Style::default().fg(if stale { t.warn } else { t.person }),
-        ));
+        let (mark, style) = actor_style(app, who, stale, t);
+        state.push(Span::styled(format!("{mark}{who}"), style));
         // Marking it raises the question; the pane is where there is room to
         // answer it.
         if let Some(days) = app.claimed_days(item).filter(|_| stale) {
@@ -978,7 +1009,24 @@ fn detail_lines(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'st
             ));
         }
     }
+    // Only where it says something the assignee does not. The two fields
+    // exist to separate *who is doing it* from *who is answerable*, which is
+    // a distinction that only appears when they differ — and with a program
+    // working and a person answerable, they do.
     lines.push(Line::from(state));
+    // On its own line rather than crowding the state, which is already four
+    // facts wide and would simply truncate this one away.
+    if let Some(owner) = item
+        .owner
+        .as_ref()
+        .filter(|o| Some(*o) != item.assignee.as_ref())
+    {
+        let (mark, style) = actor_style(app, owner, false, t);
+        lines.push(Line::from(vec![
+            Span::styled("  answerable ", Style::default().fg(t.faint)),
+            Span::styled(format!("{mark}{owner}"), style),
+        ]));
+    }
 
     if item.blocked {
         lines.push(Line::from(""));
@@ -1083,9 +1131,6 @@ fn detail_lines(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'st
     }
     if !item.labels.is_empty() {
         fields.push(("labels".into(), item.labels.join(", ")));
-    }
-    if let Some(owner) = &item.owner {
-        fields.push(("owner".into(), owner.clone()));
     }
     if let Some(by) = &item.created_by {
         fields.push(("filed by".into(), by.clone()));

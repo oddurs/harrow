@@ -1,0 +1,16 @@
+ harrow  sample    needs  list  board  stats  log    1 needs you                                     starting
+ ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭ Backlog · by milestone ────────────────────────────────────╮╭ 0005 ────────────────────────────────────────╮
+│ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  3 left ││ ○ The detail pane scrolls past its pane      │
+│  ○ 0005 The detail pane scrolls past its p…  ·an agent  p1 ││   backlog · bug · v0.1 · ·an agent           │
+│  ⊘ 0004 Draw the board                                  p2 ││   answerable @oddur                          │
+│  ◐ 0003 Draw the list                      1/2  @oddur  p1 ││                                              │
+│ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left ││   Fields ──────────────────────────────────  │
+│  ○ 0006 Write the readme                             ?  p3 ││   priority p1                                │
+│                                                            ││   area     ui                                │
+│                                                            ││   labels   chrome                            │
+│                                                            ││   created  2026-09-04                        │
+│                                                            ││                                              │
+╰────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────────╯
+ ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

@@ -518,6 +518,13 @@ pub struct App {
     /// Who harrow is, asked the way cairn asks it, so that *I did that* and
     /// *something else did that* can be told apart.
     pub me: String,
+    /// Everybody who has work here, in a stable order.
+    ///
+    /// An actor is a thing harrow knows about rather than a string it
+    /// prints: on a backlog with you and two programs on it, whose work is
+    /// whose is the first-order question and `@name` in one colour answers
+    /// it one row at a time.
+    pub actors: Vec<String>,
     /// Whether the installed cairn can tick a criterion. Asked once at
     /// startup; an older cairn simply is not offered the gesture.
     pub can_tick: bool,
@@ -638,6 +645,7 @@ impl App {
             readonly: None,
             warnings: Vec::new(),
             me: String::new(),
+            actors: Vec::new(),
             can_tick: false,
             proposing: None,
             moments: None,
@@ -1048,6 +1056,35 @@ impl App {
         true
     }
 
+    /// Who has work here. Sorted so a colour does not move between frames,
+    /// and with yours first, because yours is the one you pick out.
+    fn find_actors(&mut self) {
+        let mut who: Vec<String> = self
+            .items
+            .iter()
+            .flat_map(|i| [i.assignee.clone(), i.owner.clone()])
+            .flatten()
+            .collect();
+        who.sort_unstable();
+        who.dedup();
+        if let Some(at) = who.iter().position(|w| w.eq_ignore_ascii_case(&self.me)) {
+            let me = who.remove(at);
+            who.insert(0, me);
+        }
+        self.actors = who;
+    }
+
+    /// Where somebody falls in the cast, for a colour.
+    pub fn actor(&self, who: &str) -> Option<usize> {
+        self.actors.iter().position(|a| a == who)
+    }
+
+    /// Whether this is you. harrow asks the question cairn asks, so the two
+    /// agree about whose work is whose.
+    pub fn is_me(&self, who: &str) -> bool {
+        !self.me.is_empty() && who.eq_ignore_ascii_case(&self.me)
+    }
+
     /// Everything addressed to a person, ranked by what is waiting.
     ///
     /// Built from the same set the board is dealt from, so the filter applies
@@ -1369,6 +1406,7 @@ impl App {
         }
 
         self.build_board(&cards);
+        self.find_actors();
         self.build_questions();
         // What this build put on screen, which is what the next one measures
         // against to know what has just left.
