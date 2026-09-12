@@ -10,7 +10,7 @@
 │  ○ 0006 Write the readme  │ 2 in progress                             active   │                           │
 │                           │ 3 done                                    done     │─────────────────────────  │
 │                           │ 4 dropped                                 dropped  │                           │
-│                           ╰ ↵ set · esc cancel ────────────────────────────────╯                           │
+│                           ╰ ↵ set · ctrl-p to propose · esc cancel ────────────╯                           │
 │                                                            ││   created  2026-09-02                        │
 │                                                            ││                                              │
 │                                                            ││   Body ────────────────────────────────────  │

@@ -516,3 +516,68 @@ fn the_projects_own_check_is_asked_of_cairn_and_kept_apart() {
         "none of which became one of harrow's own warnings"
     );
 }
+
+/// cairn 0.2.0 enforces the permission model in the direction nobody expects:
+/// arriving over the protocol is what makes a caller an agent, so a field
+/// declared `propose` is refused there and allowed on the command line. harrow
+/// is not an agent, so it *can* set such a field — which is right, since the
+/// person at the terminal is who the proposal would have been addressed to.
+/// What was missing is any sign that the project had an opinion.
+#[test]
+fn a_field_the_project_says_to_propose_opens_that_way() {
+    let mut app = app();
+    app.schema
+        .fields
+        .iter_mut()
+        .find(|f| f.name == "priority")
+        .expect("the fixture declares priority")
+        .agent = harrow::schema::Agent::Propose;
+
+    app.open_picker("priority");
+    let picker = app.picker.as_ref().expect("a picker");
+    assert!(picker.propose, "the project's opinion is the default");
+    assert_eq!(picker.permission, harrow::schema::Agent::Propose);
+
+    // And it is a default, not a restriction: the person at the terminal is
+    // the one a proposal would have been addressed to.
+    app.run(Command::Propose);
+    assert!(!app.picker.as_ref().expect("still open").propose);
+}
+
+#[test]
+fn proposing_asks_why_and_hands_it_to_cairn() {
+    let mut app = app();
+    app.open_picker("priority");
+    app.run(Command::Propose);
+
+    // Pick p0, then say why.
+    app.handle_key(KeyCode::Char('1'), KeyModifiers::NONE);
+    app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+    assert!(
+        app.editing.is_some(),
+        "a proposal without a reason is a preference"
+    );
+    for c in "nobody can install this without it".chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+    }
+    assert_eq!(
+        args(&app.handle_key(KeyCode::Enter, KeyModifiers::NONE)),
+        vec![
+            "propose".to_string(),
+            "3".to_string(),
+            "priority=p0".to_string(),
+            "--why".to_string(),
+            "nobody can install this without it".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn an_unproposed_picker_still_just_sets_the_field() {
+    let mut app = app();
+    app.open_picker("priority");
+    assert!(!app.picker.as_ref().expect("open").propose);
+    app.handle_key(KeyCode::Char('1'), KeyModifiers::NONE);
+    let action = app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+    assert_eq!(args(&action), vec!["set", "3", "priority=p0"]);
+}
