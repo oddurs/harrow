@@ -17,7 +17,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Padding, Paragraph};
 
-use crate::app::{App, Hit, Pane, Row, ToastKind};
+use crate::app::{App, Hit, Pane, ReadOnly, Row, ToastKind};
 use crate::diag;
 use crate::item::Item;
 use crate::keys::Command;
@@ -1806,13 +1806,10 @@ fn draw_diagnostics(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
             ),
         ]),
     ];
-    if !app.writable {
+    if let Some(why) = &app.readonly {
         lines.push(Line::from(vec![
             Span::raw("  "),
-            Span::styled(
-                "cairn is not on PATH — this backlog is read-only",
-                Style::default().fg(t.warn),
-            ),
+            Span::styled(why.at_length(), Style::default().fg(t.warn)),
         ]));
     }
     if let Some(fail) = &app.failure {
@@ -2038,8 +2035,13 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             Style::default().fg(t.faint),
         ));
     }
-    if !app.writable && used + 12 <= area.width as usize {
-        spans.push(Span::styled(" read-only", Style::default().fg(t.warn)));
+    // The footer already said read-only; it now says which read-only, because
+    // "cairn is missing" and "this project is newer than I am" call for
+    // different things of the reader.
+    if let Some(why) = app.readonly.as_ref().map(ReadOnly::briefly)
+        && used + why.chars().count() + 2 <= area.width as usize
+    {
+        spans.push(Span::styled(format!(" {why}"), Style::default().fg(t.warn)));
     }
     for (rect, command) in buttons {
         app.hit(rect, Hit::Run(command));

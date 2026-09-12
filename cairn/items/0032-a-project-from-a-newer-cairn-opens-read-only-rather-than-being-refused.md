@@ -2,7 +2,7 @@
 id: 32
 title: A project from a newer cairn opens read-only rather than being refused
 type: feature
-status: backlog
+status: done
 milestone: v0.3
 created: 2026-09-12
 updated: 2026-09-12
@@ -10,10 +10,19 @@ priority: p1
 area: read
 ---
 
-## Problem
+## Correction
 
-harrow refuses to open a project whose `format` is higher than the one it
-knows, and says so. That was the right reading of specification §8 clause 4 —
+**The premise was wrong.** harrow does not refuse a newer project — `parse`
+logs a diagnostic and carries on, and it always has. That first acceptance
+criterion was met before the item was written, and it is ticked below because
+it is true, not because anything was done for it.
+
+The rest of the item stood, and was the work: the warning went only to the
+diagnostics overlay, and every write was attempted as normal. So harrow would
+hand cairn a write against an unmigrated project, and the reader would get
+cairn's refusal with no idea harrow had known all along.
+
+## Problem That was the right reading of specification §8 clause 4 —
 "a reader encountering a version it does not understand must refuse the
 project and say so" — but §8 qualifies it two paragraphs earlier:
 
@@ -33,14 +42,21 @@ with a better message than harrow can give.
 
 ## Proposal
 
-Open a project written in a newer format, read every item, and say plainly at
-the top of the screen that the schema is from a format harrow does not know
-and that parts of it may be missing. Refuse to write, the way harrow already
-refuses when cairn is not installed, and name `cairn migrate` as what changes
-that.
+Say it where it can be seen, and refuse the write.
 
-Keep refusing when the *items* cannot be read, which is what clause 4 is
-actually protecting: misreading data is worse than declining to read it.
+harrow already had a read-only mode with a footer marker and a refusal toast,
+for the case where cairn is not on PATH — but it was a `bool` with one
+hardcoded sentence. A second reason needs the reason itself to travel, so
+`writable: bool` becomes `readonly: Option<ReadOnly>`: `NoCairn`, or
+`Format(n)`. The footer says which, so the marker answers *why* rather than
+only *that*, and the refusal names `cairn migrate`.
+
+Missing cairn outranks a newer format, because without cairn there is no
+`cairn migrate` either.
+
+Nothing needs doing about items that cannot be read: they are refused per
+file already, and no format bump has ever changed what a key in an item
+means — each changed only how the configuration says what it says.
 
 ## Cost
 
@@ -52,7 +68,8 @@ change is one harrow would survive. The read-only banner is the hedge.
 
 ## Acceptance criteria
 
-- [ ] A project declaring a later format opens, lists and reads
-- [ ] The screen says the schema is newer than harrow knows, without a toast that scrolls away
-- [ ] Every write is refused, naming `cairn migrate`
-- [ ] A project whose items cannot be parsed is still refused rather than half-read
+- [x] A project declaring a later format opens, lists and reads — already true, see the correction
+- [x] The screen says the schema is newer than harrow knows, without a toast that scrolls away
+- [x] Every write is refused, naming `cairn migrate`
+- [x] A project whose items cannot be parsed is still refused rather than half-read
+- [x] Read-only carries its reason rather than a flag with one hardcoded sentence

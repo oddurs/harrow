@@ -309,7 +309,7 @@ fn a_grouping_the_project_has_not_got_falls_back() {
 fn a_read_only_backlog_says_so_rather_than_appearing_to_work() {
     let dir = testkit::project();
     let mut app = app_for(dir.path());
-    app.writable = false;
+    app.readonly = Some(harrow::app::ReadOnly::NoCairn);
     app.select_id(3);
     assert_eq!(
         app.run(harrow::keys::Command::Claim),
@@ -555,4 +555,52 @@ fn a_project_that_renders_its_identifiers_its_own_way_is_obeyed() {
         // Esc backs out of the filter, so the next spelling starts clean.
         app.handle_key(KeyCode::Esc, KeyModifiers::NONE);
     }
+}
+
+/// No format bump has ever changed what a key in an item means — each changed
+/// only how the configuration says what it says — so a project from a newer
+/// cairn is one harrow can read. What it must not do is write to it, because
+/// cairn will refuse that itself until the project is migrated.
+#[test]
+fn a_project_from_a_newer_cairn_reads_but_does_not_write() {
+    let dir = testkit::project();
+    let cfg = dir.path().join("cairn.toml");
+    let text = std::fs::read_to_string(&cfg).expect("the fixture config");
+    let ahead = harrow::schema::KNOWN_FORMAT + 1;
+    std::fs::write(
+        &cfg,
+        text.replace("format = 3", &format!("format = {ahead}")),
+    )
+    .expect("write a newer format");
+
+    let mut app = app_for(dir.path());
+    assert_eq!(app.items.len(), 6, "every item still reads");
+    assert!(!app.rows.is_empty(), "and lists");
+
+    assert_eq!(
+        app.readonly,
+        Some(harrow::app::ReadOnly::Format(ahead)),
+        "and says why it will not write"
+    );
+    app.select_id(3);
+    assert_eq!(
+        app.run(harrow::keys::Command::Claim),
+        Action::None,
+        "so a write is refused here rather than by cairn confusingly"
+    );
+    let said = app
+        .toast
+        .as_ref()
+        .map(|(m, _, _)| m.clone())
+        .unwrap_or_default();
+    assert!(said.contains("cairn migrate"), "naming the remedy: {said}");
+
+    // And once the toast has gone, the footer is still saying it — which is
+    // the difference between being told and being able to check.
+    app.toast = None;
+    let screen = harrow::ui::render_to_string(&mut app, 110, 26, 0);
+    assert!(
+        screen.contains(&format!("read-only · format {ahead}")),
+        "the footer says which read-only"
+    );
 }

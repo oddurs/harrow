@@ -211,7 +211,7 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
         .unwrap_or_default();
     let view = flag_value(args, "--view").unwrap_or_else(|| startup.config.view.clone());
     app.view = (!view.trim().is_empty()).then_some(view);
-    app.writable = on_path(&startup.config.cairn);
+    app.readonly = (!on_path(&startup.config.cairn)).then_some(harrow::app::ReadOnly::NoCairn);
     app
 }
 

@@ -205,7 +205,7 @@ fn the_pointer_marks_one_or_a_range() {
 #[test]
 fn a_read_only_backlog_refuses_a_bulk_change() {
     let mut app = testkit::app();
-    app.writable = false;
+    app.readonly = Some(harrow::app::ReadOnly::NoCairn);
     app.marked.insert(3);
     app.marked.insert(5);
     assert_eq!(app.run(Command::Claim), Action::None);
