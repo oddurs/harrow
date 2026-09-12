@@ -274,7 +274,13 @@ impl Theme {
             heading: readable(&[slot(15)], background, 7.0)
                 .unwrap_or_else(|| mix(foreground, if dark { WHITE } else { BLACK }, 0.35)),
 
-            accent: warn,
+            // Not `warn`. Accent is chrome — the selected tab, the cursor,
+            // every footer hint, the mark on something that just moved — and
+            // warn is exceptional. When the ubiquitous role wears the
+            // exceptional one's colour, the exception stops being visible.
+            // The focus ring is the right thing to share with: focus and
+            // accent are never making different claims.
+            accent: secondary,
             secondary,
 
             open: muted,
@@ -1051,6 +1057,99 @@ mod tests {
     fn a_terminal_that_answers_nothing_gets_nothing() {
         // The caller falls back to `auto`; inventing a palette would be worse.
         assert!(Theme::from_palette(&crate::term::Palette::default(), "x").is_none());
+    }
+
+    /// Roles that must never collapse onto one colour, for every theme
+    /// harrow can produce.
+    ///
+    /// Six hues cannot give every role one of its own, so sharing is
+    /// expected — but not between these. Each pair says two different things
+    /// about the same pixel, and a reader who cannot tell them apart is
+    /// reading the wrong thing.
+    #[test]
+    fn the_roles_that_must_stay_apart_do() {
+        /// Two roles that must never be the same colour, and what to call
+        /// them when they are.
+        struct Apart {
+            one: &'static str,
+            other: &'static str,
+            of: fn(&Theme) -> (Color, Color),
+        }
+        let must_differ = [
+            // Chrome is everywhere; a warning is exceptional. One wearing the
+            // other's colour costs the exception its visibility.
+            Apart {
+                one: "accent",
+                other: "warn",
+                of: |t| (t.accent, t.warn),
+            },
+            Apart {
+                one: "accent",
+                other: "error",
+                of: |t| (t.accent, t.error),
+            },
+            // "Finished" and "cannot be started" are the two answers somebody
+            // scanning a column is telling apart.
+            Apart {
+                one: "done",
+                other: "blocked",
+                of: |t| (t.done, t.blocked),
+            },
+            Apart {
+                one: "ready",
+                other: "blocked",
+                of: |t| (t.ready, t.blocked),
+            },
+            // An error that looks like a warning is a warning.
+            Apart {
+                one: "error",
+                other: "warn",
+                of: |t| (t.error, t.warn),
+            },
+            // Text has to be text.
+            Apart {
+                one: "text",
+                other: "background",
+                of: |t| (t.text, t.background),
+            },
+        ];
+
+        let mut palette = crate::term::Palette {
+            background: Some(Color::Rgb(0x0c, 0x10, 0x14)),
+            foreground: Some(Color::Rgb(0xc5, 0xc8, 0xc6)),
+            ..Default::default()
+        };
+        for (n, c) in [
+            (1usize, Color::Rgb(0xd7, 0x4e, 0x4e)),
+            (2, Color::Rgb(0x6f, 0xb3, 0x6f)),
+            (3, Color::Rgb(0xd7, 0xa6, 0x4e)),
+            (4, Color::Rgb(0x6a, 0x7f, 0xd2)),
+            (5, Color::Rgb(0xb5, 0x6f, 0xc8)),
+            (6, Color::Rgb(0x5f, 0xa8, 0xc8)),
+        ] {
+            palette.slots[n] = Some(c);
+        }
+
+        let mut themes: Vec<(String, Theme)> = vec![(
+            "derived from a palette".into(),
+            Theme::from_palette(&palette, "auto").expect("builds"),
+        )];
+        for (name, _) in BUILTIN {
+            let (theme, err) = Theme::resolve_or_default(name);
+            assert!(err.is_none(), "{name}: {err:?}");
+            themes.push((format!("built-in {name}"), theme));
+        }
+
+        for (which, theme) in &themes {
+            for pair in &must_differ {
+                let (a, b) = (pair.of)(theme);
+                assert_ne!(
+                    a, b,
+                    "{which}: {} and {} are the same colour",
+                    pair.one, pair.other
+                );
+            }
+        }
     }
 
     /// What reload was throwing away. `auto` names ANSI slots and leaves the
