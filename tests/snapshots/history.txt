@@ -11,10 +11,10 @@
 │       │  2026-09-03  Oddur Sigurdsson    status backlog -> doing                         │─────  │
 │       │  2026-09-03  an agent            priority p2 -> p1                               │       │
 │       ╰ ↑↓ scroll · any other key closes ────────────────────────────────────────────────╯       │
-│                                                      ││   created  2026-09-02                    │
+│                                                      ││   A backlog you cannot move through is a │
+│                                                      ││   file you could have opened.            │
 │                                                      ││                                          │
-│                                                      ││   Body ────────────────────────────────  │
-│                                                      ││   Problem                                │
-│                                                      ││                                          │
+│                                                      ││   ✓ rows                                 │
+│                                                      ││   ☐ groups                               │
 ╰──────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

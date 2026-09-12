@@ -81,18 +81,15 @@ Three ways of looking at one backlog, that behave like one program.
 
 ## v0.5 — The work is somebody else's; the deciding is yours
 
-`#########·` 83% · 5 of 6 done · due 2027-04-01
+`##########` 100% · 6 of 6 done · due 2027-04-01
 
 The work is somebody else's. The deciding is yours.
-
-### backlog
-
-- [ ] `0066` The detail reads as a thread, not a card <sup>feature · p2 · chrome</sup>
 
 ### done
 
 - [x] `0064` A lens for what needs you <sup>feature · p1 · chrome</sup>
 - [x] `0065` A lens for what happened while you were away <sup>feature · p1 · chrome</sup>
+- [x] `0066` The detail reads as a thread, not a card <sup>feature · p2 · chrome</sup>
 - [x] `0067` Tick a criterion that has come true <sup>feature · p2 · write</sup>
 - [x] `0068` Whose work is whose <sup>feature · p2 · chrome</sup>
 - [x] `0069` Five lenses need a direct route <sup>feature · p3 · chrome</sup>

@@ -388,6 +388,40 @@ fn non_empty(s: &str) -> Option<String> {
     (!s.is_empty() && s != "null" && s != "~").then(|| s.to_string())
 }
 
+/// The last thing added to a body, where something was.
+///
+/// `cairn note` files under today's date, so a `## YYYY-MM-DD` heading is an
+/// entry and anything else is the author's own prose. That is the whole of
+/// the detection: a hand-written body has whatever headings its author
+/// chose, and reading those as a thread would be inventing a structure the
+/// item does not have.
+pub fn latest_entry(body: &str) -> Option<(String, String)> {
+    let is_date = |h: &str| {
+        let h = h.trim();
+        h.len() == 10
+            && h.as_bytes()[4] == b'-'
+            && h.as_bytes()[7] == b'-'
+            && h.chars().filter(char::is_ascii_digit).count() == 8
+    };
+
+    let mut latest: Option<(String, Vec<&str>)> = None;
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if let Some(heading) = trimmed.strip_prefix("##") {
+            let heading = heading.trim_start_matches('#').trim();
+            latest = is_date(heading).then(|| (heading.to_string(), Vec::new()));
+            continue;
+        }
+        if let Some((_, said)) = latest.as_mut() {
+            said.push(trimmed);
+        }
+    }
+    let (when, said) = latest?;
+    let said = said.join(" ");
+    let said = said.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!said.is_empty()).then_some((when, said))
+}
+
 /// Pull the proposals out of a body.
 ///
 /// cairn writes `## Proposed <field>: <from> -> <to> (<who>, <date>)` and the
@@ -894,6 +928,28 @@ priority: p1\n\
         .expect("parses");
         assert_eq!(i.created.as_deref(), Some("2026-09-12"));
         assert_eq!(i.labels, ["p1", "v0.1", "s", "1.2.3", "-", "12:30"]);
+    }
+
+    /// `cairn note` files under today's date, so that is what an entry is.
+    #[test]
+    fn the_newest_note_is_what_somebody_last_said() {
+        let body = "## Problem\n\nIt deadlocks.\n\n                    ## 2026-09-10\n\nTried the obvious fix.\n\n                    ## 2026-09-12\n\nIt is the lock ordering,\nnot the lock.\n";
+        let (when, said) = latest_entry(body).expect("there is one");
+        assert_eq!(when, "2026-09-12");
+        assert_eq!(said, "It is the lock ordering, not the lock.");
+    }
+
+    /// A hand-written body has whatever headings its author chose, and
+    /// reading those as a thread would invent a structure it does not have.
+    #[test]
+    fn prose_is_not_mistaken_for_a_thread() {
+        let body = "## Problem\n\nSomething.\n\n## Proposal\n\nSomething else.\n";
+        assert_eq!(latest_entry(body), None);
+    }
+
+    #[test]
+    fn a_date_with_nothing_under_it_is_not_an_entry() {
+        assert_eq!(latest_entry("## 2026-09-12\n\n"), None);
     }
 
     #[test]

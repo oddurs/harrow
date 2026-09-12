@@ -5,16 +5,16 @@
 │ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  3 left ││ ○ The detail pane scrolls past its pane      │
 │  ○ 0005 The detail pane scrolls past its pane           p1 ││   backlog · bug · v0.1                       │
 │  ⊘ 0004 Draw the board                                  p2 ││                                              │
-│  ◐ 0003 Draw the list                      1/2  @oddur  p1 ││   Fields ──────────────────────────────────  │
-│ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left ││   priority p1                                │
-│  ○ 0006 Write the readme                             ?  p3 ││   area     ui                                │
+│  ◐ 0003 Draw the list                      1/2  @oddur  p1 ││   Body ────────────────────────────────────  │
+│ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left ││   What happens                               │
+│  ○ 0006 Write the readme                             ?  p3 ││                                              │
+│                                                            ││   A long body runs off the bottom.           │
+│                                                            ││                                              │
+│                                                            ││   Fields ──────────────────────────────────  │
+│                                                            ││   priority p1                                │
+│                                                            ││   area     ui                                │
 │                                                            ││   labels   chrome                            │
 │                                                            ││   created  2026-09-04                        │
-│                                                            ││                                              │
-│                                                            ││   Body ────────────────────────────────────  │
-│                                                            ││   What happens                               │
-│                                                            ││                                              │
-│                                                            ││   A long body runs off the bottom.           │
 │                                                            ││                                              │
 │                                                            ││                                              │
 │                                                            ││                                              │

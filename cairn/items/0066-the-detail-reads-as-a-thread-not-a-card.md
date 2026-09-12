@@ -2,7 +2,7 @@
 id: 66
 title: The detail reads as a thread, not a card
 type: feature
-status: backlog
+status: done
 milestone: v0.5
 depends_on:
 - 64
@@ -49,7 +49,10 @@ author chose, and the pane must not pretend those are entries.
 
 ## Acceptance criteria
 
-- [ ] The most recent addition to an item is visible without scrolling
-- [ ] Notes, proposals and prose are distinguishable from each other
-- [ ] An item with no notes reads at least as well as it does now
-- [ ] A hand-written body is not parsed into entries it does not have
+- [x] The most recent addition to an item is visible without scrolling — as a
+      `Latest` section under the state, rather than by reversing the body. A
+      thread reads oldest to newest, and turning it round to put the news
+      first would make the history unreadable to save a keystroke
+- [x] Notes, proposals and prose are distinguishable from each other
+- [x] An item with no notes reads at least as well as it does now
+- [x] A hand-written body is not parsed into entries it does not have

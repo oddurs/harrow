@@ -11,12 +11,12 @@
 │                                                                ││   Nobody can install this without it.    │
 │                                                                ││   A to accept it                         │
 │                                                                ││                                          │
-│                                                                ││   Fields ──────────────────────────────  │
-│                                                                ││   priority p3                            │
-│                                                                ││   created  2026-09-05                    │
-│                                                                ││                                          │
 │                                                                ││   Body ────────────────────────────────  │
 │                                                                ││   A dangling dependency, on purpose.     │
 │                                                                ││                                          │
+│                                                                ││   Proposed priority: p3 -> p0 (an agent, │
+│                                                                ││   2026-09-05)                            │
+│                                                                ││                                          │
+│                                                                ││   Nobody can install this without it.    │
 ╰────────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help
