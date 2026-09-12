@@ -468,6 +468,7 @@ fn group_line(app: &App, t: &Theme, idx: usize, width: usize) -> ListItem<'stati
     let name = truncate(&g.label, budget);
     let pad = budget.saturating_sub(name.chars().count());
 
+    // The list's own axis: a group heading is part of the list, not the board.
     let name_style = match app.group_by.as_str() {
         "status" => Style::default()
             .fg(t.status(app.schema.status(&g.key)))
@@ -690,8 +691,18 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     for (index, cell) in cells.iter().enumerate() {
         let column = &app.columns[index];
         let focused = index == app.column;
-        let status = app.schema.status(&column.status);
-        let color = t.status(status);
+        // A column is coloured by what it stands for, which depends on what
+        // the board is grouped by. Falling back to the rank scale gives a
+        // spread that reads as an order, which is what a declared sequence of
+        // values is.
+        let color = match app.board_by.as_str() {
+            _ if column.value.is_empty() => t.faint,
+            "status" => t.status(app.schema.status(&column.value)),
+            "type" => t.item_type(app.schema.item_type(&column.value)),
+            "assignee" => t.person,
+            other if app.schema.field(other).is_some_and(|f| f.values.is_empty()) => t.milestone,
+            _ => t.rank(index, count),
+        };
         let border = if focused { color } else { t.border };
 
         let block = Block::bordered()

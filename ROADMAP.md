@@ -65,13 +65,12 @@ harrow reads cairn's files directly. That is the decision the whole program
 
 ## v0.4 — One backlog, three lenses
 
-`########··` 71% · 5 of 7 done · due 2027-03-15
+`#########·` 86% · 6 of 7 done · due 2027-03-15
 
 Three ways of looking at one backlog, that behave like one program.
 
 ### backlog
 
-- [ ] `0060` The board groups by whatever you ask it to <sup>feature · p2 · chrome</sup>
 - [ ] `0062` Reach a lens directly, and go back <sup>feature · p3 · chrome</sup>
 
 ### done
@@ -80,6 +79,7 @@ Three ways of looking at one backlog, that behave like one program.
 - [x] `0057` The stats pane describes a backlog you are not looking at <sup>bug · p1 · chrome</sup>
 - [x] `0058` The detail follows the selection, not the list <sup>feature · p1 · chrome</sup>
 - [x] `0059` Every number in the stats pane is a door <sup>feature · p1 · chrome</sup>
+- [x] `0060` The board groups by whatever you ask it to <sup>feature · p2 · chrome</sup>
 - [x] `0061` The stats pane answers the mouse <sup>feature · p2 · chrome</sup>
 
 ## v1.0 — Stable release

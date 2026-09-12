@@ -196,7 +196,7 @@ fn the_board_deals_what_the_project_gave_a_column_rather_than_what_the_list_show
     let done: Vec<u32> = app
         .columns
         .iter()
-        .find(|c| c.status == "done")
+        .find(|c| c.value == "done")
         .expect("the fixture declares a done column")
         .items
         .iter()
@@ -205,7 +205,7 @@ fn the_board_deals_what_the_project_gave_a_column_rather_than_what_the_list_show
     assert_eq!(done, vec![2], "and that column holds the finished item");
 
     assert!(
-        !app.columns.iter().any(|c| c.status == "dropped"),
+        !app.columns.iter().any(|c| c.value == "dropped"),
         "a status with board = false has no column"
     );
 }
@@ -226,7 +226,7 @@ fn the_strip_and_the_board_agree_about_how_much_is_done() {
     let in_column = app
         .columns
         .iter()
-        .find(|c| c.status == "done")
+        .find(|c| c.value == "done")
         .map(|c| c.items.len())
         .unwrap_or(0);
     assert_eq!(in_strip, in_column);
@@ -355,7 +355,7 @@ fn an_item_closed_under_you_is_watched_out_rather_than_deleted() {
     assert!(
         app.columns
             .iter()
-            .find(|c| c.status == "done")
+            .find(|c| c.value == "done")
             .is_some_and(|c| c.items.iter().any(|i| app.items[*i].id == 3)),
         "the board shows it arriving in done"
     );
@@ -768,4 +768,130 @@ fn the_stats_still_count_what_is_finished() {
     let app = app_for(dir.path());
     assert!(!app.show_all, "closed work is hidden from the list");
     assert!(app.stats().done > 0, "and counted by the summary");
+}
+
+/// `cairn board --group-by milestone` exists, so a board that refused was
+/// harrow's limit and not the idea's — and it said so as though it were a
+/// fact about boards.
+#[test]
+fn the_board_groups_by_whatever_you_ask_it_to() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    app.pane = harrow::app::Pane::Board;
+    assert_eq!(
+        app.board_by, "status",
+        "a board is a status board until asked"
+    );
+
+    app.board_by = "priority".into();
+    app.rebuild();
+    let columns: Vec<&str> = app.columns.iter().map(|c| c.value.as_str()).collect();
+    assert_eq!(
+        columns,
+        ["p0", "p1", "p2", "p3"],
+        "an enum's declared values, in their declared order"
+    );
+
+    app.board_by = "milestone".into();
+    app.rebuild();
+    assert!(
+        app.columns.iter().any(|c| c.value == "v0.1"),
+        "a reference names the items of the type it targets, by key"
+    );
+    assert!(
+        app.columns.iter().any(|c| c.value.is_empty()),
+        "and somewhere for what has none"
+    );
+}
+
+/// Grouping is arrangement, and arrangement is the one thing a lens may
+/// differ in. A list by milestone beside a board by status is a useful pair.
+#[test]
+fn the_board_and_the_list_keep_their_own_axes() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    assert_eq!(app.group_by, "milestone");
+    assert_eq!(app.board_by, "status");
+
+    app.pane = harrow::app::Pane::Board;
+    app.cycle_grouping();
+    assert_ne!(app.board_by, "status", "the board's axis moved");
+    assert_eq!(app.group_by, "milestone", "and the list's did not");
+}
+
+/// A board of one column is a list. Cycling past `none` rather than landing
+/// on it is the difference between an axis you cannot use and a blank screen.
+#[test]
+fn cycling_the_board_steps_over_an_axis_that_cannot_be_a_board() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    app.pane = harrow::app::Pane::Board;
+    for _ in 0..app.grouping_axes().len() * 2 {
+        app.cycle_grouping();
+        assert_ne!(app.board_by, "none");
+        assert!(!app.columns.is_empty(), "columns for {}", app.board_by);
+    }
+}
+
+/// Dropping a card is how you set a field with the mouse, and the field is
+/// whichever one the board is grouped by.
+#[test]
+fn dragging_sets_the_field_the_board_is_grouped_by() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    app.pane = harrow::app::Pane::Board;
+    app.board_by = "priority".into();
+    app.rebuild();
+    let _ = harrow::ui::render_frame(&mut app, 140, 24, 0);
+
+    use crossterm::event::{MouseButton, MouseEventKind};
+    let at = |kind, column, row| crossterm::event::MouseEvent {
+        kind,
+        column,
+        row,
+        modifiers: crossterm::event::KeyModifiers::NONE,
+    };
+    let card = app
+        .hits
+        .iter()
+        .find_map(|(area, hit)| match hit {
+            harrow::app::Hit::Card(c, n) if !app.columns[*c].items.is_empty() => {
+                Some((area.x, area.y, *c, *n))
+            }
+            _ => None,
+        })
+        .expect("a card to drag");
+    let (x, y, from, n) = card;
+    let id = app.items[app.columns[from].items[n]].id;
+    let to = (from + 1) % app.columns.len();
+    let target = app
+        .hits
+        .iter()
+        .find_map(|(area, hit)| {
+            matches!(hit, harrow::app::Hit::Column(c) if *c == to)
+                .then_some((area.x + 1, area.y + 1))
+        })
+        .expect("a column to drop on");
+
+    app.handle_mouse(at(MouseEventKind::Down(MouseButton::Left), x, y));
+    app.handle_mouse(at(
+        MouseEventKind::Drag(MouseButton::Left),
+        target.0,
+        target.1,
+    ));
+    match app.handle_mouse(at(
+        MouseEventKind::Up(MouseButton::Left),
+        target.0,
+        target.1,
+    )) {
+        Action::Write(change) => assert_eq!(
+            change.args,
+            vec![
+                "set".to_string(),
+                id.to_string(),
+                format!("priority={}", app.columns[to].value)
+            ]
+        ),
+        other => panic!("expected a priority change, got {other:?}"),
+    }
 }

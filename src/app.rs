@@ -182,7 +182,9 @@ impl Group {
 
 /// A column on the board.
 pub struct Column {
-    pub status: String,
+    /// The value this column stands for, in whatever the board is grouped by.
+    /// Dropping a card here sets that field to this.
+    pub value: String,
     pub label: String,
     pub items: Vec<usize>,
 }
@@ -349,6 +351,13 @@ pub struct App {
     pub input: String,
     pub editing: Option<Editing>,
     pub group_by: String,
+    /// What the board's columns are, which is not what the list's groups are.
+    ///
+    /// Grouping is arrangement, and arrangement is the one thing a lens is
+    /// allowed to differ in. A list by milestone beside a board by status is
+    /// a useful pair, and sharing one axis would cost whichever of the two
+    /// you were not looking at.
+    pub board_by: String,
     /// What the grouping was before a view replaced it. A view's grouping is
     /// a starting point rather than a cage: leaving the view puts back what
     /// you had, and regrouping by hand inside it does not drop out of it.
@@ -469,6 +478,7 @@ impl App {
             input: String::new(),
             editing: None,
             group_by: "milestone".to_string(),
+            board_by: "status".to_string(),
             grouping_before_view: None,
             sort: String::new(),
             view: None,
@@ -886,9 +896,77 @@ impl App {
         true
     }
 
+    /// The columns a board draws, in the order the project declared them.
+    ///
+    /// Every axis takes its columns from what the project says exists rather
+    /// than from what the items happen to carry, so a column stays put when
+    /// the last card leaves it — a board whose columns move as work arrives
+    /// is a board you cannot learn the shape of. Two axes cannot: an
+    /// assignee is not declared anywhere, and neither is nothing.
+    pub fn board_values(&self) -> Vec<String> {
+        let mut values: Vec<String> = match self.board_by.as_str() {
+            "none" | "" => return Vec::new(),
+            // `board = false` is how a project says a status is not a column,
+            // and it is the only axis with such a thing to say.
+            "status" => {
+                return self
+                    .schema
+                    .board_statuses()
+                    .iter()
+                    .map(|s| s.name.clone())
+                    .collect();
+            }
+            "type" => self
+                .schema
+                .types
+                .iter()
+                .filter(|k| k.groups.is_none())
+                .map(|k| k.name.clone())
+                .collect(),
+            "assignee" => {
+                let mut who: Vec<String> = self
+                    .items
+                    .iter()
+                    .filter(|i| !i.container)
+                    .filter_map(|i| i.assignee.clone())
+                    .collect();
+                who.sort();
+                who.dedup();
+                who
+            }
+            other => match self.schema.field(other) {
+                // An enum's declared values, in their declared order.
+                Some(f) if !f.values.is_empty() => f.values.clone(),
+                // A reference: the items of the type it names, by key, in the
+                // order the roadmap runs.
+                Some(f) if matches!(f.kind, crate::schema::FieldKind::Ref) => self
+                    .items
+                    .iter()
+                    .filter(|i| Some(i.kind.as_str()) == f.target.as_deref())
+                    .filter_map(|i| i.key.clone())
+                    .collect(),
+                _ => Vec::new(),
+            },
+        };
+        // Somewhere for the items that have no value, but only if any have
+        // none: an empty "no milestone" column is a column about nothing.
+        if self
+            .items
+            .iter()
+            .any(|i| self.on_board(i) && self.key_by(i, &self.board_by).is_empty())
+        {
+            values.push(String::new());
+        }
+        values
+    }
+
     /// The value an item is grouped under, and what to call it.
     fn group_key(&self, item: &Item) -> String {
-        match self.group_by.as_str() {
+        self.key_by(item, &self.group_by)
+    }
+
+    fn key_by(&self, item: &Item, axis: &str) -> String {
+        match axis {
             "none" | "" => String::new(),
             "status" => item.status.clone(),
             "type" => item.kind.clone(),
@@ -1071,14 +1149,18 @@ impl App {
     }
 
     fn group_label(&self, key: &str) -> String {
+        self.label_by(key, &self.group_by)
+    }
+
+    fn label_by(&self, key: &str, axis: &str) -> String {
         if key.is_empty() {
-            return match self.group_by.as_str() {
+            return match axis {
                 "status" | "type" => "unset".to_string(),
                 "assignee" => "unassigned".to_string(),
                 other => format!("no {other}"),
             };
         }
-        match self.group_by.as_str() {
+        match axis {
             "status" => self
                 .schema
                 .status(key)
@@ -1111,18 +1193,17 @@ impl App {
     /// holding nothing, with cards dragged into it disappearing on arrival.
     fn build_board(&mut self, cards: &[usize]) {
         self.columns = self
-            .schema
-            .board_statuses()
-            .iter()
-            .map(|s| Column {
-                status: s.name.clone(),
-                label: s.display().to_string(),
+            .board_values()
+            .into_iter()
+            .map(|value| Column {
+                label: self.label_by(&value, &self.board_by),
+                value,
                 items: Vec::new(),
             })
             .collect();
         for &i in cards {
-            let status = &self.items[i].status;
-            if let Some(column) = self.columns.iter_mut().find(|c| c.status == *status) {
+            let key = self.key_by(&self.items[i], &self.board_by);
+            if let Some(column) = self.columns.iter_mut().find(|c| c.value == key) {
                 column.items.push(i);
             }
         }
@@ -1418,10 +1499,34 @@ impl App {
         axes
     }
 
+    /// The axis the lens in front of you is arranged by.
+    pub fn axis(&self) -> &str {
+        if self.pane == Pane::Board {
+            &self.board_by
+        } else {
+            &self.group_by
+        }
+    }
+
     pub fn cycle_grouping(&mut self) {
         let axes = self.grouping_axes();
-        let at = axes.iter().position(|a| *a == self.group_by).unwrap_or(0);
-        self.group_by = axes[(at + 1) % axes.len()].clone();
+        let at = axes.iter().position(|a| a == self.axis()).unwrap_or(0);
+        // On the board, step over an axis that cannot be a board rather than
+        // landing on an empty screen: `none` is a list with the grouping off,
+        // which is a thing to want, and is not a thing a board can be.
+        let usable = |axis: &str| self.pane != Pane::Board || !matches!(axis, "none" | "");
+        let mut next = (at + 1) % axes.len();
+        for _ in 0..axes.len() {
+            if usable(&axes[next]) {
+                break;
+            }
+            next = (next + 1) % axes.len();
+        }
+        if self.pane == Pane::Board {
+            self.board_by = axes[next].clone();
+        } else {
+            self.group_by = axes[next].clone();
+        }
         // Choosing an axis by hand inside a view is a choice, not a drift: it
         // keeps the view and keeps the grouping, and leaving the view now
         // puts back what was in force before the view rather than the view's.
@@ -1431,8 +1536,14 @@ impl App {
         if let Some(id) = id {
             self.select_id(id);
         }
-        let axis = self.group_by.clone();
-        self.toast(format!("grouped by {axis}"), ToastKind::Info);
+        let axis = self.axis().to_string();
+        self.toast(
+            match self.pane {
+                Pane::Board => format!("columns by {axis}"),
+                _ => format!("grouped by {axis}"),
+            },
+            ToastKind::Info,
+        );
     }
 
     // ── Changing an item ─────────────────────────────────────────────────────
@@ -2275,13 +2386,7 @@ impl App {
                 }
                 self.clamp();
             }
-            Command::GroupBy => {
-                if self.pane == Pane::Board {
-                    self.toast("the board is grouped by status", ToastKind::Info);
-                } else {
-                    self.cycle_grouping();
-                }
-            }
+            Command::GroupBy => self.cycle_grouping(),
             // On the stats pane, `enter` is how you follow a figure to what
             // it counted; everywhere else it reads the selected item.
             Command::Read if self.pane == Pane::Stats && !self.doors.is_empty() => {
@@ -2717,16 +2822,17 @@ impl App {
         else {
             return Action::None;
         };
-        let Some(status) = self.columns.get(to).map(|c| c.status.clone()) else {
+        let Some(value) = self.columns.get(to).map(|c| c.value.clone()) else {
             return Action::None;
         };
+        let field = self.board_by.clone();
         if let Some(why) = self.readonly.clone() {
             self.refuse(&why);
             return Action::None;
         }
         let id = item.id;
         self.select_id(id);
-        self.set_field("status", &status)
+        self.set_field(&field, &value)
     }
 
     /// Everything that must be true of the state after any sequence of inputs.
@@ -2771,7 +2877,7 @@ impl App {
         {
             return Err(format!(
                 "board row {} is past the end of {}",
-                self.column_row, column.status
+                self.column_row, column.value
             ));
         }
         if self.column_offsets.len() != self.columns.len() {
@@ -2786,7 +2892,7 @@ impl App {
             if *offset > 0 && *offset >= len {
                 return Err(format!(
                     "column {} is scrolled to card {offset} of {len}",
-                    self.columns[index].status
+                    self.columns[index].value
                 ));
             }
         }
