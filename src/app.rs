@@ -585,6 +585,9 @@ pub struct App {
     pub dragging: Option<(usize, Hit)>,
     /// When harrow last asked cairn to change something.
     pub wrote: Option<Instant>,
+    /// The whole screen, as this frame was given it. Recorded at the top of
+    /// the draw so that everything the draw records can be held to it.
+    pub screen: Rect,
     pub list_area: Rect,
     pub board_area: Rect,
     pub should_quit: bool,
@@ -664,6 +667,7 @@ impl App {
             last_click: None,
             dragging: None,
             wrote: None,
+            screen: Rect::default(),
             list_area: Rect::default(),
             board_area: Rect::default(),
             should_quit: false,
@@ -3078,9 +3082,28 @@ impl App {
     }
 
     /// Record where something clickable was drawn.
+    ///
+    /// Clipped to the screen, because a region beyond the edge is a click on
+    /// something nobody can see. The header is where this bites: it lays the
+    /// tabs out at fixed offsets and registers all of them, so on a
+    /// forty-column terminal — a right-hand pane beside an editor — the last
+    /// tab was truncated away and still clickable, and a click on the blank
+    /// at the right edge switched to a lens that was not on screen.
+    ///
+    /// Here rather than at each call site, because there are a dozen of them
+    /// and the next one would forget.
     pub fn hit(&mut self, area: Rect, what: Hit) {
-        if area.width > 0 && area.height > 0 {
-            self.hits.push((area, what));
+        let screen = self.screen;
+        let x = area.x.min(screen.width);
+        let y = area.y.min(screen.height);
+        let clipped = Rect {
+            x,
+            y,
+            width: area.width.min(screen.width.saturating_sub(x)),
+            height: area.height.min(screen.height.saturating_sub(y)),
+        };
+        if clipped.width > 0 && clipped.height > 0 {
+            self.hits.push((clipped, what));
         }
     }
 
