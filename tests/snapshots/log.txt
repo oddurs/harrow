@@ -1,0 +1,16 @@
+ harrow  sample    needs  list  board  stats  log    1 needs you                                     starting
+ ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭ What happened ─────────────────────────────────────────────────╮╭ 0003 ────────────────────────────────────╮
+│   2026-09-10 Oddur          0003 close the reader              ││ ◐ Draw the list                          │
+│   2026-09-10 Oddur          0005 close the reader              ││   in progress · feature · v0.1 · @oddur  │
+│   2026-09-09 an agent       0006 file the readme               ││                                          │
+│                                                                ││   Acceptance ──────────────────────────  │
+│                                                                ││   ▰▰▰▰▰▱▱▱▱▱  1 of 2 ticked              │
+│                                                                ││                                          │
+│                                                                ││   Fields ──────────────────────────────  │
+│                                                                ││   priority p1                            │
+│                                                                ││   area     ui                            │
+│                                                                ││   created  2026-09-02                    │
+╰────────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────╯
+ ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

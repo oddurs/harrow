@@ -983,3 +983,80 @@ fn the_cursor_stays_on_the_same_question_across_a_rebuild() {
     app.rebuild();
     assert_eq!(app.questions[app.question()], was);
 }
+
+/// One row per item changed, not per commit: the reader is asking about
+/// items, so a commit that moved four of them is four lines.
+#[test]
+fn the_log_counts_items_rather_than_commits() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    app.show_activity(Ok(
+        "abc\u{1f}Oddur\u{1f}2026-09-10T09:00:00Z\u{1f}two at once\n\
+         items/0003-draw-the-list.md\n\
+         items/0004-draw-the-board.md\n"
+            .into(),
+    ));
+
+    let moments = app.moments();
+    assert_eq!(moments.len(), 2, "one commit, two items");
+    assert!(moments.iter().all(|m| m.what == "two at once"));
+    assert_eq!(moments[0].when, "2026-09-10", "the day, not the second");
+    assert_eq!(moments[0].who, "Oddur");
+}
+
+/// The filter applies here as everywhere: *what happened* means *what
+/// happened to what I am looking at*.
+#[test]
+fn the_log_narrows_with_the_filter() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    app.show_activity(Ok("abc\u{1f}Oddur\u{1f}2026-09-10T09:00:00Z\u{1f}both\n\
+         items/0002-read-the-item-files.md\n\
+         items/0006-write-the-readme.md\n"
+        .into()));
+    assert_eq!(app.moments().len(), 2);
+
+    app.handle_key(KeyCode::Char('/'), KeyModifiers::NONE);
+    for c in "priority=p0".chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+    }
+    app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+    assert_eq!(app.moments().len(), 1, "only what the filter still shows");
+}
+
+/// A directory that is not a repository has to say so rather than look empty.
+#[test]
+fn a_project_with_no_history_says_so() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    app.show_activity(Err("not a git repository".into()));
+    assert!(app.moments().is_empty());
+    assert!(matches!(app.moments, Some(Err(_))), "and says which it is");
+}
+
+/// It is a process, so it is asked once and forgotten when the backlog moves.
+#[test]
+fn the_log_is_asked_once_and_again_when_something_changes() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    assert!(app.moments.is_none(), "nothing asked yet");
+
+    app.pane = harrow::app::Pane::Stats;
+    assert_eq!(
+        app.run(harrow::keys::Command::ViewBoard),
+        Action::Activity,
+        "arriving asks"
+    );
+    app.show_activity(Ok(String::new()));
+    app.pane = harrow::app::Pane::Stats;
+    assert_eq!(
+        app.run(harrow::keys::Command::ViewBoard),
+        Action::None,
+        "and does not ask again"
+    );
+
+    let mut project = Project::discover(dir.path()).expect("found");
+    app.ingest(project.load().expect("loads"));
+    assert!(app.moments.is_none(), "until the backlog changes under it");
+}

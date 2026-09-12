@@ -366,6 +366,10 @@ pub fn count_criteria(body: &str, section: Option<&str>) -> (u32, u32) {
 /// is the format's rule rather than a shortcut taken here: the rendering lives
 /// in the project's configuration, and an item reader is not required to have
 /// read it.
+pub fn id_from_path(path: &Path) -> Option<u32> {
+    id_from_filename(path)
+}
+
 fn id_from_filename(path: &Path) -> Option<u32> {
     let name = path.file_stem()?.to_str()?;
     let digits: String = name.chars().take_while(char::is_ascii_digit).collect();

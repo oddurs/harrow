@@ -2,7 +2,7 @@
 id: 65
 title: A lens for what happened while you were away
 type: feature
-status: backlog
+status: done
 milestone: v0.5
 depends_on:
 - 64
@@ -59,9 +59,9 @@ already has that case for `cairn log`.
 
 ## Acceptance criteria
 
-- [ ] A lens shows what changed across the project, most recent first
-- [ ] One row per item changed, not per commit
-- [ ] It says who, and an agent is distinguishable from a person
-- [ ] Selecting a row selects that item; opening it shows that item's history
-- [ ] A project with no repository says so rather than appearing empty
-- [ ] It is read from git once and not on every frame
+- [x] A lens shows what changed across the project, most recent first
+- [x] One row per item changed, not per commit
+- [x] It says who, and an agent is distinguishable from a person
+- [x] Selecting a row selects that item; opening it shows that item's history
+- [x] A project with no repository says so rather than appearing empty
+- [x] It is read from git once and not on every frame
