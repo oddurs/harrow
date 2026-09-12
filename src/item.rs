@@ -220,6 +220,7 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
         path: path.to_path_buf(),
         ..Default::default()
     };
+    let mut has_id = false;
 
     for (key, value) in map {
         match key.as_str() {
@@ -228,6 +229,7 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
                     .as_str()
                     .parse()
                     .map_err(|_| format!("id {:?} is not a number", value.as_str()))?;
+                has_id = true;
             }
             "title" => item.title = value.as_str().to_string(),
             "type" => item.kind = value.as_str().to_string(),
@@ -255,6 +257,15 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
         }
     }
 
+    // An id the frontmatter omits comes from the filename, which is where the
+    // format says to look for it. An id that cannot be found in either is not
+    // a zero: an item whose identity is unknown is worse than an item that
+    // fails to load, because two of them are the same item.
+    if !has_id {
+        item.id = id_from_filename(path)
+            .ok_or_else(|| "no id, and the filename does not begin with one either".to_string())?;
+    }
+
     item.proposals = parse_proposals(&item.body);
 
     if item.title.is_empty() {
@@ -264,6 +275,20 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
             .unwrap_or_else(|| format!("item {}", item.id));
     }
     Ok(item)
+}
+
+/// The leading run of digits in a filename, which is how cairn names an item
+/// and the only part of the name anything is allowed to depend on.
+///
+/// A project may render its identifiers with a prefix — `MP-1002` — in which
+/// case the fallback does not apply and the file has to carry its own id. That
+/// is the format's rule rather than a shortcut taken here: the rendering lives
+/// in the project's configuration, and an item reader is not required to have
+/// read it.
+fn id_from_filename(path: &Path) -> Option<u32> {
+    let name = path.file_stem()?.to_str()?;
+    let digits: String = name.chars().take_while(char::is_ascii_digit).collect();
+    digits.parse().ok()
 }
 
 fn non_empty(s: &str) -> Option<String> {
@@ -560,6 +585,41 @@ priority: p1\n\
         )
         .expect("parses");
         assert_eq!(i.title, "0009-a-thing");
+    }
+
+    /// Two items that both came out as zero would be the same item: `by_id`
+    /// would keep one of them, and every reference to the other would resolve
+    /// to it.
+    #[test]
+    fn an_item_with_no_id_takes_it_from_the_filename() {
+        let i = parse(
+            "---\ntitle: The id comes from the filename\nstatus: backlog\n---\n\nBody.\n",
+            Path::new("cairn/items/0010-id-from-filename.md"),
+        )
+        .expect("parses");
+        assert_eq!(i.id, 10);
+    }
+
+    #[test]
+    fn an_id_that_is_in_neither_the_file_nor_its_name_is_refused() {
+        let err = parse(
+            "---\ntitle: Nameless\nstatus: backlog\n---\n",
+            Path::new("cairn/items/notes.md"),
+        )
+        .expect_err("an item whose identity is unknown does not load");
+        assert!(err.contains("no id"), "{err}");
+    }
+
+    /// The frontmatter is authoritative when it is there. A file renamed by
+    /// hand does not silently renumber the item inside it.
+    #[test]
+    fn the_frontmatter_wins_over_the_filename() {
+        let i = parse(
+            "---\nid: 7\ntitle: Seven\n---\n",
+            Path::new("cairn/items/0099-seven.md"),
+        )
+        .expect("parses");
+        assert_eq!(i.id, 7);
     }
 
     #[test]
