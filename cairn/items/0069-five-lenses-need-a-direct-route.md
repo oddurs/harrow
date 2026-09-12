@@ -2,7 +2,7 @@
 id: 69
 title: Five lenses need a direct route
 type: feature
-status: backlog
+status: done
 milestone: v0.5
 depends_on:
 - 64
@@ -37,7 +37,11 @@ will find it.
 
 ## Acceptance criteria
 
-- [ ] Every lens has a direct key
-- [ ] The choice is recorded with what it cost, including what the keys are no longer available for
-- [ ] The one-press test from 0062 is replaced by one that holds the new rule
-- [ ] The help lists them, generated from the bindings as it already is
+- [x] Every lens has a direct key
+- [x] The choice is recorded with what it cost, including what the keys are no
+      longer available for — the digits, so no future *jump to the nth thing*
+      can have them. Positional beat initials because with five lenses the
+      initials collide with the letters that act on an item: `l` is advance and
+      `s` is status, leaving only arbitrary letters for the rest
+- [x] The one-press test from 0062 is replaced by one that holds the new rule
+- [x] The help lists them, generated from the bindings as it already is

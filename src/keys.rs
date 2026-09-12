@@ -30,6 +30,7 @@ pub enum Command {
     NextGroup,
     ViewBoard,
     ViewBack,
+    ViewLens(u8),
     GroupBy,
     Read,
     Edit,
@@ -61,7 +62,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 41] = [
+    pub const ALL: [Command; 46] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -75,6 +76,11 @@ impl Command {
         Command::NextGroup,
         Command::ViewBoard,
         Command::ViewBack,
+        Command::ViewLens(1),
+        Command::ViewLens(2),
+        Command::ViewLens(3),
+        Command::ViewLens(4),
+        Command::ViewLens(5),
         Command::GroupBy,
         Command::Read,
         Command::Edit,
@@ -122,6 +128,11 @@ impl Command {
             Command::NextGroup => "next-group",
             Command::ViewBoard => "view-board",
             Command::ViewBack => "view-back",
+            Command::ViewLens(1) => "lens-1",
+            Command::ViewLens(2) => "lens-2",
+            Command::ViewLens(3) => "lens-3",
+            Command::ViewLens(4) => "lens-4",
+            Command::ViewLens(_) => "lens-5",
             Command::GroupBy => "group-by",
             Command::Read => "read",
             Command::Edit => "edit",
@@ -173,6 +184,7 @@ impl Command {
             Command::NextGroup => "next group — column, on the board",
             Command::ViewBoard => "switch between the list, the board and the stats",
             Command::ViewBack => "the lens before this one",
+            Command::ViewLens(_) => "go straight to a lens, in the order of the tabs",
             Command::GroupBy => "group by something else",
             Command::Read => "read the item in full",
             Command::Edit => "open the item in your editor",
@@ -205,7 +217,7 @@ impl Command {
     }
 
     /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 31] {
+    pub fn help_order() -> [Command; 32] {
         [
             Command::Down,
             Command::First,
@@ -213,6 +225,7 @@ impl Command {
             Command::PrevGroup,
             Command::ToggleGroup,
             Command::ViewBoard,
+            Command::ViewLens(1),
             Command::GroupBy,
             Command::Read,
             Command::Edit,
@@ -274,6 +287,15 @@ impl Default for Keymap {
                 (K::Right, n, C::NextGroup),
                 (K::Tab, n, C::ViewBoard),
                 (K::BackTab, KeyModifiers::SHIFT, C::ViewBack),
+                // The digits, positional and in the order the tabs are in.
+                // The alternative was initials, and with five lenses they
+                // collide with the letters that act on an item — `l` is
+                // advance, `s` is status. See 0069 for what this spends.
+                (K::Char('1'), n, C::ViewLens(1)),
+                (K::Char('2'), n, C::ViewLens(2)),
+                (K::Char('3'), n, C::ViewLens(3)),
+                (K::Char('4'), n, C::ViewLens(4)),
+                (K::Char('5'), n, C::ViewLens(5)),
                 (K::Char('v'), n, C::GroupBy),
                 (K::Enter, n, C::Read),
                 (K::Char('o'), n, C::Read),
@@ -434,6 +456,17 @@ impl Keymap {
                 Command::DetailDown => pair(self.keys_for(Command::DetailUp), keys),
                 Command::PrevGroup => pair(keys, self.keys_for(Command::NextGroup)),
                 Command::ViewBoard => pair(keys, self.keys_for(Command::ViewBack)),
+                // Five bindings, one row: "1…5" says it and a list of them
+                // would be the widest row in the overlay for no more meaning.
+                Command::ViewLens(_) => {
+                    let bound: Vec<String> = (1..=5)
+                        .filter_map(|n| self.keys_for(Command::ViewLens(n)).into_iter().next())
+                        .collect();
+                    match (bound.first(), bound.last()) {
+                        (Some(a), Some(b)) if bound.len() > 1 => format!("{a}…{b}"),
+                        _ => bound.join("/"),
+                    }
+                }
                 Command::Advance => pair(self.keys_for(Command::Retreat), keys),
                 _ => keys.join("/"),
             };
@@ -443,6 +476,7 @@ impl Keymap {
                 Command::DetailDown => "scroll the detail pane",
                 Command::PrevGroup => "previous or next group — a column, on the board",
                 Command::ViewBoard => "the next lens, or the one before it",
+                Command::ViewLens(_) => "go straight to the first, second, … lens",
                 Command::Advance => "move it back or forward through the statuses",
                 other => other.describe(),
             };

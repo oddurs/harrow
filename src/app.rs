@@ -2733,6 +2733,26 @@ impl App {
             },
             Command::PrevGroup => self.step_group(false),
             Command::NextGroup => self.step_group(true),
+            // Positional, in the order the tabs are in, so what you see is
+            // what you count. Out of range does nothing rather than
+            // wrapping: `9` on a five-lens screen meant nothing.
+            Command::ViewLens(n) => {
+                let Some(&lens) = Pane::ALL.get(usize::from(n).saturating_sub(1)) else {
+                    return Action::None;
+                };
+                if lens == self.pane {
+                    return Action::None;
+                }
+                let id = self.selected_item().map(|i| i.id);
+                self.pane = lens;
+                if let Some(id) = id {
+                    self.select_id(id);
+                }
+                self.clamp();
+                if self.pane == Pane::Log && self.moments.is_none() {
+                    return Action::Activity;
+                }
+            }
             Command::ViewBoard | Command::ViewBack => {
                 let id = self.selected_item().map(|i| i.id);
                 let ask = self.pane != Pane::Log;
