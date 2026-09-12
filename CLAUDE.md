@@ -113,6 +113,16 @@ to *why is it like this*. A title with no body is not an item.
   `ui.rs`.
 - **Rendering is a pure function of `App`.** No clock, no environment, no
   filesystem while drawing, or a snapshot stops being reproducible.
+- **The arrangement is the only thing that differs between lenses.** The
+  list, the board and the stats are three ways of looking at one backlog, and
+  `tab` says they are peers. A reader carries an intention across it — this
+  item, this filter, these marks — and everything but the shape on screen has
+  to survive the trip. So every lens obeys the filter, answers the mouse,
+  reaches the detail of what is selected, and keeps the selection and the
+  marks. `tests/lenses.rs` holds that for every `Pane`, with the gaps that
+  remain listed against the item that closes each. Add a lens and you meet
+  the contract; add a capability to one lens and it belongs to all of them.
+
 - **Nothing about a workflow is hardcoded.** Statuses, their order, types,
   icons, fields, board columns and colours all come from the project's
   `cairn.toml`. If you find yourself writing `"doing"` in a match arm, stop.
