@@ -310,3 +310,24 @@ fn a_board_column_scrolls_where_it_sits_without_moving_the_selection() {
     assert_eq!(app.column, elsewhere, "and the cursor stayed in its own");
     assert_eq!(app.selected_item().map(|i| i.id), was);
 }
+
+/// The stats pane was the one part of harrow you could not touch: no cursor,
+/// and no hit regions either. The mouse is not a second-class way to drive
+/// this, so a figure is clickable and a click does what Enter does.
+#[test]
+fn a_figure_on_the_stats_pane_is_clickable() {
+    let mut app = testkit::app();
+    app.pane = Pane::Stats;
+    let _ = ui::render_frame(&mut app, 110, 30, 0);
+
+    let ready = app
+        .doors
+        .iter()
+        .position(|d| *d == harrow::app::Door::Filter("ready=true".into()))
+        .expect("`N ready` is a figure");
+    let (x, y) = find(&app, &Hit::Figure(ready));
+    click(&mut app, x, y);
+
+    assert_eq!(app.filter, "ready=true", "the same door the key opens");
+    assert_eq!(app.pane, Pane::List);
+}

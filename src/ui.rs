@@ -17,7 +17,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Padding, Paragraph};
 
-use crate::app::{App, Hit, Pane, ReadOnly, Row, ToastKind};
+use crate::app::{App, Door, Hit, Pane, ReadOnly, Row, ToastKind};
 use crate::diag;
 use crate::item::Item;
 use crate::keys::Command;
@@ -1305,50 +1305,157 @@ fn draw_stats(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let inner = block.inner(area);
     let stats = app.stats();
 
-    // Two columns where there is room for two, because the sections are short
-    // and a single column of them is mostly whitespace.
-    let (left, right) = if inner.width >= 84 {
-        (
-            stats_left(app, &stats, t, inner.width as usize / 2 - 2),
-            stats_right(app, &stats, t, inner.width as usize / 2 - 2),
-        )
+    // Built twice is not worth avoiding: the first pass only counts the
+    // doors so the cursor can be clamped, and the second draws them knowing
+    // which one it is on. Both are a few hundred short lines.
+    let two_up = inner.width >= 84;
+    let column_width = if two_up {
+        inner.width as usize / 2 - 2
     } else {
-        let mut all = stats_left(app, &stats, t, inner.width as usize);
-        all.push(Line::from(""));
-        all.extend(stats_right(app, &stats, t, inner.width as usize));
-        (all, Vec::new())
+        inner.width as usize
+    };
+    let build = |cursor: Option<usize>| -> (Sheet, Sheet) {
+        let mut left = Sheet::default();
+        stats_left(app, &stats, t, column_width, &mut left, cursor);
+        let mut right = Sheet::default();
+        if two_up {
+            stats_right(app, &stats, t, column_width, &mut right, cursor);
+        } else {
+            left.blank();
+            stats_right(app, &stats, t, column_width, &mut left, cursor);
+        }
+        (left, right)
     };
 
+    let counted = build(None);
+    let doors = counted.0.doors.len() + counted.1.doors.len();
+    let figure = if doors == 0 {
+        0
+    } else {
+        app.figure.min(doors - 1)
+    };
+    let (left, right) = build((doors > 0).then_some(figure));
+    app.figure = figure;
+
     // One pane in two columns, so both move together and by the same amount.
-    let tallest = left.len().max(right.len());
+    let tallest = left.lines.len().max(right.lines.len());
     let over = tallest.saturating_sub(inner.height as usize);
+    // The pane follows the cursor, the way the list does, so a figure below
+    // the fold can still be reached with the keys that reach the others.
+    let on = left
+        .doors
+        .iter()
+        .chain(right.doors.iter())
+        .nth(app.figure)
+        .map(|(line, ..)| *line as usize);
+    if let Some(line) = on.filter(|_| doors > 0) {
+        app.stats_scroll = scroll_to(
+            app.stats_scroll as usize,
+            line,
+            tallest,
+            inner.height as usize,
+        ) as u16;
+    }
     app.stats_scroll = app.stats_scroll.min(over as u16);
     let scroll = (app.stats_scroll, 0);
 
     let hint = app.keymap.scroll_hint(Command::Up, Command::Down);
     let block = match (over > 0, hint) {
         (true, Some(keys)) => block.title_bottom(Span::styled(
-            format!(" {keys} scroll "),
+            format!(" {keys} move · ↵ opens "),
             Style::default().fg(t.faint),
         )),
         _ => block,
     };
 
     f.render_widget(block, area);
-    if right.is_empty() {
-        f.render_widget(Paragraph::new(left).scroll(scroll), inner);
-        return;
+    let columns = if right.lines.is_empty() {
+        vec![inner]
+    } else {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(inner)
+            .to_vec()
+    };
+    f.render_widget(Paragraph::new(left.lines).scroll(scroll), columns[0]);
+    if let Some(second) = columns.get(1) {
+        f.render_widget(Paragraph::new(right.lines).scroll(scroll), *second);
     }
-    let columns = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(inner);
-    f.render_widget(Paragraph::new(left).scroll(scroll), columns[0]);
-    f.render_widget(Paragraph::new(right).scroll(scroll), columns[1]);
+
+    // Where each figure landed, so the pointer finds the same thing the
+    // cursor does. Registered after drawing, against the same geometry.
+    let mut n = 0;
+    app.doors.clear();
+    for (sheet, cell) in [
+        (&left.doors, columns[0]),
+        (&right.doors, *columns.last().unwrap()),
+    ] {
+        if std::ptr::eq(sheet, &right.doors) && columns.len() < 2 {
+            break;
+        }
+        for (line, x, w, door) in sheet.iter() {
+            let y = cell.y as i32 + *line as i32 - app.stats_scroll as i32;
+            if y >= cell.y as i32 && y < (cell.y + cell.height) as i32 {
+                app.hit(
+                    Rect {
+                        x: cell.x + x,
+                        y: y as u16,
+                        width: (*w).min(cell.width.saturating_sub(*x)),
+                        height: 1,
+                    },
+                    Hit::Figure(n),
+                );
+            }
+            app.doors.push(door.clone());
+            n += 1;
+        }
+    }
 }
 
-fn stats_left(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec<Line<'static>> {
-    let mut lines = Vec::new();
+/// A stats column, and where the figures on it lead.
+///
+/// Built together because they have to agree: a door drawn in one place and
+/// registered in another is a target that moves when the layout does.
+#[derive(Default)]
+struct Sheet {
+    lines: Vec<Line<'static>>,
+    /// `(line, x, width, door)`, x relative to the column being built.
+    doors: Vec<(u16, u16, u16, Door)>,
+}
+
+impl Sheet {
+    fn push(&mut self, line: Line<'static>) {
+        self.lines.push(line);
+    }
+
+    fn blank(&mut self) {
+        self.lines.push(Line::from(""));
+    }
+
+    /// Record that the span just pushed, at `x` and `width` columns wide,
+    /// leads somewhere.
+    fn door(&mut self, x: u16, width: u16, door: Door) {
+        let line = self.lines.len().saturating_sub(1) as u16;
+        self.doors.push((line, x, width, door));
+    }
+
+    /// How a figure is drawn depends on whether the cursor is on it, so the
+    /// count of doors so far is also the index of the next one.
+    fn next_is_selected(&self, cursor: Option<usize>) -> bool {
+        cursor == Some(self.doors.len())
+    }
+}
+
+fn stats_left(
+    app: &App,
+    s: &crate::app::Stats,
+    t: &Theme,
+    width: usize,
+    sheet: &mut Sheet,
+    cursor: Option<usize>,
+) {
+    let lines = sheet;
     let closed = s.done + s.dropped;
     let percent = (closed * 100).checked_div(s.total).unwrap_or(0) as u32;
 
@@ -1364,26 +1471,30 @@ fn stats_left(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec<
             Style::default().fg(t.muted),
         ),
     ]));
-    lines.push(Line::from(""));
-    lines.push(tally(
+    lines.blank();
+    tally(
+        lines,
+        cursor,
         &[
-            ("ready", s.ready, t.ready),
-            ("in flight", s.active, t.active),
-            ("blocked", s.blocked, t.blocked),
+            ("ready", s.ready, t.ready, "ready=true"),
+            ("in flight", s.active, t.active, "category=active"),
+            ("blocked", s.blocked, t.blocked, "blocked=true"),
         ],
         t,
-    ));
-    lines.push(tally(
+    );
+    tally(
+        lines,
+        cursor,
         &[
-            ("open", s.open, t.open),
-            ("claimed", s.claimed, t.person),
-            ("dropped", s.dropped, t.dropped),
+            ("open", s.open, t.open, "category=open"),
+            ("claimed", s.claimed, t.person, "assignee!="),
+            ("dropped", s.dropped, t.dropped, "category=dropped"),
         ],
         t,
-    ));
+    );
 
     if s.criteria.1 > 0 {
-        lines.push(Line::from(""));
+        lines.blank();
         lines.push(Line::from(vec![
             Span::raw("  "),
             Span::styled(
@@ -1397,7 +1508,7 @@ fn stats_left(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec<
         ]));
     }
 
-    lines.push(Line::from(""));
+    lines.blank();
     lines.push(section("Closed", t, width));
     let mut spans = vec![Span::raw("  ")];
     for (window, count) in s.closed_recently {
@@ -1415,17 +1526,19 @@ fn stats_left(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec<
     lines.push(Line::from(spans));
 
     if let Some((id, title, days)) = &s.oldest {
-        lines.push(Line::from(""));
+        lines.blank();
         lines.push(section("Waiting longest", t, width));
+        let here = lines.next_is_selected(cursor);
+        let reference = app.schema.format_id(*id);
+        let shown = truncate(title, width.saturating_sub(16));
+        let span = (reference.chars().count() + 1 + shown.chars().count()) as u16;
         lines.push(Line::from(vec![
             Span::raw("  "),
-            Span::styled(app.schema.format_id(*id), Style::default().fg(t.faint)),
+            Span::styled(reference, door_style(t, here).fg(t.faint)),
             Span::raw(" "),
-            Span::styled(
-                truncate(title, width.saturating_sub(16)),
-                Style::default().fg(t.muted),
-            ),
+            Span::styled(shown, door_style(t, here).fg(t.muted)),
         ]));
+        lines.door(2, span, Door::Item(*id));
         lines.push(Line::from(vec![
             Span::raw("  "),
             Span::styled(format!("{days} days open"), Style::default().fg(t.warn)),
@@ -1433,17 +1546,19 @@ fn stats_left(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec<
     }
 
     if let Some((id, title, count)) = &s.blocking {
-        lines.push(Line::from(""));
+        lines.blank();
         lines.push(section("In the way", t, width));
+        let here = lines.next_is_selected(cursor);
+        let reference = app.schema.format_id(*id);
+        let shown = truncate(title, width.saturating_sub(16));
+        let span = (reference.chars().count() + 1 + shown.chars().count()) as u16;
         lines.push(Line::from(vec![
             Span::raw("  "),
-            Span::styled(app.schema.format_id(*id), Style::default().fg(t.faint)),
+            Span::styled(reference, door_style(t, here).fg(t.faint)),
             Span::raw(" "),
-            Span::styled(
-                truncate(title, width.saturating_sub(16)),
-                Style::default().fg(t.muted),
-            ),
+            Span::styled(shown, door_style(t, here).fg(t.muted)),
         ]));
+        lines.door(2, span, Door::Item(*id));
         lines.push(Line::from(vec![
             Span::raw("  "),
             Span::styled(
@@ -1455,11 +1570,17 @@ fn stats_left(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec<
             ),
         ]));
     }
-    lines
 }
 
-fn stats_right(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec<Line<'static>> {
-    let mut lines = Vec::new();
+fn stats_right(
+    app: &App,
+    s: &crate::app::Stats,
+    t: &Theme,
+    width: usize,
+    sheet: &mut Sheet,
+    cursor: Option<usize>,
+) {
+    let lines = sheet;
 
     if !s.milestones.is_empty() {
         lines.push(section("Milestones", t, width));
@@ -1471,11 +1592,12 @@ fn stats_right(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec
             .unwrap_or(4)
             .min(10);
         for (key, title, percent, left, due) in &s.milestones {
+            let here = lines.next_is_selected(cursor);
             lines.push(Line::from(vec![
                 Span::raw("  "),
                 Span::styled(
                     format!("{:<key_width$} ", truncate(key, key_width)),
-                    Style::default().fg(t.milestone).bold(),
+                    door_style(t, here).fg(t.milestone).bold(),
                 ),
                 Span::styled(
                     progress_bar(*percent, 8),
@@ -1491,6 +1613,11 @@ fn stats_right(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec
                     Style::default().fg(if *left == 0 { t.done } else { t.faint }),
                 ),
             ]));
+            lines.door(
+                2,
+                key_width as u16,
+                Door::Filter(format!("milestone={key}")),
+            );
             let note = match due {
                 Some(due) => format!("{title} · due {due}"),
                 None => title.clone(),
@@ -1504,10 +1631,10 @@ fn stats_right(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec
                 ),
             ]));
         }
-        lines.push(Line::from(""));
+        lines.blank();
     }
 
-    let bars = |lines: &mut Vec<Line<'static>>,
+    let bars = |lines: &mut Sheet,
                 rows: &[(String, usize)],
                 colour: &dyn Fn(usize) -> ratatui::style::Color| {
         let most = rows.iter().map(|(_, n)| *n).max().unwrap_or(0).max(1);
@@ -1547,8 +1674,8 @@ fn stats_right(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec
                 .map(|k| t.item_type(Some(k)))
                 .unwrap_or(t.secondary)
         };
-        bars(&mut lines, &s.by_type, &colour);
-        lines.push(Line::from(""));
+        bars(lines, &s.by_type, &colour);
+        lines.blank();
     }
 
     for (field, values) in &s.by_field {
@@ -1566,26 +1693,52 @@ fn stats_right(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec
         lines.push(section(&title_case(field), t, width));
         let len = rows.len();
         let colour = |i: usize| t.rank(i, len);
-        bars(&mut lines, &rows, &colour);
-        lines.push(Line::from(""));
+        bars(lines, &rows, &colour);
+        lines.blank();
     }
-    lines
 }
 
-/// A row of `count label` pairs, aligned so the numbers line up.
-fn tally(cells: &[(&str, usize, ratatui::style::Color)], t: &Theme) -> Line<'static> {
+/// A row of `count label` pairs, aligned so the numbers line up, each one a
+/// door to the set it counted.
+fn tally(
+    sheet: &mut Sheet,
+    cursor: Option<usize>,
+    cells: &[(&str, usize, ratatui::style::Color, &str)],
+    t: &Theme,
+) {
+    const CELL: u16 = 14;
     let mut spans = vec![Span::raw("  ")];
-    for (label, count, colour) in cells {
+    let mut doors = Vec::new();
+    for (n, (label, count, colour, filter)) in cells.iter().enumerate() {
+        let here = cursor == Some(sheet.doors.len() + n);
         spans.push(Span::styled(
             format!("{count:>3} "),
-            Style::default().fg(*colour).bold(),
+            door_style(t, here).fg(*colour).bold(),
         ));
         spans.push(Span::styled(
             format!("{label:<10}"),
-            Style::default().fg(t.faint),
+            door_style(t, here).fg(t.faint),
+        ));
+        doors.push((
+            2 + n as u16 * CELL,
+            CELL,
+            Door::Filter((*filter).to_string()),
         ));
     }
-    Line::from(spans)
+    sheet.push(Line::from(spans));
+    for (x, width, door) in doors {
+        sheet.door(x, width, door);
+    }
+}
+
+/// How a figure is drawn when the cursor is on it. The same lift the list
+/// uses for its own selection, so "here" looks the same wherever you are.
+fn door_style(t: &Theme, selected: bool) -> Style {
+    if selected {
+        t.selected()
+    } else {
+        Style::default()
+    }
 }
 
 fn title_case(s: &str) -> String {

@@ -2,7 +2,7 @@
 id: 59
 title: Every number in the stats pane is a door
 type: feature
-status: backlog
+status: done
 milestone: v0.4
 depends_on:
 - 56
@@ -53,7 +53,7 @@ difference has to be visible without trying.
 
 ## Acceptance criteria
 
-- [ ] A figure that stands for a set is selectable, and opening it filters the list to that set
-- [ ] The same by click, because the mouse is not a second-class way to drive this
-- [ ] A figure that is an aggregate rather than a set is visibly not a door
-- [ ] `esc` comes back to the unfiltered view, as it already does
+- [x] A figure that stands for a set is selectable, and opening it filters the list to that set
+- [x] The same by click, because the mouse is not a second-class way to drive this
+- [x] A figure that is an aggregate rather than a set is visibly not a door
+- [x] `esc` comes back to the unfiltered view, as it already does
