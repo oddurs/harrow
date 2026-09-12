@@ -2,7 +2,7 @@
 id: 33
 title: A claim that has gone stale says so
 type: feature
-status: backlog
+status: done
 milestone: v0.3
 created: 2026-09-12
 updated: 2026-09-12
@@ -46,7 +46,7 @@ updates `now`.
 
 ## Acceptance criteria
 
-- [ ] With `claim_stale_after` set, a claim older than it is visibly distinct from a fresh one
-- [ ] The detail pane says how long it has been held
-- [ ] A project that has not set it sees no change at all
-- [ ] The filter can select stale claims
+- [x] With `claim_stale_after` set, a claim older than it is visibly distinct from a fresh one
+- [x] The detail pane says how long it has been held
+- [x] A project that has not set it sees no change at all
+- [x] The filter can select stale claims

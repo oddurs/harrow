@@ -573,6 +573,45 @@ impl App {
         self.wrote = Some(Instant::now());
     }
 
+    /// How many days an item has been claimed, where it is claimed at all.
+    ///
+    /// Against the frame's clock rather than a fresh reading, so that nothing
+    /// drawn this frame disagrees with anything else drawn this frame.
+    pub fn claimed_days(&self, item: &Item) -> Option<u64> {
+        let taken = days_from_iso(item.claimed.as_deref()?)?;
+        Some((self.now / 86_400).saturating_sub(taken))
+    }
+
+    /// A claim nobody has honoured for as long as the project says is long.
+    ///
+    /// Stale means *visible*, never revoked. Taking work away from somebody
+    /// slow is worse than leaving it held, so this changes how a row is drawn
+    /// and nothing else — which is also cairn's position, and the reason the
+    /// threshold is the project's to set rather than harrow's to assume.
+    pub fn claim_is_stale(&self, item: &Item) -> bool {
+        item.claim_stale
+    }
+
+    /// Work it out for every item, against this frame's clock.
+    fn age_claims(&mut self) {
+        let Some(after) = self.schema.claim_stale_after.map(u64::from) else {
+            for item in &mut self.items {
+                item.claim_stale = false;
+            }
+            return;
+        };
+        let today = self.now / 86_400;
+        for item in &mut self.items {
+            item.claim_stale = !item.category.is_closed()
+                && item.assignee.is_some()
+                && item
+                    .claimed
+                    .as_deref()
+                    .and_then(days_from_iso)
+                    .is_some_and(|taken| today.saturating_sub(taken) > after);
+        }
+    }
+
     /// Whether an item moved recently enough to still be worth pointing at.
     pub fn is_recent(&self, id: u32) -> bool {
         self.changed
@@ -881,6 +920,7 @@ impl App {
     }
 
     pub fn rebuild(&mut self) {
+        self.age_claims();
         self.resettle();
         let heading_type = self.heading_type().map(str::to_string);
         let keys: Vec<String> = self.items.iter().map(|i| self.group_key(i)).collect();
