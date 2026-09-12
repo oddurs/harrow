@@ -2,7 +2,7 @@
 id: 37
 title: Hand an item back with what you learned
 type: feature
-status: backlog
+status: done
 milestone: v0.3
 created: 2026-09-12
 updated: 2026-09-12
@@ -34,6 +34,6 @@ memoried past, which is worse than not asking.
 
 ## Acceptance criteria
 
-- [ ] Releasing offers a reason and takes no reason for an answer
-- [ ] Claiming an item that carries one shows it
-- [ ] The reason reaches cairn as `--reason`, not as a note
+- [x] Releasing offers a reason and takes no reason for an answer
+- [x] Claiming an item that carries one shows it — cairn does this itself, since `--reason` is recorded as a note on the item and `cairn claim` prints it
+- [x] The reason reaches cairn as `--reason`, not as a note

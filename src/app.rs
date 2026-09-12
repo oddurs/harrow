@@ -288,6 +288,9 @@ pub enum Editing {
     NewItem,
     /// A sentence to append to an item's body.
     Note,
+    /// Why an item is being handed back, which cairn records as a note and
+    /// shows to whoever takes it next.
+    Reason,
 }
 
 pub struct App {
@@ -1493,17 +1496,44 @@ impl App {
     }
 
     pub fn claim(&mut self, take: bool) -> Action {
+        if take {
+            return self.hand(true, None);
+        }
+        // Giving something up is the one moment where the person letting go
+        // knows exactly why and the next person to pick it up is about to
+        // need it. cairn records the reason as a note and shows it on the
+        // next claim, so the whole of asking is this box.
+        if self.targets().is_empty() {
+            return Action::None;
+        }
+        self.editing = Some(Editing::Reason);
+        self.input.clear();
+        Action::None
+    }
+
+    fn release_with(&mut self, reason: Option<&str>) -> Action {
+        self.hand(false, reason)
+    }
+
+    fn hand(&mut self, take: bool, reason: Option<&str>) -> Action {
         let targets = self.targets();
         let (command, undo) = if take {
             ("claim", "release")
         } else {
             ("release", "claim")
         };
+        let with_reason = |mut args: Vec<String>| {
+            if let Some(why) = reason {
+                args.push("--reason".into());
+                args.push(why.to_string());
+            }
+            args
+        };
         match targets.as_slice() {
             [] => Action::None,
             [id] => {
                 let change = Change {
-                    args: vec![command.into(), id.to_string()],
+                    args: with_reason(vec![command.into(), id.to_string()]),
                     describe: format!("{} {command}ed", self.schema.format_id(*id)),
                     undo: Some(format!("cairn {undo} {id}")),
                 };
@@ -1512,7 +1542,7 @@ impl App {
             many => {
                 let n = many.len();
                 let change = Change {
-                    args: self.bulk_args(command, many, None),
+                    args: with_reason(self.bulk_args(command, many, None)),
                     describe: format!("{n} items {command}ed"),
                     undo: None,
                 };
@@ -1760,6 +1790,11 @@ impl App {
                     "note",
                 )
             }
+            // Skipping it hands the item back the way it always did: a
+            // prompt on a one-keystroke gesture has to be answerable with one
+            // keystroke, or it gets muscle-memoried past, which is worse than
+            // not asking.
+            Some(Editing::Reason) => self.release_with(Some(text.trim()).filter(|t| !t.is_empty())),
             Some(Editing::NewItem) => {
                 let title = text.trim().to_string();
                 if title.is_empty() {
