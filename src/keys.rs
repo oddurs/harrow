@@ -29,6 +29,7 @@ pub enum Command {
     PrevGroup,
     NextGroup,
     ViewBoard,
+    ViewBack,
     GroupBy,
     Read,
     Edit,
@@ -60,7 +61,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 40] = [
+    pub const ALL: [Command; 41] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -73,6 +74,7 @@ impl Command {
         Command::PrevGroup,
         Command::NextGroup,
         Command::ViewBoard,
+        Command::ViewBack,
         Command::GroupBy,
         Command::Read,
         Command::Edit,
@@ -119,6 +121,7 @@ impl Command {
             Command::PrevGroup => "prev-group",
             Command::NextGroup => "next-group",
             Command::ViewBoard => "view-board",
+            Command::ViewBack => "view-back",
             Command::GroupBy => "group-by",
             Command::Read => "read",
             Command::Edit => "edit",
@@ -169,6 +172,7 @@ impl Command {
             Command::PrevGroup => "previous group — column, on the board",
             Command::NextGroup => "next group — column, on the board",
             Command::ViewBoard => "switch between the list, the board and the stats",
+            Command::ViewBack => "the lens before this one",
             Command::GroupBy => "group by something else",
             Command::Read => "read the item in full",
             Command::Edit => "open the item in your editor",
@@ -269,6 +273,7 @@ impl Default for Keymap {
                 (K::Left, n, C::PrevGroup),
                 (K::Right, n, C::NextGroup),
                 (K::Tab, n, C::ViewBoard),
+                (K::BackTab, KeyModifiers::SHIFT, C::ViewBack),
                 (K::Char('v'), n, C::GroupBy),
                 (K::Enter, n, C::Read),
                 (K::Char('o'), n, C::Read),
@@ -428,6 +433,7 @@ impl Keymap {
                 Command::First => pair(keys, self.keys_for(Command::Last)),
                 Command::DetailDown => pair(self.keys_for(Command::DetailUp), keys),
                 Command::PrevGroup => pair(keys, self.keys_for(Command::NextGroup)),
+                Command::ViewBoard => pair(keys, self.keys_for(Command::ViewBack)),
                 Command::Advance => pair(self.keys_for(Command::Retreat), keys),
                 _ => keys.join("/"),
             };
@@ -436,6 +442,7 @@ impl Keymap {
                 Command::First => "jump to the first or last",
                 Command::DetailDown => "scroll the detail pane",
                 Command::PrevGroup => "previous or next group — a column, on the board",
+                Command::ViewBoard => "the next lens, or the one before it",
                 Command::Advance => "move it back or forward through the statuses",
                 other => other.describe(),
             };
@@ -557,6 +564,13 @@ pub fn parse_key(spec: &str) -> Option<(KeyCode, KeyModifiers)> {
         "esc" | "escape" => KeyCode::Esc,
         "space" => KeyCode::Char(' '),
         "tab" => KeyCode::Tab,
+        // Terminals send this as its own key rather than as tab with a
+        // modifier, and `normalise` keeps SHIFT for everything that is not a
+        // character — so the modifier is part of the name.
+        "backtab" | "shift-tab" => {
+            mods |= KeyModifiers::SHIFT;
+            KeyCode::BackTab
+        }
         "backspace" | "bs" => KeyCode::Backspace,
         "delete" | "del" => KeyCode::Delete,
         "insert" | "ins" => KeyCode::Insert,

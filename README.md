@@ -126,7 +126,7 @@ harrow --fix-terminal         # undo a terminal left in mouse-reporting mode
 | `←` `→` | previous or next group — a column, on the board |
 | `space` | mark it for the next change — on a heading, fold |
 | `g` / `G` | first / last |
-| `tab` | switch between the list, the board and the stats |
+| `tab` / `shift-tab` | the next lens, or the one before it |
 | `v` | group by something else |
 | `enter` / `o` | read the item in full |
 | `e` | open it in your editor |

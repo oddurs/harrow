@@ -10,7 +10,7 @@
 │  ○ 00│  K, J          scroll the detail pane          u             reopen it                       │      │
 │      │  ←, →          previous or next group — a co…  n             new item                        │      │
 │      │  space         mark it for the next change —…  y             copy the item's reference       │      │
-│      │  tab           switch between the list, the …  /             filter, in cairn's own grammar  │      │
+│      │  tab, backtab  the next lens, or the one bef…  /             filter, in cairn's own grammar  │      │
 │      │  v             group by something else         a             show everything — finished, d…  │────  │
 │      │  ↵/o           read the item in full           esc           back out — clear the filter, …  │      │
 │      │  e             open the item in your editor    r             re-read the backlog now         │      │

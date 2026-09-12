@@ -2,7 +2,7 @@
 id: 62
 title: Reach a lens directly, and go back
 type: feature
-status: backlog
+status: done
 milestone: v0.4
 depends_on:
 - 56
@@ -39,6 +39,10 @@ how many there will ever be.
 
 ## Acceptance criteria
 
-- [ ] `shift-tab` reaches the previous lens
-- [ ] A direct route to each lens exists, or the reason not to is recorded
-- [ ] Whatever is chosen appears in the help, which is generated from the bindings
+- [x] `shift-tab` reaches the previous lens
+- [x] A direct route to each lens exists, or the reason not to is recorded —
+      not added: with a way back, every lens is already one press from every
+      other, so three more bindings would buy nothing and spend the digits a
+      future "jump to the nth thing" will want. A test holds the one-press
+      claim, so the reason stops being true the moment a fourth lens exists
+- [x] Whatever is chosen appears in the help, which is generated from the bindings
