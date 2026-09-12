@@ -110,6 +110,7 @@ harrow --fix-terminal         # undo a terminal left in mouse-reporting mode
 | `v` | group by something else |
 | `enter` / `o` | read the item in full |
 | `e` | open it in your editor |
+| `N` | add a line to the item's body — why, what you tried |
 | `H` | how this item got the way it is |
 | `A` | accept the change somebody proposed |
 | `c` / `C` | claim / release |

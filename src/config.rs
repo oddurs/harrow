@@ -265,7 +265,7 @@ editor = "{editor}"
 # defaults — the help overlay is generated from your bindings, not from ours.
 # Actions: down up page-down page-up first last detail-down detail-up
 #          toggle-group next-group prev-group view-board group-by read edit
-#          history accept claim release close reopen new status priority
+#          note history accept claim release close reopen new status priority
 #          milestone advance retreat copy filter back toggle-all refresh
 #          reload diagnostics help toggle-mouse quit
 [keys]

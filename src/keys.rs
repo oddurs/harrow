@@ -32,6 +32,7 @@ pub enum Command {
     GroupBy,
     Read,
     Edit,
+    Note,
     History,
     Accept,
     Claim,
@@ -57,7 +58,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 37] = [
+    pub const ALL: [Command; 38] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -73,6 +74,7 @@ impl Command {
         Command::GroupBy,
         Command::Read,
         Command::Edit,
+        Command::Note,
         Command::History,
         Command::Accept,
         Command::Claim,
@@ -116,6 +118,7 @@ impl Command {
             Command::GroupBy => "group-by",
             Command::Read => "read",
             Command::Edit => "edit",
+            Command::Note => "note",
             Command::History => "history",
             Command::Accept => "accept",
             Command::Claim => "claim",
@@ -163,6 +166,7 @@ impl Command {
             Command::GroupBy => "group by something else",
             Command::Read => "read the item in full",
             Command::Edit => "open the item in your editor",
+            Command::Note => "add a line to the item's body — why, what you tried",
             Command::History => "how this item got the way it is",
             Command::Accept => "accept the change somebody proposed",
             Command::Claim => "claim it — assign it to you and start it",
@@ -189,7 +193,7 @@ impl Command {
     }
 
     /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 28] {
+    pub fn help_order() -> [Command; 29] {
         [
             Command::Down,
             Command::First,
@@ -200,6 +204,7 @@ impl Command {
             Command::GroupBy,
             Command::Read,
             Command::Edit,
+            Command::Note,
             Command::History,
             Command::Accept,
             Command::Claim,
@@ -258,6 +263,7 @@ impl Default for Keymap {
                 (K::Enter, n, C::Read),
                 (K::Char('o'), n, C::Read),
                 (K::Char('e'), n, C::Edit),
+                (K::Char('N'), n, C::Note),
                 (K::Char('H'), n, C::History),
                 (K::Char('A'), n, C::Accept),
                 (K::Char('c'), n, C::Claim),

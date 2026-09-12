@@ -398,3 +398,54 @@ fn the_stats_pane_scrolls_with_the_keys_that_move_a_cursor_elsewhere() {
         "and it was pulled back to the end rather than left past it"
     );
 }
+
+/// `cairn note` appends and never replaces, which is the whole reason it
+/// exists rather than a body that overwrites: somebody writing down their
+/// reasoning must not be able to erase what came before.
+#[test]
+fn a_note_is_appended_through_cairn_rather_than_written_here() {
+    let mut app = app();
+    press(&mut app, 'N');
+    for c in "tried the obvious thing; it deadlocks".chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+    }
+    let action = app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+    assert_eq!(
+        args(&action),
+        vec![
+            "note".to_string(),
+            "3".to_string(),
+            "tried the obvious thing; it deadlocks".to_string()
+        ]
+    );
+}
+
+#[test]
+fn an_empty_note_writes_nothing() {
+    let mut app = app();
+    press(&mut app, 'N');
+    assert_eq!(
+        app.handle_key(KeyCode::Enter, KeyModifiers::NONE),
+        Action::None
+    );
+    assert!(app.editing.is_none(), "and the box closes");
+}
+
+/// `cairn note` takes one id. Quietly noting whichever item the cursor was on
+/// while three are marked would be the wrong kind of surprise.
+#[test]
+fn a_note_says_it_goes_on_one_item_rather_than_guessing() {
+    let mut app = app();
+    app.run(Command::ToggleGroup);
+    app.run(Command::ToggleGroup);
+    assert!(!app.marked.is_empty());
+
+    assert_eq!(press(&mut app, 'N'), Action::None);
+    assert!(app.editing.is_none(), "it does not even open the box");
+    let said = app
+        .toast
+        .as_ref()
+        .map(|(m, _, _)| m.clone())
+        .unwrap_or_default();
+    assert!(said.contains("one item"), "{said}");
+}

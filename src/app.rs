@@ -286,6 +286,8 @@ pub struct Picker {
 pub enum Editing {
     Filter,
     NewItem,
+    /// A sentence to append to an item's body.
+    Note,
 }
 
 pub struct App {
@@ -1732,6 +1734,32 @@ impl App {
                 self.rebuild();
                 Action::None
             }
+            // One line, and the gesture being cheap is the value: a note
+            // nobody writes because it costs an editor round trip is a note
+            // that does not exist. `e` is still there for a paragraph.
+            Some(Editing::Note) => {
+                let note = text.trim().to_string();
+                let Some(id) = self.selected_item().map(|i| i.id) else {
+                    return Action::None;
+                };
+                if note.is_empty() {
+                    return Action::None;
+                }
+                // Appended by cairn, never written here: a caller recording
+                // its reasoning must not be able to erase what came before,
+                // which is the whole reason `note` exists rather than a body
+                // that replaces. Under today's date, which is cairn's own
+                // default and makes the body read as a log.
+                self.write(
+                    Change {
+                        args: vec!["note".into(), id.to_string(), note],
+                        describe: format!("{} noted", self.schema.format_id(id)),
+                        undo: None,
+                    },
+                    1,
+                    "note",
+                )
+            }
             Some(Editing::NewItem) => {
                 let title = text.trim().to_string();
                 if title.is_empty() {
@@ -1946,6 +1974,7 @@ impl App {
                 | Command::Milestone
                 | Command::Advance
                 | Command::Retreat
+                | Command::Note
         );
         if writes && let Some(why) = self.readonly.clone() {
             self.refuse(&why);
@@ -2103,6 +2132,20 @@ impl App {
             }
             Command::New => {
                 self.editing = Some(Editing::NewItem);
+                self.input.clear();
+            }
+            // One item, because `cairn note` takes one item. Marks are for
+            // the changes cairn can make to a set at once, and saying so is
+            // better than quietly noting whichever one the cursor was on.
+            Command::Note => {
+                if self.selected_item().is_none() {
+                    return Action::None;
+                }
+                if !self.marked.is_empty() {
+                    self.toast("a note goes on one item at a time", ToastKind::Info);
+                    return Action::None;
+                }
+                self.editing = Some(Editing::Note);
                 self.input.clear();
             }
             Command::Status => self.open_picker("status"),
