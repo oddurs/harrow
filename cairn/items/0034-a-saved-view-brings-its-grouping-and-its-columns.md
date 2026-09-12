@@ -2,7 +2,7 @@
 id: 34
 title: A saved view brings its grouping and its columns
 type: feature
-status: backlog
+status: done
 milestone: v0.3
 created: 2026-09-12
 updated: 2026-09-12
@@ -29,17 +29,27 @@ there before, the way the filter already behaves. `v` while in a view still
 regroups — the project's answer is a starting point, not a cage — and doing so
 does not silently drop out of the view.
 
-`columns` is the harder half: harrow's list row is a fixed layout that
-degrades in a defined order rather than a table of chosen columns. The
-honest minimum is to honour `columns` where it names a field harrow already
-has a column for, and to keep ignoring the rest rather than inventing a
-second row layout. Decide that in the item before writing the code; if it
-comes out as "the list is not a table", say so here and close `columns` as
-deliberately unimplemented.
+## `columns`: deliberately not
+
+The list is not a table. Every row is one fixed layout that degrades in a
+defined order as the pane narrows — the acceptance count goes first, then the
+assignee, then the priority — so that the eye can run down a column instead of
+hunting along each line. That ordering is a design decision about what answers
+least, and it is the reason the list stays readable at sixty columns.
+
+`columns` names an arbitrary set in an arbitrary order. Honouring it means
+either a second row layout with no degradation rule, or quietly reordering
+within the one that exists and calling that obedience. Both are worse than
+saying no.
+
+So: not implemented, on purpose. A project that wants its own columns has
+`cairn list`, which is a table and prints one. If this is ever revisited it
+needs a degradation rule for arbitrary columns first, and that is a different
+piece of work from reading a config key.
 
 ## Acceptance criteria
 
-- [ ] A view declaring `group_by` opens grouped that way
-- [ ] Leaving the view restores the grouping that was in force before it
-- [ ] Regrouping by hand inside a view keeps the view
-- [ ] `columns` is either honoured or documented as deliberately not, with the reason
+- [x] A view declaring `group_by` opens grouped that way
+- [x] Leaving the view restores the grouping that was in force before it
+- [x] Regrouping by hand inside a view keeps the view
+- [x] `columns` is either honoured or documented as deliberately not, with the reason

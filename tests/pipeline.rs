@@ -644,3 +644,70 @@ fn without_a_threshold_no_claim_is_ever_stale() {
     assert!(app.schema.claim_stale_after.is_none());
     assert!(app.items.iter().all(|i| !i.claim_stale));
 }
+
+/// A view is the project saying *this is how to look at this*. Honouring half
+/// of it — the filter but not the grouping — produces a screen the project
+/// did not describe and the user did not ask for.
+#[test]
+fn a_view_brings_its_grouping_and_gives_it_back() {
+    let dir = testkit::project();
+    let cfg = dir.path().join("cairn.toml");
+    let text = std::fs::read_to_string(&cfg).expect("the fixture config");
+    std::fs::write(
+        &cfg,
+        text.replace(
+            "filter = \"category=active\"",
+            "filter = \"category=active\"\ngroup_by = \"status\"",
+        ),
+    )
+    .expect("give the view a grouping");
+
+    let mut app = app_for(dir.path());
+    assert_eq!(app.group_by, "milestone", "what was in force before");
+
+    app.view = Some("now".into());
+    app.ingest({
+        let mut project = Project::discover(dir.path()).expect("found");
+        project.load().expect("loads")
+    });
+    assert_eq!(app.group_by, "status", "the view said how to look at it");
+
+    app.run(harrow::keys::Command::Back);
+    assert!(app.view.is_none());
+    assert_eq!(
+        app.group_by, "milestone",
+        "and leaving puts back what you had"
+    );
+}
+
+/// The project's answer is a starting point, not a cage.
+#[test]
+fn regrouping_inside_a_view_keeps_the_view() {
+    let dir = testkit::project();
+    let cfg = dir.path().join("cairn.toml");
+    let text = std::fs::read_to_string(&cfg).expect("the fixture config");
+    std::fs::write(
+        &cfg,
+        text.replace(
+            "filter = \"category=active\"",
+            "filter = \"category=active\"\ngroup_by = \"status\"",
+        ),
+    )
+    .expect("give the view a grouping");
+
+    let mut app = app_for(dir.path());
+    app.view = Some("now".into());
+    app.ingest({
+        let mut project = Project::discover(dir.path()).expect("found");
+        project.load().expect("loads")
+    });
+    assert_eq!(app.group_by, "status");
+
+    app.cycle_grouping();
+    let chosen = app.group_by.clone();
+    assert_ne!(chosen, "status", "the axis moved");
+    assert_eq!(app.view.as_deref(), Some("now"), "and the view held");
+
+    app.run(harrow::keys::Command::Back);
+    assert_eq!(app.group_by, chosen, "a choice made by hand is not undone");
+}

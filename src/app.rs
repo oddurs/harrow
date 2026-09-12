@@ -326,6 +326,10 @@ pub struct App {
     pub input: String,
     pub editing: Option<Editing>,
     pub group_by: String,
+    /// What the grouping was before a view replaced it. A view's grouping is
+    /// a starting point rather than a cage: leaving the view puts back what
+    /// you had, and regrouping by hand inside it does not drop out of it.
+    grouping_before_view: Option<String>,
     pub sort: String,
     pub view: Option<String>,
     pub show_all: bool,
@@ -435,6 +439,7 @@ impl App {
             input: String::new(),
             editing: None,
             group_by: "milestone".to_string(),
+            grouping_before_view: None,
             sort: String::new(),
             view: None,
             show_all: false,
@@ -518,6 +523,7 @@ impl App {
             _ => None,
         };
         self.check_settings();
+        self.follow_view();
         self.reparse_filter();
         self.rebuild();
 
@@ -1100,6 +1106,27 @@ impl App {
         self.items[a].id.cmp(&self.items[b].id)
     }
 
+    /// Adopt or put back the grouping a view asks for.
+    ///
+    /// Called wherever the view changes, so the two cannot disagree — the
+    /// thing that made harrow show a screen the project had not described
+    /// and the user had not asked for.
+    fn follow_view(&mut self) {
+        let wanted = self
+            .view
+            .as_deref()
+            .and_then(|v| self.schema.view(v))
+            .and_then(|v| v.group_by.clone());
+        match (wanted, self.grouping_before_view.take()) {
+            (Some(group_by), before) => {
+                self.grouping_before_view = Some(before.unwrap_or_else(|| self.group_by.clone()));
+                self.group_by = group_by;
+            }
+            (None, Some(before)) => self.group_by = before,
+            (None, None) => {}
+        }
+    }
+
     fn reparse_filter(&mut self) {
         // A saved view is a filter the project wrote down, ANDed with whatever
         // is in the box: picking "now" and then typing narrows it further.
@@ -1344,6 +1371,10 @@ impl App {
         let axes = self.grouping_axes();
         let at = axes.iter().position(|a| *a == self.group_by).unwrap_or(0);
         self.group_by = axes[(at + 1) % axes.len()].clone();
+        // Choosing an axis by hand inside a view is a choice, not a drift: it
+        // keeps the view and keeps the grouping, and leaving the view now
+        // puts back what was in force before the view rather than the view's.
+        self.grouping_before_view = None;
         let id = self.selected_item().map(|i| i.id);
         self.rebuild();
         if let Some(id) = id {
@@ -2053,6 +2084,7 @@ impl App {
                     self.toast(format!("{n} unmarked"), ToastKind::Info);
                 } else if self.view.is_some() {
                     self.view = None;
+                    self.follow_view();
                     self.reparse_filter();
                     self.rebuild();
                     self.toast("view cleared", ToastKind::Info);

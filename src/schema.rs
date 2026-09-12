@@ -311,6 +311,10 @@ pub struct View {
     pub name: String,
     pub filter: Option<String>,
     pub sort: Option<String>,
+    /// What the project says this way of looking is grouped by. A view is the
+    /// project saying *this is how to look at this*, and its grouping is half
+    /// of that.
+    pub group_by: Option<String>,
     pub description: Option<String>,
 }
 
@@ -486,6 +490,7 @@ impl Schema {
                 name: v.name,
                 filter: v.filter,
                 sort: v.sort,
+                group_by: v.group_by.filter(|g| !g.trim().is_empty()),
                 description: v.description,
             })
             .collect();
@@ -740,6 +745,7 @@ struct ViewFile {
     name: String,
     filter: Option<String>,
     sort: Option<String>,
+    group_by: Option<String>,
     description: Option<String>,
 }
 
