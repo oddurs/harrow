@@ -236,7 +236,27 @@ fn an_item_with_a_proposal_is_visible_as_such() {
     app.select_id(6);
     let text = ui::render_to_string(&mut app, 100, 24, 0);
     assert!(text.contains(" ?"), "the row says so:\n{text}");
-    assert!(text.contains("1 proposed"), "and the header counts them");
+    assert!(
+        text.contains("1 needs you"),
+        "and the header counts what is waiting on a person, of which this is one"
+    );
     assert!(text.contains("Proposed"), "and the detail pane shows what");
     assert!(text.contains("p3 → p0"), "{text}");
+}
+
+/// Everything addressed to a person, ranked by what is waiting.
+#[test]
+fn what_needs_you() {
+    let mut app = support::app();
+    app.pane = harrow::app::Pane::Needs;
+    support::assert_snapshot("needs", &ui::render_to_string(&mut app, 110, 22, 0));
+}
+
+/// The best screen this program can show, and until now unreachable.
+#[test]
+fn nothing_needs_you() {
+    let mut app = support::app();
+    app.pane = harrow::app::Pane::Needs;
+    app.questions.clear();
+    support::assert_snapshot("needs-empty", &ui::render_to_string(&mut app, 110, 14, 0));
 }

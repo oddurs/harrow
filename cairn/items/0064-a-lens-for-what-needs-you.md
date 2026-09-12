@@ -2,7 +2,7 @@
 id: 64
 title: A lens for what needs you
 type: feature
-status: backlog
+status: done
 milestone: v0.5
 created: 2026-09-12
 updated: 2026-09-12
@@ -62,9 +62,9 @@ severity in the abstract.
 
 ## Acceptance criteria
 
-- [ ] One lens lists every question addressed to a person, ranked by what is waiting
-- [ ] Each row's answers are single keys, and say what they will do before they are pressed
-- [ ] Selecting a row selects its item, so the detail pane answers what it is about
-- [ ] It meets the lens contract: the filter, the mouse, the detail, the selection, the marks
-- [ ] Its empty state says so plainly, and is reachable
-- [ ] Nothing in it nags when there is nothing to do
+- [x] One lens lists every question addressed to a person, ranked by what is waiting
+- [x] Each row's answers are single keys, and say what they will do before they are pressed
+- [x] Selecting a row selects its item, so the detail pane answers what it is about
+- [x] It meets the lens contract: the filter, the mouse, the detail, the selection, the marks
+- [x] Its empty state says so plainly, and is reachable
+- [x] Nothing in it nags when there is nothing to do

@@ -1,0 +1,14 @@
+ harrow  sample    needs  list  board  stats                                                         starting
+ ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭ Needs you ─────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                            │
+│                                             Nothing needs you.                                             │
+│                                                                                                            │
+│                  No proposals waiting, no claim gone cold, nothing finished and left open.                 │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

@@ -86,18 +86,18 @@ fn holds(lens: Pane, owes: Owes) -> bool {
         Owes::KeepsTheSelection => {
             let mut app = app_on(lens);
             let was = app.selected_item().map(|i| i.id);
-            app.run(Command::ViewBoard);
-            app.run(Command::ViewBoard);
-            app.run(Command::ViewBoard);
+            for _ in 0..Pane::ALL.len() {
+                app.run(Command::ViewBoard);
+            }
             was.is_some() && app.selected_item().map(|i| i.id) == was
         }
         Owes::KeepsTheMarks => {
             let mut app = app_on(lens);
             app.run(Command::ToggleGroup);
             let marked = app.marked.clone();
-            app.run(Command::ViewBoard);
-            app.run(Command::ViewBoard);
-            app.run(Command::ViewBoard);
+            for _ in 0..Pane::ALL.len() {
+                app.run(Command::ViewBoard);
+            }
             !marked.is_empty() && app.marked == marked
         }
     }
@@ -113,6 +113,7 @@ fn shown(app: &mut App, lens: Pane) -> usize {
             .count(),
         Pane::Board => app.columns.iter().map(|c| c.items.len()).sum(),
         Pane::Stats => app.stats().total,
+        Pane::Needs => app.questions.len(),
     }
 }
 
@@ -143,7 +144,7 @@ fn every_lens_owes_the_reader_the_same_things() {
 fn the_contract_covers_every_lens_there_is() {
     assert_eq!(
         Pane::ALL.len(),
-        3,
+        4,
         "a lens was added or removed — the contract above covers every one"
     );
 }

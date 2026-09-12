@@ -1,4 +1,4 @@
- sample    list  board  stats  starting
+ sample    needs  list  board  starting
  ◐ 1 in progress   ○ 3 backlog
 ────────────────────────────────────────
 ╭ Backlog · by milestone ──────────────╮

@@ -22,6 +22,12 @@ use crate::theme::Theme;
 /// Which of the three ways of looking at a backlog is on screen.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Pane {
+    /// Everything addressed to a person: proposals to decide, claims gone
+    /// cold, work finished but not closed. First in the order, because it is
+    /// the first question somebody sitting down asks — but not the default,
+    /// because opening on *nothing needs you* would spend the first screen
+    /// saying nothing.
+    Needs,
     #[default]
     List,
     Board,
@@ -29,10 +35,11 @@ pub enum Pane {
 }
 
 impl Pane {
-    pub const ALL: [Pane; 3] = [Pane::List, Pane::Board, Pane::Stats];
+    pub const ALL: [Pane; 4] = [Pane::Needs, Pane::List, Pane::Board, Pane::Stats];
 
     pub fn name(self) -> &'static str {
         match self {
+            Pane::Needs => "needs",
             Pane::List => "list",
             Pane::Board => "board",
             Pane::Stats => "stats",
@@ -46,19 +53,13 @@ impl Pane {
     }
 
     fn next(self) -> Pane {
-        match self {
-            Pane::List => Pane::Board,
-            Pane::Board => Pane::Stats,
-            Pane::Stats => Pane::List,
-        }
+        let at = Pane::ALL.iter().position(|p| *p == self).unwrap_or(0);
+        Pane::ALL[(at + 1) % Pane::ALL.len()]
     }
 
     fn previous(self) -> Pane {
-        match self {
-            Pane::List => Pane::Stats,
-            Pane::Board => Pane::List,
-            Pane::Stats => Pane::Board,
-        }
+        let at = Pane::ALL.iter().position(|p| *p == self).unwrap_or(0);
+        Pane::ALL[(at + Pane::ALL.len() - 1) % Pane::ALL.len()]
     }
 }
 
@@ -91,6 +92,74 @@ pub enum Hit {
     Detail,
     /// A figure on the stats pane, by index into `doors`.
     Figure(usize),
+    /// A question on the needs-you lens, by index into `questions`.
+    Question(usize),
+}
+
+/// Something addressed to a person.
+///
+/// Ranked by what is actually waiting on a human rather than by severity in
+/// the abstract: a proposal has somebody blocked on an answer, a cold claim
+/// has work nobody is doing, finished-but-open is only untidy, and a missing
+/// owner is a question about later. A queue that cries wolf is a queue
+/// nobody reads.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Asking {
+    /// A program asked for a change only a person decides.
+    Proposal {
+        field: String,
+        to: String,
+        by: String,
+    },
+    /// Taken, and not honoured for longer than the project allows.
+    ColdClaim { who: String, days: u64 },
+    /// Every acceptance criterion is ticked and it is still open.
+    Finished,
+    /// Something filed it and nobody is answerable for it.
+    Unowned { by: String },
+}
+
+impl Asking {
+    /// What is waiting first. Lower sorts sooner.
+    fn urgency(&self) -> u8 {
+        match self {
+            Asking::Proposal { .. } => 0,
+            Asking::ColdClaim { .. } => 1,
+            Asking::Finished => 2,
+            Asking::Unowned { .. } => 3,
+        }
+    }
+
+    /// The question, as a person would ask it.
+    pub fn question(&self, reference: &str) -> String {
+        match self {
+            Asking::Proposal { field, to, by } => {
+                format!("{by} asks that {reference} {field} become {to}")
+            }
+            Asking::ColdClaim { who, days } => {
+                format!("{who} has held {reference} for {days} days")
+            }
+            Asking::Finished => format!("{reference} is all ticked and still open"),
+            Asking::Unowned { by } => format!("{by} filed {reference} and nobody owns it"),
+        }
+    }
+
+    /// What the keys will do, said before they are pressed.
+    pub fn answers(&self) -> &'static str {
+        match self {
+            Asking::Proposal { .. } => "A accepts",
+            Asking::ColdClaim { .. } => "C hands it back",
+            Asking::Finished => "x closes it",
+            Asking::Unowned { .. } => "c takes it",
+        }
+    }
+}
+
+/// A question and the item it is about.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Question {
+    pub id: u32,
+    pub asking: Asking,
 }
 
 /// What a figure on the stats pane stands for.
@@ -334,6 +403,19 @@ pub struct App {
     pub groups: Vec<Group>,
     pub rows: Vec<Row>,
     pub columns: Vec<Column>,
+    /// Everything addressed to a person, worked out with the rest of the
+    /// derived set so that every lens agrees about it.
+    pub questions: Vec<Question>,
+    /// Which question the cursor is on. Moved through `select_question`, so
+    /// that it and the anchor cannot disagree.
+    question: usize,
+    /// What was selected on arriving here, when this lens cannot show it.
+    ///
+    /// A queue of questions holds only the items that raise one, so passing
+    /// through it must not lose your place the way passing through the board
+    /// does not lose an item the board has no column for. Moving the cursor
+    /// here is a choice and replaces it.
+    needs_anchor: Option<u32>,
     /// Which group each item belongs to, by item index.
     group_of: Vec<usize>,
     /// id → index, so a write can find what it changed without a linear scan.
@@ -472,6 +554,9 @@ impl App {
             groups: Vec::new(),
             rows: Vec::new(),
             columns: Vec::new(),
+            questions: Vec::new(),
+            question: 0,
+            needs_anchor: None,
             group_of: Vec::new(),
             by_id: HashMap::new(),
             selected: 0,
@@ -772,6 +857,15 @@ impl App {
         let Some(&index) = self.by_id.get(&id) else {
             return;
         };
+        // The queue can only point at items that raise a question. Where it
+        // can, it does; where it cannot, it remembers rather than losing it.
+        match self.questions.iter().position(|q| q.id == id) {
+            Some(at) => {
+                self.question = at;
+                self.needs_anchor = None;
+            }
+            None => self.needs_anchor = Some(id),
+        }
         if let Some(row) = self
             .rows
             .iter()
@@ -902,6 +996,97 @@ impl App {
         }
         self.rebuild();
         true
+    }
+
+    /// Everything addressed to a person, ranked by what is waiting.
+    ///
+    /// Built from the same set the board is dealt from, so the filter applies
+    /// and a container is not a question — a milestone nobody owns is not
+    /// somebody failing to own it.
+    fn build_questions(&mut self) {
+        let on = self.question;
+        let was = self.questions.get(on).cloned();
+        let mut out: Vec<Question> = Vec::new();
+
+        for item in self.items.iter().filter(|i| self.on_board(i)) {
+            // A proposal is somebody blocked on an answer, so it comes first
+            // and it comes even for closed work: an unanswered question does
+            // not stop being one because the item moved on.
+            if let Some(p) = item.proposals.last() {
+                out.push(Question {
+                    id: item.id,
+                    asking: Asking::Proposal {
+                        field: p.field.clone(),
+                        to: p.to.clone(),
+                        by: p.by.clone(),
+                    },
+                });
+            }
+            if item.category.is_closed() {
+                continue;
+            }
+            if item.claim_stale
+                && let Some(who) = &item.assignee
+            {
+                out.push(Question {
+                    id: item.id,
+                    asking: Asking::ColdClaim {
+                        who: who.clone(),
+                        days: self.claimed_days(item).unwrap_or(0),
+                    },
+                });
+            }
+            let (met, total) = item.criteria();
+            if total > 0 && met == total {
+                out.push(Question {
+                    id: item.id,
+                    asking: Asking::Finished,
+                });
+            }
+            // Only where something else filed it. A person filing their own
+            // work and not writing their name on it has not left a question.
+            if let Some(by) = &item.created_by
+                && item.owner.is_none()
+                && item.assignee.is_none()
+            {
+                out.push(Question {
+                    id: item.id,
+                    asking: Asking::Unowned { by: by.clone() },
+                });
+            }
+        }
+
+        out.sort_by_key(|q| (q.asking.urgency(), q.id));
+        // Stay on the same question across a rebuild where it survives, so
+        // answering one does not move the cursor under the next.
+        self.question = was
+            .and_then(|q| out.iter().position(|o| *o == q))
+            .unwrap_or_else(|| on.min(out.len().saturating_sub(1)));
+        self.questions = out;
+    }
+
+    /// Move the queue's cursor, which is a choice and so takes over from
+    /// whatever was selected on the way in.
+    ///
+    /// The only way to move it: leaving `question` settable on its own would
+    /// let the cursor and the anchor disagree about what is selected, and
+    /// they are two halves of one answer.
+    pub fn select_question(&mut self, n: usize) {
+        if self.questions.is_empty() {
+            return;
+        }
+        self.question = n.min(self.questions.len() - 1);
+        self.needs_anchor = None;
+    }
+
+    pub fn question(&self) -> usize {
+        self.question
+    }
+
+    /// The item a question is about, which is what the detail pane shows.
+    pub fn question_item(&self) -> Option<&Item> {
+        let id = self.questions.get(self.question)?.id;
+        self.items.iter().find(|i| i.id == id)
     }
 
     /// The columns a board draws, in the order the project declared them.
@@ -1134,6 +1319,7 @@ impl App {
         }
 
         self.build_board(&cards);
+        self.build_questions();
         // What this build put on screen, which is what the next one measures
         // against to know what has just left.
         self.shown = indices.iter().map(|i| self.items[*i].id).collect();
@@ -1330,6 +1516,13 @@ impl App {
     }
 
     fn selected_index(&self) -> Option<usize> {
+        if self.pane == Pane::Needs {
+            let id = match self.needs_anchor {
+                Some(anchor) => anchor,
+                None => self.questions.get(self.question)?.id,
+            };
+            return self.items.iter().position(|i| i.id == id);
+        }
         if self.pane == Pane::Board {
             let column = self.columns.get(self.column)?;
             return column.items.get(self.column_row).copied();
@@ -1344,6 +1537,18 @@ impl App {
 
     pub fn move_by(&mut self, delta: isize) {
         if delta == 0 {
+            return;
+        }
+        if self.pane == Pane::Needs {
+            if self.questions.is_empty() {
+                return;
+            }
+            // Moving here is a choice, so it takes over from whatever was
+            // selected on the way in.
+            self.needs_anchor = None;
+            let len = self.questions.len() as isize;
+            self.question = (self.question as isize + delta.signum() * delta.abs().min(len))
+                .rem_euclid(len) as usize;
             return;
         }
         // The stats pane has a cursor of its own, over the figures that lead
@@ -1391,6 +1596,15 @@ impl App {
     }
 
     pub fn jump(&mut self, to_end: bool) {
+        if self.pane == Pane::Needs {
+            self.needs_anchor = None;
+            self.question = if to_end {
+                self.questions.len().saturating_sub(1)
+            } else {
+                0
+            };
+            return;
+        }
         if self.pane == Pane::Stats {
             if self.doors.is_empty() {
                 // Past the end is pulled back by the draw, which is the only
@@ -2667,6 +2881,9 @@ impl App {
             return;
         }
         match self.pane {
+            // One cursor, one list: scrolling and moving are the same thing
+            // where every row is a question rather than a line of text.
+            Pane::Needs => self.move_by(delta.signum()),
             Pane::Stats => {
                 self.stats_scroll = self
                     .stats_scroll
@@ -2802,6 +3019,9 @@ impl App {
             Hit::Run(command) => return self.run(command),
             Hit::Detail => {}
             Hit::Figure(n) => return self.open_door(n),
+            // Selecting it, not answering it: the answers are keys, and a
+            // click that closed an item would be a click nobody meant.
+            Hit::Question(n) => self.select_question(n),
         }
         Action::None
     }
