@@ -52,9 +52,16 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+      # rust-toolchain.toml pins the compiler, and rustup honours it per
+      # directory. An action that installs `stable` and adds the target to it
+      # therefore adds it to a toolchain cargo will not use: every
+      # cross-compiled target failed with "can't find crate for `std`" while the
+      # runner's own architecture built fine. `rustup show` installs what the
+      # file names; `rustup target add` then lands on that toolchain.
+      - name: Install the pinned toolchain and the target
+        run: |
+          rustup show active-toolchain
+          rustup target add ${{ matrix.target }}
 
       # musl gives a static binary, so one Linux artefact works on any distro.
       - name: Install musl tools
