@@ -241,14 +241,13 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
             "assignee" => item.assignee = non_empty(value.as_str()),
             "owner" => item.owner = non_empty(value.as_str()),
             "created_by" => item.created_by = non_empty(value.as_str()),
-            "labels" => {
-                item.labels = value.items().iter().map(|s| s.to_string()).collect();
-            }
+            "labels" => item.labels = comma_separated(&value),
             "depends_on" => {
-                item.depends_on = value
-                    .items()
+                item.depends_on = comma_separated(&value)
                     .iter()
-                    .filter_map(|s| s.parse().ok())
+                    // A reference written the way a person writes one. cairn
+                    // prints `#12` and somebody will paste it back.
+                    .filter_map(|s| s.trim_start_matches('#').trim().parse().ok())
                     .collect();
             }
             _ => {
@@ -275,6 +274,24 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
             .unwrap_or_else(|| format!("item {}", item.id));
     }
     Ok(item)
+}
+
+/// A sequence, however it was written.
+///
+/// The format says a reader must accept a single string where a sequence
+/// belongs, split on commas with surrounding whitespace discarded — because
+/// `labels: auth, backend` is what a person types, and reading it as one label
+/// called "auth, backend" is a filter that never matches and a column that
+/// never lines up.
+fn comma_separated(value: &Value) -> Vec<String> {
+    value
+        .items()
+        .iter()
+        .flat_map(|s| s.split(','))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 /// The leading run of digits in a filename, which is how cairn names an item
@@ -359,7 +376,10 @@ fn split(text: &str) -> Option<(&str, &str)> {
         .or_else(|| text.strip_prefix("---\r\n"))?;
     let mut offset = 0;
     for line in rest.split_inclusive('\n') {
-        if line.trim_end() == "---" {
+        // Either delimiter closes it. `...` is rarer than `---` and is what a
+        // YAML writer emits when it means *the document ends here*; a reader
+        // that only knows one of them silently swallows the body.
+        if matches!(line.trim_end(), "---" | "...") {
             return Some((&rest[..offset], &rest[offset + line.len()..]));
         }
         offset += line.len();
@@ -431,7 +451,11 @@ fn parse_frontmatter(front: &str) -> Vec<(String, Value)> {
     out
 }
 
-/// Unquote, and drop a trailing comment on an unquoted value.
+/// Unquote, drop a trailing comment, and resolve what YAML resolves.
+///
+/// A quoted value is returned exactly as written: quoting is how a writer says
+/// *this is a string*, and the whole reason the format tells writers to quote
+/// anything that would change meaning.
 fn scalar(raw: &str) -> String {
     let s = raw.trim();
     for quote in ['"', '\''] {
@@ -439,10 +463,58 @@ fn scalar(raw: &str) -> String {
             return s[1..s.len() - 1].replace(&format!("\\{quote}"), &quote.to_string());
         }
     }
-    match s.split_once(" #") {
-        Some((before, _)) => before.trim().to_string(),
-        None => s.to_string(),
+    let s = match s.split_once(" #") {
+        Some((before, _)) => before.trim(),
+        None => s,
+    };
+    resolve(s).unwrap_or_else(|| s.to_string())
+}
+
+/// An unquoted scalar, under the **YAML 1.2 core schema**.
+///
+/// The version is the point. 1.1 and 1.2 disagree about exactly the values
+/// people write by hand, and several widely used YAML libraries still default
+/// to 1.1 — so `0042` is thirty-four under one and forty-two under the other,
+/// and `no` is a boolean under one and the word "no" under the other. Naming
+/// which one this is makes the disagreement somebody else's bug rather than a
+/// silent difference of opinion about what a file says.
+///
+/// Only the numeric forms are resolved, because they are the only ones whose
+/// rendering changes. Under 1.2 core `yes`, `no`, `on` and `off` are strings
+/// and `12:30` is a string, which is what leaving them alone already produces.
+fn resolve(s: &str) -> Option<String> {
+    let (sign, digits) = match s.strip_prefix('-') {
+        Some(rest) => (-1i64, rest),
+        None => (1i64, s.strip_prefix('+').unwrap_or(s)),
+    };
+    if digits.is_empty() {
+        return None;
     }
+
+    let radix = |prefix: &str, base: u32| -> Option<String> {
+        let body = digits.strip_prefix(prefix)?;
+        let n = i64::from_str_radix(body, base).ok()?;
+        Some((sign * n).to_string())
+    };
+    if let Some(n) = radix("0x", 16).or_else(|| radix("0o", 8)) {
+        return Some(n);
+    }
+    if digits.bytes().all(|b| b.is_ascii_digit()) {
+        // Leading zeros go, which is the whole difference from 1.1 reading the
+        // same text as octal.
+        return digits.parse::<i64>().ok().map(|n| (sign * n).to_string());
+    }
+
+    // A float, and only in the shapes the core schema calls one: an exponent
+    // needs a digit before it, and `.` on its own is not a number.
+    let numeric = digits
+        .bytes()
+        .all(|b| b.is_ascii_digit() || matches!(b, b'.' | b'e' | b'E' | b'+' | b'-'));
+    if !numeric || !digits.bytes().any(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let value: f64 = digits.parse().ok()?;
+    value.is_finite().then(|| (sign as f64 * value).to_string())
 }
 
 #[cfg(test)]
@@ -620,6 +692,86 @@ priority: p1\n\
         )
         .expect("parses");
         assert_eq!(i.id, 7);
+    }
+
+    /// `...` is what a YAML writer emits when it means the document ends here.
+    /// A reader that only knows `---` swallows the whole body as frontmatter.
+    #[test]
+    fn either_delimiter_closes_the_frontmatter() {
+        let i = parse(
+            "---\nid: 1\ntitle: T\nstatus: backlog\n...\nThe body.\n",
+            Path::new("items/0001-t.md"),
+        )
+        .expect("parses");
+        assert_eq!(i.title, "T");
+        assert_eq!(i.body.trim(), "The body.");
+    }
+
+    /// What a person types, rather than what cairn writes. One label called
+    /// "auth, backend, ops" is a filter that never matches.
+    #[test]
+    fn a_sequence_written_as_one_string_is_still_a_sequence() {
+        let i = parse(
+            "---\nid: 1\ntitle: T\nlabels: auth, backend, ops\n---\n",
+            Path::new("items/0001-t.md"),
+        )
+        .expect("parses");
+        assert_eq!(i.labels, ["auth", "backend", "ops"]);
+    }
+
+    #[test]
+    fn a_dependency_is_read_however_it_was_written() {
+        for written in [
+            "depends_on: 3, 4",
+            "depends_on: [#3, 4]",
+            "depends_on:\n- '#3'\n- 4",
+            "depends_on:\n- 3\n- 4",
+        ] {
+            let i = parse(
+                &format!("---\nid: 1\ntitle: T\n{written}\n---\n"),
+                Path::new("items/0001-t.md"),
+            )
+            .expect("parses");
+            assert_eq!(i.depends_on, [3, 4], "{written}");
+        }
+    }
+
+    /// The core schema, named on purpose: 1.1 reads four of these differently,
+    /// and several widely used YAML libraries still default to it.
+    #[test]
+    fn unquoted_scalars_resolve_under_the_yaml_1_2_core_schema() {
+        let i = parse(
+            "---\nid: 1\ntitle: T\nassignee: no\nlabels: [12:30, 0x1F, 1.20, 0o17, 0042]\n---\n",
+            Path::new("items/0001-t.md"),
+        )
+        .expect("parses");
+        assert_eq!(i.assignee.as_deref(), Some("no"), "not the boolean false");
+        assert_eq!(i.labels, ["12:30", "31", "1.2", "15", "42"]);
+    }
+
+    /// Quoting is how a writer says *this is a string*, which is the remedy
+    /// the format prescribes for exactly these values.
+    #[test]
+    fn a_quoted_scalar_is_left_exactly_as_written() {
+        let i = parse(
+            "---\nid: 1\ntitle: T\nlabels: [\"0x1F\", \"1.20\"]\n---\n",
+            Path::new("items/0001-t.md"),
+        )
+        .expect("parses");
+        assert_eq!(i.labels, ["0x1F", "1.20"]);
+    }
+
+    /// Everything that merely looks numeric and is not. A date resolved as a
+    /// number would be a date nothing could sort.
+    #[test]
+    fn what_is_not_a_number_is_left_alone() {
+        let i = parse(
+            "---\nid: 1\ntitle: T\ncreated: 2026-09-12\nlabels: [p1, v0.1, s, 1.2.3, -, 12:30]\n---\n",
+            Path::new("items/0001-t.md"),
+        )
+        .expect("parses");
+        assert_eq!(i.created.as_deref(), Some("2026-09-12"));
+        assert_eq!(i.labels, ["p1", "v0.1", "s", "1.2.3", "-", "12:30"]);
     }
 
     #[test]
