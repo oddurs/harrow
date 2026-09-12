@@ -514,3 +514,45 @@ fn an_id_addressed_reference_resolves_only_by_id() {
         "an id-addressed field does not fall back to a key"
     );
 }
+
+/// The rendering is the project's, and it reaches every screen and both ways
+/// of asking for an item by name.
+#[test]
+fn a_project_that_renders_its_identifiers_its_own_way_is_obeyed() {
+    let dir = testkit::project();
+    let cfg = dir.path().join("cairn.toml");
+    let text = std::fs::read_to_string(&cfg).expect("the fixture config");
+    std::fs::write(
+        &cfg,
+        text.replace("id_width = 4", "id_format = \"MP-{n:03}\""),
+    )
+    .expect("name a rendering");
+
+    let mut app = app_for(dir.path());
+    let item = app.items.iter().find(|i| i.id == 3).expect("0003");
+    assert_eq!(item.reference(&app.schema), "MP-003");
+
+    let screen = harrow::ui::render_to_string(&mut app, 110, 26, 0);
+    assert!(screen.contains("MP-003"), "it reaches the list");
+    assert!(!screen.contains(" 0003 "), "and replaces the old rendering");
+
+    use crossterm::event::{KeyCode, KeyModifiers};
+    for spelling in ["MP-003", "3"] {
+        app.handle_key(KeyCode::Char('/'), KeyModifiers::NONE);
+        for c in format!("id={spelling}").chars() {
+            app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+        }
+        app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+        let ids: Vec<u32> = app
+            .rows
+            .iter()
+            .filter_map(|r| match r {
+                Row::Item(i) => Some(app.items[*i].id),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(ids, vec![3], "asking by {spelling}");
+        // Esc backs out of the filter, so the next spelling starts clean.
+        app.handle_key(KeyCode::Esc, KeyModifiers::NONE);
+    }
+}
