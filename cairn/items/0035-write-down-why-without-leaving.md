@@ -2,7 +2,7 @@
 id: 35
 title: Write down why, without leaving
 type: feature
-status: backlog
+status: done
 milestone: v0.3
 created: 2026-09-12
 updated: 2026-09-12
@@ -32,8 +32,11 @@ One line, not a body editor. The gesture being cheap is the whole value: a
 note nobody writes because it costs an editor round trip is a note that does
 not exist. Anything longer is what `e` is for.
 
-Marks apply, the way they do to every other write: noting the same thing
-against six items is a real triage gesture.
+Marks do not apply, which the item assumed they would. `cairn note` takes one
+`<ID>` — no list, no `--filter` — and harrow does not invent a bulk path cairn
+has not got, because every change here is one cairn invocation. So a note with
+items marked says it goes on one item at a time rather than quietly noting
+whichever one the cursor happened to be on.
 
 ## Cost
 
@@ -43,7 +46,7 @@ TUI, which is a program harrow is not.
 
 ## Acceptance criteria
 
-- [ ] A key takes a line of text and appends it through `cairn note`
-- [ ] The note appears in the detail pane without a reload
-- [ ] It is refused, with the existing read-only message, when cairn is not available
-- [ ] With items marked, it notes all of them
+- [x] A key takes a line of text and appends it through `cairn note`
+- [x] The note appears in the detail pane without a reload
+- [x] It is refused, with the existing read-only message, when cairn is not available
+- [x] With items marked, it says a note goes on one item rather than guessing

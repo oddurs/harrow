@@ -44,14 +44,13 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
 ## v0.3 — Read everything cairn writes, and nothing it does not
 
-`#####·····` 50% · 5 of 10 done · due 2027-02-15
+`######····` 60% · 6 of 10 done · due 2027-02-15
 
 harrow reads cairn's files directly. That is the decision the whole program
 
 ### backlog
 
 - [ ] `0034` A saved view brings its grouping and its columns <sup>feature · p2 · filter</sup>
-- [ ] `0035` Write down why, without leaving <sup>feature · p1 · write</sup>
 - [ ] `0036` Propose a change you are not the one to decide <sup>feature · p2 · write</sup>
 - [ ] `0037` Hand an item back with what you learned <sup>feature · p3 · write</sup>
 - [ ] `0038` Run the project's own check and show what it says <sup>feature · p2 · chrome</sup>
@@ -63,6 +62,7 @@ harrow reads cairn's files directly. That is the decision the whole program
 - [x] `0031` Identifiers rendered the way the project renders them <sup>feature · p2 · read</sup>
 - [x] `0032` A project from a newer cairn opens read-only rather than being refused <sup>feature · p1 · read</sup>
 - [x] `0033` A claim that has gone stale says so <sup>feature · p2 · chrome</sup>
+- [x] `0035` Write down why, without leaving <sup>feature · p1 · write</sup>
 
 ## v1.0 — Stable release
 

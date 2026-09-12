@@ -5,15 +5,16 @@
 │ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  3 left ││ ○ The detail pane scrolls past its pane      │
 │  ○ 00╭ Keys ────────────────────────────────────────────────────────────────────────────────────────╮      │
 │  ⊘ 00│                                                                                              │      │
-│  ◐ 00│  ↑/k, ↓/j      move between items              x             close it, with a confirm        │────  │
-│ ▾ no │  home/g, end/G jump to the first or last       u             reopen it                       │      │
-│  ○ 00│  K, J          scroll the detail pane          n             new item                        │      │
-│      │  ←, →          previous or next group — a co…  y             copy the item's reference       │      │
-│      │  space         mark it for the next change —…  /             filter, in cairn's own grammar  │      │
-│      │  tab           switch between the list, the …  a             show everything — finished, d…  │      │
-│      │  v             group by something else         esc           back out — clear the filter, …  │────  │
-│      │  ↵/o           read the item in full           r             re-read the backlog now         │      │
-│      │  e             open the item in your editor    D             diagnostics — what failed, an…  │      │
+│  ◐ 00│  ↑/k, ↓/j      move between items              M             set the milestone               │────  │
+│ ▾ no │  home/g, end/G jump to the first or last       x             close it, with a confirm        │      │
+│  ○ 00│  K, J          scroll the detail pane          u             reopen it                       │      │
+│      │  ←, →          previous or next group — a co…  n             new item                        │      │
+│      │  space         mark it for the next change —…  y             copy the item's reference       │      │
+│      │  tab           switch between the list, the …  /             filter, in cairn's own grammar  │      │
+│      │  v             group by something else         a             show everything — finished, d…  │────  │
+│      │  ↵/o           read the item in full           esc           back out — clear the filter, …  │      │
+│      │  e             open the item in your editor    r             re-read the backlog now         │      │
+│      │  N             add a line to the item's body…  D             diagnostics — what failed, an…  │      │
 │      │  H             how this item got the way it …  ?             this help                       │      │
 │      │  A             accept the change somebody pr…  q/ctrl-c      quit                            │      │
 │      │  c             claim it — assign it to you a…                                                │      │
@@ -21,7 +22,6 @@
 │      │  s             set the status                  double-click  read the item                   │      │
 │      │  h/<, l/>      move it back or forward throu…  drag          a card to another column, whi…  │      │
 │      │  p             set the priority                scroll        move the pane under the point…  │      │
-│      │  M             set the milestone                                                             │      │
 │      │                                                                                              │      │
 │      ╰──────────────────────────────────────────────────────────────────────────────────────────────╯      │
 │                                                            ││                                              │
