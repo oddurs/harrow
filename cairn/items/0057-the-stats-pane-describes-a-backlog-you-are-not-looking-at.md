@@ -2,7 +2,7 @@
 id: 57
 title: The stats pane describes a backlog you are not looking at
 type: bug
-status: backlog
+status: done
 milestone: v0.4
 depends_on:
 - 56
@@ -48,6 +48,8 @@ accident of which function was given a `query` and which was not.
 
 ## Acceptance criteria
 
-- [ ] Narrowing the list narrows the stats
-- [ ] The strip, the list, the board and the stats agree about how many of anything there are
-- [ ] A test holds that agreement, rather than three call sites remembering to filter
+- [x] Narrowing the list narrows the stats
+- [x] The list, the board and the stats agree about how many of anything there are
+- [x] The strip deliberately does not, and says why: it is the control that sets
+      the filter, so each count is what clicking it would give you
+- [x] A test holds that agreement, rather than three call sites remembering to filter
