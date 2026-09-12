@@ -49,6 +49,40 @@ computed, just once per heading instead of once. Neither changes a result, so
 the existing tests are the proof, and the table above becomes a test with a
 budget rather than a paragraph.
 
+## Attempted, and what it ruled out
+
+Tried during the testing sprint and reverted, because none of it moved the
+exponent and an optimisation that cannot be justified with a number should
+not be in the tree.
+
+Three things were built and measured, against 500, 2000 and 5000 items:
+
+- **The per-group tally, in one pass.** It really was O(groups × items) and
+  it really is not the cost: 14.4 ms → 14.4 ms at five thousand.
+- **`item_named` through a key index** instead of a linear scan per group.
+  Also genuinely O(groups × items), also not the cost.
+- **Decorating the sort keys once** instead of inside the comparator, where
+  `sort_value` allocates a `String` and was being called twice per
+  comparison — N log N allocations where N would do. This is the only one
+  that moved anything: 14.4 ms → 13.5 ms, about six per cent.
+
+So the shape is not in the grouping, the reference lookups, or the sort. The
+measurements after all three: 0.37 ms, 3.11 ms, 13.49 ms — still roughly
+N^1.5, still thirty-odd times for ten times the items.
+
+The next attempt should profile rather than reason. What remains unmeasured
+inside `rebuild`: `Query::matches` per item in three separate passes
+(`visible`, `on_board` for the board, `on_board` again for the questions),
+`group_key` and `group_rank` allocating a `String` per item, and `resettle`
+walking the previously-shown set. The three filter passes are the most
+suspicious — the same predicate over the same items, three times, each
+resolving fields through the schema by name.
+
+**Also worth knowing: nothing added in v0.4 or v0.5 made it worse.** The same
+three measurements before those milestones were 0.50, 3.54 and 14.85 ms.
+Questions, actors, claim ageing and the log all fit inside the noise, and the
+log lens draws in half a millisecond at five thousand items.
+
 ## Cost
 
 A budget in a test is a flaky test on a loaded CI runner. Assert the *shape*
