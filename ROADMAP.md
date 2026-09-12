@@ -96,7 +96,7 @@ The work is somebody else's. The deciding is yours.
 
 ## v1.0 — Stable release
 
-`··········` 0% · 0 of 13 done · due 2027-05-01
+`#·········` 7% · 1 of 14 done · due 2027-05-01
 
 Documented, tested, and safe to depend on.
 
@@ -115,6 +115,10 @@ Documented, tested, and safe to depend on.
 - [ ] `0050` Suspend it, and come back to it <sup>feature · p3 · runtime</sup>
 - [ ] `0051` Select the item a cairn check finding names <sup>feature · p3 · chrome</sup>
 - [ ] `0052` A digit in a picker does not pick outright <sup>bug · p3 · chrome</sup>
+
+### done
+
+- [x] `0070` The randomised suite has never pressed half the keys <sup>bug · p1 · testing</sup>
 
 ## later — Someday
 
