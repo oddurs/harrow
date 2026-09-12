@@ -46,6 +46,10 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ### Added
 
+- Release binaries for macOS and Linux on arm64 and x86_64, with checksums and a
+  build attestation, and a Homebrew formula generated from them rather than
+  transcribed. `brew install oddurs/tap/harrow`.
+
 - A change is watched out rather than deleted. An item that has just moved off
   the screen — closed, most often — is held where it landed for a few seconds,
   drawn as what it has become, before it goes. A close reads as a movement

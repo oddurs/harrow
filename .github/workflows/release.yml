@@ -1,8 +1,16 @@
 name: release
 
+# Tagging v0.1.0 builds a binary for every supported platform, attaches them to
+# the GitHub release with checksums, and writes the Homebrew formula that points
+# at them. Nothing is built by hand, so what people download is what CI produced
+# from the tag.
+#
+# `workflow_dispatch` runs the same build and packaging and stops before
+# publishing anything, which is how this is tested without cutting a release.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,30 +23,138 @@ jobs:
     name: check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v5
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: ./scripts/task check
 
-  release:
-    name: release
+  build:
+    name: ${{ matrix.target }}
     needs: [check]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          # Cross-compiled from the arm64 runner rather than built on an Intel
+          # one: Apple ships both toolchains and GitHub is retiring the Intel
+          # runners.
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+          # No Windows target. harrow owns the terminal through poll, signal
+          # and atexit, none of which Windows has, and claiming a platform the
+          # code cannot build for is worse than not shipping it.
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # musl gives a static binary, so one Linux artefact works on any distro.
+      - name: Install musl tools
+        if: endsWith(matrix.target, '-musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: ${{ matrix.target }}
+
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          set -eu
+          # On a dispatch there is no tag, so the version comes from the crate.
+          case "${GITHUB_REF_TYPE}" in
+          tag) version="${GITHUB_REF_NAME#v}" ;;
+          *) version="$(cargo metadata --no-deps --format-version 1 |
+                sed -n 's/.*"version":"\([^"]*\)".*/\1/p' | head -1)" ;;
+          esac
+          name="harrow-${version}-${{ matrix.target }}"
+          mkdir -p "dist/${name}"
+          cp "target/${{ matrix.target }}/release/harrow" "dist/${name}/"
+          cp README.md LICENSE THEMES.md "dist/${name}/"
+          cd dist
+          tar czf "${name}.tar.gz" "${name}"
+          shasum -a 256 "${name}.tar.gz" | cut -d' ' -f1 > "${name}.tar.gz.sha256"
+
+      - name: It runs
+        run: |
+          set -eu
+          # Only where the runner can execute what it just built. A
+          # cross-compiled x86_64 binary does not run on an arm64 Mac.
+          case "${{ matrix.target }}" in
+          x86_64-apple-darwin) echo "cross-compiled; not run here" ;;
+          *)
+            ./target/${{ matrix.target }}/release/harrow --version
+            ./target/${{ matrix.target }}/release/harrow --help >/dev/null
+            ;;
+          esac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+
+  publish:
+    name: publish
+    needs: [build]
+    # Only a tag publishes. A dispatch has proved the build and stops here.
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # GitHub signs an attestation saying which workflow, from which commit,
+      # produced which file. It needs no key of ours, and it is the one thing
+      # checksums cannot give: they come from the same workflow as the
+      # artefacts, so they prove the download arrived intact and nothing about
+      # where it came from.
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0
+          path: dist
+          merge-multiple: true
+
+      - name: Collect the checksums
+        run: |
+          set -eu
+          cd dist
+          for f in *.sha256; do
+            printf '%s  %s\n' "$(cat "$f")" "${f%.sha256}"
+          done > SHA256SUMS
+          rm -f ./*.sha256
+          cat SHA256SUMS
+
+      - name: Write the Homebrew formula
+        run: ./scripts/formula "${GITHUB_REF_NAME#v}" dist/SHA256SUMS > dist/harrow.rb
+
+      - name: Attest what built these
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/*.tar.gz
+
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
           tag="${GITHUB_REF_NAME}"
-          gh release create "$tag" --title "$tag" --generate-notes --verify-tag
+          gh release create "$tag" --title "$tag" --generate-notes --verify-tag dist/*
 
-          # Generated notes list contributors, and a bot or an assistant that
-          # ended up in the history must not be credited in a release.
+          # Generated notes credit whoever appears in the history, and a bot or
+          # an assistant that ended up there must not be credited in a release.
           notes=$(gh release view "$tag" --json body --jq .body)
           cleaned=$(printf '%s\n' "$notes" | grep -Eiv \
             '(claude|anthropic|copilot|chatgpt|\[bot\]|generated (with|by) +(claude|chatgpt|copilot|an? (ai|assistant|llm)))' || true)

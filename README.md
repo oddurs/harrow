@@ -73,8 +73,28 @@ is red, and the theme fills in the rest.
 ## Install
 
 ```sh
+brew install oddurs/tap/harrow
+```
+
+Or download a binary from [the latest
+release](https://github.com/oddurs/harrow/releases/latest) — macOS and Linux,
+arm64 and x86_64, statically linked on Linux so one file works on any distro.
+Every release carries `SHA256SUMS` and a build attestation saying which workflow
+and which commit produced it:
+
+```sh
+gh attestation verify harrow-*.tar.gz --repo oddurs/harrow
+```
+
+From a checkout:
+
+```sh
 cargo install --path .
 ```
+
+Not on crates.io: the name belongs to somebody else, and a qualified package
+name is a permanent cost for a `cargo install` path that reaches people who
+already have a toolchain. [`0021`](cairn/items) has the reasoning.
 
 `cairn` itself is optional for reading — a backlog is a directory of Markdown —
 and required for changing anything. harrow says which of the two it is.

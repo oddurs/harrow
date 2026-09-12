@@ -148,3 +148,55 @@ fn no_color_produces_a_screen_with_no_colour_in_it() {
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(!text.contains('\u{1b}'), "an escape sequence got through");
 }
+
+/// The formula the release attaches. Generated rather than transcribed, because
+/// four checksums copied by hand is four chances to ship one that does not
+/// match the file it names.
+#[test]
+fn the_homebrew_formula_is_generated_from_the_checksums() {
+    let dir = testkit::project();
+    let sums = dir.path().join("SHA256SUMS");
+    std::fs::write(
+        &sums,
+        "1111111111111111111111111111111111111111111111111111111111111111  harrow-9.9.9-aarch64-apple-darwin.tar.gz\n\
+         2222222222222222222222222222222222222222222222222222222222222222  harrow-9.9.9-x86_64-apple-darwin.tar.gz\n\
+         3333333333333333333333333333333333333333333333333333333333333333  harrow-9.9.9-aarch64-unknown-linux-musl.tar.gz\n\
+         4444444444444444444444444444444444444444444444444444444444444444  harrow-9.9.9-x86_64-unknown-linux-musl.tar.gz\n",
+    )
+    .expect("write the checksums");
+
+    let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("scripts/formula");
+    let out = Command::new(&script)
+        .args(["9.9.9", &sums.display().to_string()])
+        .output()
+        .expect("the script runs");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let formula = String::from_utf8_lossy(&out.stdout);
+
+    assert!(formula.contains("class Harrow < Formula"), "{formula}");
+    assert!(formula.contains("version \"9.9.9\""), "{formula}");
+    for sha in ['1', '2', '3', '4'] {
+        assert!(
+            formula.contains(&sha.to_string().repeat(64)),
+            "every target's checksum has to be in it: {formula}"
+        );
+    }
+
+    // A missing target is an error rather than a formula with a blank checksum.
+    std::fs::write(&sums, "1111  harrow-9.9.9-aarch64-apple-darwin.tar.gz\n")
+        .expect("write a short listing");
+    let out = Command::new(&script)
+        .args(["9.9.9", &sums.display().to_string()])
+        .output()
+        .expect("runs");
+    assert!(!out.status.success(), "a missing checksum must fail loudly");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("no checksum"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
