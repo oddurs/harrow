@@ -10,10 +10,11 @@
 //! filter, these marks — and everything except the shape on screen should
 //! survive the trip.
 //!
-//! Where a lens does not yet meet the contract, the gap is listed in `GAPS`
-//! with the item that closes it, and the test asserts the gap is still there.
-//! So a gap cannot be forgotten, and closing one without deleting its row
-//! fails just as loudly as opening a new one. An empty `GAPS` is the goal.
+//! It was built with a `GAPS` table — four lenses-by-capability that did not
+//! hold yet, each naming the item that would close it, asserted as still
+//! broken so neither forgetting one nor fixing one quietly could pass. The
+//! table is gone because every row was paid off. What is left is the plain
+//! statement: all of it, for all of them.
 
 use crossterm::event::{KeyCode, KeyModifiers};
 
@@ -34,23 +35,6 @@ enum Owes {
     KeepsTheSelection,
     /// Marks survive, and mean the same thing.
     KeepsTheMarks,
-}
-
-/// A lens that does not meet the contract yet, and what closes it.
-struct Gap {
-    lens: Pane,
-    owes: Owes,
-    item: &'static str,
-}
-
-const GAPS: &[Gap] = &[Gap {
-    lens: Pane::Stats,
-    owes: Owes::AnswersTheMouse,
-    item: "0061",
-}];
-
-fn expected(lens: Pane, owes: Owes) -> bool {
-    !GAPS.iter().any(|g| g.lens == lens && g.owes == owes)
 }
 
 /// Wide enough that nothing is dropped for want of room: every lens is being
@@ -143,44 +127,23 @@ fn every_lens_owes_the_reader_the_same_things() {
     ];
 
     let mut broken = Vec::new();
-    let mut mended = Vec::new();
     for lens in Pane::ALL {
         for owes in EVERYTHING {
-            let want = expected(lens, owes);
-            let got = holds(lens, owes);
-            if want && !got {
-                broken.push(format!("{} no longer {owes:?}", lens.name()));
-            }
-            if !want && got {
-                let item = GAPS
-                    .iter()
-                    .find(|g| g.lens == lens && g.owes == owes)
-                    .map(|g| g.item)
-                    .unwrap_or("?");
-                mended.push(format!(
-                    "{} now {owes:?} — delete its row from GAPS and close {item}",
-                    lens.name()
-                ));
+            if !holds(lens, owes) {
+                broken.push(format!("the {} lens no longer {owes:?}", lens.name()));
             }
         }
     }
     assert!(broken.is_empty(), "{}", broken.join("\n"));
-    assert!(mended.is_empty(), "{}", mended.join("\n"));
 }
 
-/// The gap list is a debt, not a design. This is the line that will fail on
-/// the day it is paid off, which is the only reminder worth having.
+/// Adding a lens means adding it here, and the contract is what it has to
+/// meet before it is one.
 #[test]
-fn the_gaps_are_written_down_with_what_closes_them() {
-    for gap in GAPS {
-        assert!(
-            gap.item.len() == 4 && gap.item.chars().all(|c| c.is_ascii_digit()),
-            "{:?} names no item",
-            gap.owes
-        );
-    }
-    assert!(
-        !GAPS.is_empty(),
-        "every lens meets the contract — delete this test and the GAPS table"
+fn the_contract_covers_every_lens_there_is() {
+    assert_eq!(
+        Pane::ALL.len(),
+        3,
+        "a lens was added or removed — the contract above covers every one"
     );
 }

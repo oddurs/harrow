@@ -2,7 +2,7 @@
 id: 61
 title: The stats pane answers the mouse
 type: feature
-status: backlog
+status: done
 milestone: v0.4
 depends_on:
 - 56
@@ -30,6 +30,6 @@ land together or the regions have nothing to do.
 
 ## Acceptance criteria
 
-- [ ] Everything on the stats pane that stands for a set or an item is clickable
-- [ ] A click does what Enter on the same thing does
-- [ ] Nothing is clickable that does not respond, because a dead target is worse than none
+- [x] Everything on the stats pane that stands for a set or an item is clickable
+- [x] A click does what Enter on the same thing does
+- [x] Nothing is clickable that does not respond, because a dead target is worse than none

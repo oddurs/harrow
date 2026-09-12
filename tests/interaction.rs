@@ -581,3 +581,90 @@ fn an_unproposed_picker_still_just_sets_the_field() {
     let action = app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
     assert_eq!(args(&action), vec!["set", "3", "priority=p0"]);
 }
+
+/// Every number on the stats pane is the answer to a question, and the
+/// reader's next thought after each of them is *show me*.
+#[test]
+fn a_figure_opens_the_set_it_counted() {
+    let mut app = app();
+    app.pane = harrow::app::Pane::Stats;
+    let _ = harrow::ui::render_frame(&mut app, 110, 30, 0);
+    assert!(!app.doors.is_empty(), "the pane is made of figures");
+
+    let ready = app
+        .doors
+        .iter()
+        .position(|d| *d == harrow::app::Door::Filter("ready=true".into()))
+        .expect("`N ready` is a figure");
+    app.open_door(ready);
+
+    assert_eq!(app.filter, "ready=true");
+    assert_eq!(
+        app.pane,
+        harrow::app::Pane::List,
+        "on the list, where you act"
+    );
+    assert!(
+        app.rows.iter().all(|r| match r {
+            harrow::app::Row::Item(i) => app.items[*i].ready(&app.schema),
+            _ => true,
+        }),
+        "and showing exactly what it counted"
+    );
+
+    app.run(Command::Back);
+    assert!(app.filter.is_empty(), "esc comes back out");
+}
+
+/// A figure that names one item goes to that item rather than to a set of one.
+#[test]
+fn a_figure_that_names_an_item_selects_it() {
+    let mut app = app();
+    app.pane = harrow::app::Pane::Stats;
+    let _ = harrow::ui::render_frame(&mut app, 110, 30, 0);
+
+    let (at, id) = app
+        .doors
+        .iter()
+        .enumerate()
+        .find_map(|(n, d)| match d {
+            harrow::app::Door::Item(id) => Some((n, *id)),
+            _ => None,
+        })
+        .expect("waiting longest, or what is in the way");
+    app.open_door(at);
+
+    assert_eq!(app.pane, harrow::app::Pane::List);
+    assert_eq!(app.selected_item().map(|i| i.id), Some(id));
+}
+
+/// A door that leads nowhere is worse than a figure that plainly is not one.
+#[test]
+fn every_door_leads_somewhere_real() {
+    let doors = {
+        let mut app = app();
+        app.pane = harrow::app::Pane::Stats;
+        let _ = harrow::ui::render_frame(&mut app, 110, 30, 0);
+        app.doors.clone()
+    };
+    assert!(doors.len() >= 6);
+
+    for (n, door) in doors.iter().enumerate() {
+        let mut fresh = app();
+        fresh.pane = harrow::app::Pane::Stats;
+        let _ = harrow::ui::render_frame(&mut fresh, 110, 30, 0);
+        fresh.open_door(n);
+        let app = fresh;
+        match door {
+            harrow::app::Door::Filter(_) => assert!(
+                app.query.unknown.is_empty(),
+                "{door:?} filters on something this project has not got: {:?}",
+                app.query.unknown
+            ),
+            harrow::app::Door::Item(id) => assert!(
+                app.items.iter().any(|i| i.id == *id),
+                "{door:?} names no item"
+            ),
+        }
+    }
+}

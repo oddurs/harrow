@@ -81,6 +81,21 @@ pub enum Hit {
     Run(Command),
     /// The body of the detail pane, which scrolls on its own.
     Detail,
+    /// A figure on the stats pane, by index into `doors`.
+    Figure(usize),
+}
+
+/// What a figure on the stats pane stands for.
+///
+/// Every number on that pane is the answer to a question, and a reader's next
+/// thought after each of them is *show me*. A door is the way back to the
+/// items the figure counted.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Door {
+    /// The filter that produces the set this figure counted.
+    Filter(String),
+    /// One item, where the figure named one.
+    Item(u32),
 }
 
 /// A row in the list. The board has its own geometry.
@@ -410,6 +425,11 @@ pub struct App {
     /// Where everything clickable ended up, in the order it was drawn. Later
     /// entries win, so an overlay covers what is beneath it.
     pub hits: Vec<(Rect, Hit)>,
+    /// What each figure on the stats pane opens, rebuilt as it is drawn, the
+    /// same way the hit map is.
+    pub doors: Vec<Door>,
+    /// Which figure the stats cursor is on.
+    pub figure: usize,
     /// The last click, for telling a double-click from two single ones.
     last_click: Option<(u16, u16, Instant)>,
     /// The card being dragged, and where it started.
@@ -480,6 +500,8 @@ impl App {
             theme: Theme::auto(true),
             keymap: Keymap::default(),
             hits: Vec::new(),
+            doors: Vec::new(),
+            figure: 0,
             last_click: None,
             dragging: None,
             wrote: None,
@@ -1235,13 +1257,19 @@ impl App {
         if delta == 0 {
             return;
         }
-        // The stats pane has nothing to select, so the keys that would move a
-        // cursor move the pane instead. Somewhere below the fold is a number
-        // somebody came here for.
+        // The stats pane has a cursor of its own, over the figures that lead
+        // somewhere. The pane scrolls to keep it in view, which is what the
+        // list does and is why the keys are the same keys.
         if self.pane == Pane::Stats {
-            self.stats_scroll = self
-                .stats_scroll
-                .saturating_add_signed(delta.clamp(-64, 64) as i16);
+            if self.doors.is_empty() {
+                self.stats_scroll = self
+                    .stats_scroll
+                    .saturating_add_signed(delta.clamp(-64, 64) as i16);
+                return;
+            }
+            let len = self.doors.len() as isize;
+            self.figure = (self.figure as isize + delta.signum() * delta.abs().min(len))
+                .rem_euclid(len) as usize;
             return;
         }
         if self.pane == Pane::Board {
@@ -1274,10 +1302,14 @@ impl App {
     }
 
     pub fn jump(&mut self, to_end: bool) {
-        // Past the end is pulled back to the end by the draw, which is the
-        // only thing that knows how tall the stats came out.
         if self.pane == Pane::Stats {
-            self.stats_scroll = if to_end { u16::MAX } else { 0 };
+            if self.doors.is_empty() {
+                // Past the end is pulled back by the draw, which is the only
+                // thing that knows how tall the stats came out.
+                self.stats_scroll = if to_end { u16::MAX } else { 0 };
+            } else {
+                self.figure = if to_end { self.doors.len() - 1 } else { 0 };
+            }
             return;
         }
         if self.pane == Pane::Board {
@@ -1806,6 +1838,36 @@ impl App {
         });
     }
 
+    /// Go where a figure points.
+    ///
+    /// A set becomes the filter that produced it, on the list, because the
+    /// list is where you act on a set. One item becomes that item, selected.
+    /// `esc` comes back out of either, which it already did.
+    pub fn open_door(&mut self, n: usize) -> Action {
+        let Some(door) = self.doors.get(n).cloned() else {
+            return Action::None;
+        };
+        self.figure = n;
+        match door {
+            Door::Filter(filter) => {
+                self.filter = filter;
+                self.pane = Pane::List;
+                self.reparse_filter();
+                self.rebuild();
+                self.jump(false);
+                if self.rows.is_empty() {
+                    self.toast("nothing matches that any more", ToastKind::Info);
+                }
+            }
+            Door::Item(id) => {
+                self.pane = Pane::List;
+                self.rebuild();
+                self.select_id(id);
+            }
+        }
+        Action::None
+    }
+
     /// What the project allows a program to do with a field.
     ///
     /// `status` is a field like any other to the picker, but it is declared
@@ -2220,6 +2282,11 @@ impl App {
                     self.cycle_grouping();
                 }
             }
+            // On the stats pane, `enter` is how you follow a figure to what
+            // it counted; everywhere else it reads the selected item.
+            Command::Read if self.pane == Pane::Stats && !self.doors.is_empty() => {
+                return self.open_door(self.figure);
+            }
             Command::Read => {
                 if self.selected_item().is_some() {
                     self.reading = true;
@@ -2615,6 +2682,7 @@ impl App {
             Hit::Answer(yes) => return self.resolve_confirm(yes),
             Hit::Run(command) => return self.run(command),
             Hit::Detail => {}
+            Hit::Figure(n) => return self.open_door(n),
         }
         Action::None
     }
