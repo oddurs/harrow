@@ -2,7 +2,7 @@
 id: 26
 title: An item with no id is not item zero
 type: bug
-status: backlog
+status: done
 milestone: v0.2
 depends_on:
 - 39
@@ -46,6 +46,6 @@ the loader already has a channel for.
 
 ## Acceptance criteria
 
-- [ ] An item whose frontmatter omits `id` takes it from the filename's leading digits
-- [ ] An item whose id cannot be determined from either is a warning, not item zero
-- [ ] Two such files never collide, because neither loads
+- [x] An item whose frontmatter omits `id` takes it from the filename's leading digits
+- [x] An item whose id cannot be determined from either is a warning, not item zero
+- [x] Two such files never collide, because neither loads
