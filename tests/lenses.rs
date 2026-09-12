@@ -46,11 +46,6 @@ struct Gap {
 const GAPS: &[Gap] = &[
     Gap {
         lens: Pane::Stats,
-        owes: Owes::ObeysTheFilter,
-        item: "0057",
-    },
-    Gap {
-        lens: Pane::Stats,
         owes: Owes::AnswersTheMouse,
         item: "0061",
     },

@@ -711,3 +711,61 @@ fn regrouping_inside_a_view_keeps_the_view() {
     app.run(harrow::keys::Command::Back);
     assert_eq!(app.group_by, chosen, "a choice made by hand is not undone");
 }
+
+/// One backlog, one filter, three lenses. The stats used to describe the whole
+/// backlog while the header above it still showed the filter that had narrowed
+/// everything else.
+#[test]
+fn narrowing_the_list_narrows_the_stats() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    let before = app.stats();
+    assert!(before.total > 1);
+
+    app.handle_key(KeyCode::Char('/'), KeyModifiers::NONE);
+    for c in "priority=p0".chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+    }
+    app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+
+    let after = app.stats();
+    assert!(after.total < before.total, "the summary narrowed too");
+
+    // The two lenses agree about the narrowed backlog.
+    let on_board: usize = app.columns.iter().map(|c| c.items.len()).sum();
+    assert_eq!(after.total, on_board, "stats and board");
+}
+
+/// The strip is not a lens, so it does not narrow. It is the control that
+/// sets the filter, clicking a status replaces whatever is in the box, and
+/// each count is therefore what clicking it would give you. Narrowing them
+/// would collapse the strip to the status already chosen and leave nothing
+/// to click back out to.
+#[test]
+fn the_strip_keeps_counting_the_whole_project() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    let before: usize = app.status_counts().into_iter().map(|(_, n)| n).sum();
+
+    app.handle_key(KeyCode::Char('/'), KeyModifiers::NONE);
+    for c in "priority=p0".chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+    }
+    app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+
+    let after: usize = app.status_counts().into_iter().map(|(_, n)| n).sum();
+    assert_eq!(after, before, "still every status you could click to");
+    assert!(app.stats().total < before, "while the summary narrowed");
+}
+
+/// A summary that could not count finished work would have nothing to say, so
+/// the filter applies but the list's own hide-what-is-closed rule does not.
+#[test]
+fn the_stats_still_count_what_is_finished() {
+    let dir = testkit::project();
+    let app = app_for(dir.path());
+    assert!(!app.show_all, "closed work is hidden from the list");
+    assert!(app.stats().done > 0, "and counted by the summary");
+}

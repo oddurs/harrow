@@ -665,6 +665,14 @@ impl App {
     /// Deliberately not the declared order the list and the board use. Those
     /// are a place you move through; this is a summary, and a summary leads
     /// with what is live.
+    /// Deliberately the whole project, filter or no filter.
+    ///
+    /// The strip is not a lens; it is the control that sets the filter, and
+    /// clicking a status *replaces* whatever is in the box. So each count is
+    /// exactly what clicking it would give you, which is the only reading
+    /// that makes the numbers useful for choosing. Narrowing them would also
+    /// collapse the strip to the one status already chosen, leaving nothing
+    /// to click your way back out to.
     pub fn status_counts(&self) -> Vec<(&crate::schema::Status, usize)> {
         let mut counts: Vec<(&crate::schema::Status, usize)> = self
             .schema
@@ -2771,7 +2779,20 @@ pub struct Stats {
 impl App {
     /// Everything the statistics pane shows.
     pub fn stats(&self) -> Stats {
-        let work: Vec<&Item> = self.items.iter().filter(|i| !i.container).collect();
+        // The filter applies here as it applies to the list and the board.
+        // One backlog, one filter, three lenses — and a reader who has just
+        // narrowed the list has every reason to think the next screen is
+        // about what they narrowed to.
+        //
+        // Not `visible`: that is the list's rule, which also hides finished
+        // work, and a summary that could not count what is done would have
+        // nothing to say. The filter, and the rule that a container is not
+        // work, which is the same pair the board is dealt from.
+        let work: Vec<&Item> = self
+            .items
+            .iter()
+            .filter(|i| !i.container && self.query.matches(i, &self.schema))
+            .collect();
         let today = self.now / 86_400;
         let days_ago = |date: Option<&String>| {
             date.and_then(|d| days_from_iso(d))
