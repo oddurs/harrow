@@ -44,7 +44,7 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
 ## v0.3 — Read everything cairn writes, and nothing it does not
 
-`##########` 100% · 10 of 10 done · due 2027-02-15
+`##########` 100% · 11 of 11 done · due 2027-02-15
 
 harrow reads cairn's files directly. That is the decision the whole program
 
@@ -60,6 +60,7 @@ harrow reads cairn's files directly. That is the decision the whole program
 - [x] `0036` Propose a change you are not the one to decide <sup>feature · p2 · write</sup>
 - [x] `0037` Hand an item back with what you learned <sup>feature · p3 · write</sup>
 - [x] `0038` Run the project's own check and show what it says <sup>feature · p2 · chrome</sup>
+- [x] `0053` Reload throws away the terminal's palette <sup>bug · p1 · theme</sup>
 
 ## v1.0 — Stable release
 
