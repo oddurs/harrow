@@ -326,6 +326,11 @@ pub struct Schema {
     /// The heading acceptance criteria live under, where the project keeps
     /// them somewhere specific. Absent, every box in a body counts.
     pub criteria_section: Option<String>,
+    /// How long a claim may go untouched before the project calls it stale,
+    /// in days. Absent, and inert when absent: a project where a claim means
+    /// an afternoon and one where it means a quarter are both real, and
+    /// neither is harrow's to guess.
+    pub claim_stale_after: Option<u32>,
     pub url: Option<String>,
     pub format: u32,
     pub types: Vec<ItemType>,
@@ -495,6 +500,7 @@ impl Schema {
             dir: PathBuf::from(project.dir.unwrap_or_else(|| "items".to_string())),
             id_format,
             criteria_section: project.criteria_section.filter(|s| !s.trim().is_empty()),
+            claim_stale_after: project.claim_stale_after.filter(|d| *d > 0),
             url: project.url,
             format,
             types,
@@ -688,6 +694,7 @@ struct ProjectFile {
     id_width: Option<usize>,
     id_format: Option<String>,
     criteria_section: Option<String>,
+    claim_stale_after: Option<u32>,
     url: Option<String>,
 }
 

@@ -102,6 +102,12 @@ pub struct Item {
     /// project's configuration and every row of every frame asks for it.
     pub criteria_met: u32,
     pub criteria_total: u32,
+    /// Claimed for longer than the project says a claim should last.
+    ///
+    /// Refreshed by the frame rather than derived at load, because it depends
+    /// on the clock and `engine` has none — deliberately, so that deriving a
+    /// backlog is a pure function of the files.
+    pub claim_stale: bool,
     /// Waiting on something unfinished.
     pub blocked: bool,
     pub blockers: Vec<u32>,

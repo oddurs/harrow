@@ -152,6 +152,7 @@ pub const DERIVED: &[&str] = &[
     "closed",
     "done",
     "blocked",
+    "stale",
     "ready",
     "blockers",
     "labels",
@@ -207,6 +208,8 @@ pub fn resolve(item: &Item, schema: &Schema, key: &str) -> Field {
         "category" => Field::Text(item.category.name().to_string()),
         "closed" | "done" => Field::Text(item.category.is_closed().to_string()),
         "blocked" => Field::Text(item.blocked.to_string()),
+        // The pile that needs a conversation, selectable in one clause.
+        "stale" => Field::Text(item.claim_stale.to_string()),
         "ready" => Field::Text(item.ready(schema).to_string()),
         "blockers" => Field::List(item.blockers.iter().map(u32::to_string).collect()),
         "labels" => {

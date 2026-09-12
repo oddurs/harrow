@@ -578,7 +578,15 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
     }
     if show_who && !who.is_empty() {
         spans.push(Span::raw("  "));
-        spans.push(Span::styled(who, Style::default().fg(t.person)));
+        // An item that looks taken and is not looks exactly like an item
+        // somebody is working on right now, which is the one thing a pane
+        // beside the work is supposed to distinguish.
+        let colour = if app.claim_is_stale(item) {
+            t.warn
+        } else {
+            t.person
+        };
+        spans.push(Span::styled(who, Style::default().fg(colour)));
     }
     if proposed {
         // Somebody is waiting on an answer, which is a different kind of fact
@@ -885,10 +893,19 @@ fn detail_lines(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'st
     }
     if let Some(who) = &item.assignee {
         state.push(Span::styled(" · ", Style::default().fg(t.faint)));
+        let stale = app.claim_is_stale(item);
         state.push(Span::styled(
             format!("@{who}"),
-            Style::default().fg(t.person),
+            Style::default().fg(if stale { t.warn } else { t.person }),
         ));
+        // Marking it raises the question; the pane is where there is room to
+        // answer it.
+        if let Some(days) = app.claimed_days(item).filter(|_| stale) {
+            state.push(Span::styled(
+                format!(" · held {days} days"),
+                Style::default().fg(t.warn),
+            ));
+        }
     }
     lines.push(Line::from(state));
 

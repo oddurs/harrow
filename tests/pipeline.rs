@@ -604,3 +604,43 @@ fn a_project_from_a_newer_cairn_reads_but_does_not_write() {
         "the footer says which read-only"
     );
 }
+
+/// Stale means visible, never revoked. Nothing is released automatically —
+/// taking work away from somebody slow is worse than leaving it held — so the
+/// whole of this is how a row is drawn and what a filter can select.
+#[test]
+fn a_claim_the_project_calls_stale_says_so() {
+    let dir = testkit::project();
+    let cfg = dir.path().join("cairn.toml");
+    let text = std::fs::read_to_string(&cfg).expect("the fixture config");
+    std::fs::write(
+        &cfg,
+        text.replace("id_width = 4", "id_width = 4\nclaim_stale_after = 5"),
+    )
+    .expect("set a threshold");
+
+    let mut app = app_for(dir.path());
+    // 0003 is claimed on 2026-09-03. A week later that is past five days.
+    app.now = 1_789_084_800; // 2026-09-11
+    app.rebuild();
+    let held = app.items.iter().find(|i| i.id == 3).expect("0003");
+    assert!(held.claim_stale, "eight days is past five");
+
+    // The day it was taken, it is not.
+    app.now = 1_788_480_000; // 2026-09-04
+    app.rebuild();
+    let fresh = app.items.iter().find(|i| i.id == 3).expect("0003");
+    assert!(!fresh.claim_stale, "the day after is not stale");
+}
+
+/// A project that has not set a threshold sees no change at all: how long is
+/// too long is a property of the project, not of the tool.
+#[test]
+fn without_a_threshold_no_claim_is_ever_stale() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    app.now = 4_000_000_000; // years later
+    app.rebuild();
+    assert!(app.schema.claim_stale_after.is_none());
+    assert!(app.items.iter().all(|i| !i.claim_stale));
+}
