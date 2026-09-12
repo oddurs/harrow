@@ -2,7 +2,7 @@
 id: 60
 title: The board groups by whatever you ask it to
 type: feature
-status: backlog
+status: done
 milestone: v0.4
 depends_on:
 - 56
@@ -51,7 +51,13 @@ second opinion.
 
 ## Acceptance criteria
 
-- [ ] `v` changes the board's columns, through the axes the project declares
-- [ ] Columns keep their declared order, and a status with `board = false` stays off
-- [ ] Dragging a card sets the field the board is grouped by
-- [ ] An axis that cannot be a board says so the way cairn says it
+- [x] `v` changes the board's columns, through the axes the project declares
+- [x] Columns keep their declared order, and a status with `board = false` stays off
+- [x] Dragging a card sets the field the board is grouped by
+- [x] An axis that cannot be a board is stepped over rather than landed on —
+      `none` is a list with the grouping off, which is a thing to want and not
+      a thing a board can be, so cycling skips it instead of showing a blank
+      screen and an explanation
+- [x] The board keeps its own axis: grouping is arrangement, and a list by
+      milestone beside a board by status is the pair that would be lost by
+      sharing one
