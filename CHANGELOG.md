@@ -37,6 +37,16 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ### Added
 
+- Every pane scrolls on its own, and the wheel moves the one under the pointer
+  rather than always the list. The detail pane shows a whole item by scrolling
+  — `K` and `J`, bound as `detail-up` and `detail-down` — instead of
+  truncating the body to what was left after the fields, and its position
+  belongs to the item, so selecting something else starts at the top of it.
+  Each board column scrolls where it sits, so `done` can be read without
+  moving the cursor out of `doing`. The stats pane scrolls too, which is how
+  its bottom is reached on a short terminal. A pane holding more than it shows
+  says so on its own bottom edge.
+
 - Proposals. `cairn propose` writes the request into the item's body, so harrow
   reads it the way it reads everything else: an item with one carries a `?`, the
   header counts them, and the detail pane shows the field, the change, who asked

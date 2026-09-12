@@ -184,6 +184,39 @@ pub struct Confirm {
     pub change: Change,
 }
 
+/// How far the detail pane is scrolled, and which item that belongs to.
+///
+/// The offset belongs to the item rather than to the pane: selecting something
+/// else starts at the top of it, rather than partway down whatever was under
+/// the pointer a moment ago — and stepping back onto the one you were reading
+/// returns you to where you had got to. Keeping the item beside the offset is
+/// what makes that a read, rather than a reset every move of the cursor has to
+/// remember to do.
+#[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
+pub struct DetailScroll {
+    at: u16,
+    of: Option<u32>,
+}
+
+impl DetailScroll {
+    pub fn at(self, item: u32) -> u16 {
+        if self.of == Some(item) { self.at } else { 0 }
+    }
+
+    pub fn by(&mut self, item: u32, delta: isize) {
+        let from = self.at(item);
+        self.of = Some(item);
+        self.at = from.saturating_add_signed(delta.clamp(-64, 64) as i16);
+    }
+
+    /// Pulled back to what the pane can actually show. The draw is the only
+    /// place that knows how tall the content came out, so it is the place that
+    /// says how far down is too far.
+    pub fn clamp(&mut self, max: u16) {
+        self.at = self.at.min(max);
+    }
+}
+
 /// What the repository remembers about one item.
 pub struct History {
     pub id: u32,
@@ -230,6 +263,10 @@ pub struct App {
     pub offset: usize,
     pub column: usize,
     pub column_row: usize,
+    /// Where each board column has been scrolled to, by column. A column is a
+    /// pane: what you can see in it is nobody else's business, including the
+    /// column the cursor happens to be in.
+    pub column_offsets: Vec<usize>,
     pub collapsed: HashSet<String>,
     /// Items marked for the next change, by id.
     ///
@@ -249,6 +286,12 @@ pub struct App {
 
     pub reading: bool,
     pub read_scroll: u16,
+    /// The detail pane's own scroll, so a long item can be read beside the
+    /// list rather than in an overlay over it.
+    pub detail: DetailScroll,
+    /// The stats pane's own scroll. It has no cursor, so nothing else would
+    /// reach the bottom of it on a short terminal.
+    pub stats_scroll: u16,
     /// How the selected item changed, and where the reader is in it. Read from
     /// the repository, which is the only place that knows.
     pub history: Option<History>,
@@ -315,6 +358,7 @@ impl App {
             offset: 0,
             column: 0,
             column_row: 0,
+            column_offsets: Vec::new(),
             collapsed: HashSet::new(),
             marked: HashSet::new(),
             filter: String::new(),
@@ -328,6 +372,8 @@ impl App {
             pane: Pane::List,
             reading: false,
             read_scroll: 0,
+            detail: DetailScroll::default(),
+            stats_scroll: 0,
             history: None,
             picker: None,
             confirm: None,
@@ -799,6 +845,9 @@ impl App {
                 column.items.push(i);
             }
         }
+        // Kept by position rather than rebuilt, so a column you had scrolled
+        // stays where you left it when something elsewhere changes.
+        self.column_offsets.resize(self.columns.len(), 0);
     }
 
     fn compare(&self, a: usize, b: usize, keys: &[crate::filter::SortKey]) -> std::cmp::Ordering {
@@ -860,6 +909,15 @@ impl App {
             }
         }
 
+        // A column that shrank under its own offset would be scrolled past
+        // everything it holds until the next draw pulled it back. How far the
+        // pane can actually see is the draw's business; that there is a card
+        // down there at all is this one's.
+        self.column_offsets.resize(self.columns.len(), 0);
+        for (offset, column) in self.column_offsets.iter_mut().zip(&self.columns) {
+            *offset = (*offset).min(column.items.len().saturating_sub(1));
+        }
+
         if self.columns.is_empty() {
             self.column = 0;
             self.column_row = 0;
@@ -897,6 +955,15 @@ impl App {
         if delta == 0 {
             return;
         }
+        // The stats pane has nothing to select, so the keys that would move a
+        // cursor move the pane instead. Somewhere below the fold is a number
+        // somebody came here for.
+        if self.pane == Pane::Stats {
+            self.stats_scroll = self
+                .stats_scroll
+                .saturating_add_signed(delta.clamp(-64, 64) as i16);
+            return;
+        }
         if self.pane == Pane::Board {
             let Some(column) = self.columns.get(self.column) else {
                 return;
@@ -927,6 +994,12 @@ impl App {
     }
 
     pub fn jump(&mut self, to_end: bool) {
+        // Past the end is pulled back to the end by the draw, which is the
+        // only thing that knows how tall the stats came out.
+        if self.pane == Pane::Stats {
+            self.stats_scroll = if to_end { u16::MAX } else { 0 };
+            return;
+        }
         if self.pane == Pane::Board {
             let len = self
                 .columns
@@ -1691,6 +1764,18 @@ impl App {
             Command::PageUp => self.move_by(-10),
             Command::First => self.jump(false),
             Command::Last => self.jump(true),
+            // The keyboard's way into the pane the pointer would scroll. A
+            // line at a time, because the wheel is already the coarse gesture.
+            Command::DetailDown | Command::DetailUp => {
+                let delta = if command == Command::DetailDown {
+                    1
+                } else {
+                    -1
+                };
+                if let Some(id) = self.selected_item().map(|i| i.id) {
+                    self.detail.by(id, delta);
+                }
+            }
             // On a heading, fold. On an item, mark it — which is where the
             // gesture is going anyway once there is more than one thing to do.
             Command::ToggleGroup => match self.rows.get(self.selected) {
@@ -1889,8 +1974,8 @@ impl App {
 
     pub fn handle_mouse(&mut self, m: MouseEvent) -> Action {
         match m.kind {
-            MouseEventKind::ScrollDown => self.scroll(3),
-            MouseEventKind::ScrollUp => self.scroll(-3),
+            MouseEventKind::ScrollDown => self.scroll(3, m.column, m.row),
+            MouseEventKind::ScrollUp => self.scroll(-3, m.column, m.row),
             MouseEventKind::Down(MouseButton::Left) => {
                 let double = self.is_double(m.column, m.row);
                 // The modifiers everything else on the screen uses for the
@@ -1924,7 +2009,11 @@ impl App {
     /// cursor would otherwise leave. Scrolling a list and watching the
     /// selection run away from the pointer is the thing that makes a terminal
     /// interface feel unlike everything else on the screen.
-    fn scroll(&mut self, delta: isize) {
+    ///
+    /// Which view moves is decided by what the pointer is over, not by what
+    /// holds the cursor: the panes are beside each other precisely so that one
+    /// can be read without disturbing the other.
+    fn scroll(&mut self, delta: isize, column: u16, row: u16) {
         if let Some(history) = self.history.as_mut() {
             history.scroll = history
                 .scroll
@@ -1938,20 +2027,69 @@ impl App {
             return;
         }
         match self.pane {
-            Pane::Stats => {}
-            Pane::Board => self.move_by(delta.signum()),
-            Pane::List => {
-                let height = self.list_area.height.saturating_sub(2) as usize;
-                let max = self.rows.len().saturating_sub(height);
-                self.offset = self.offset.saturating_add_signed(delta).min(max);
-                if self.selected < self.offset {
-                    self.selected = self.offset;
-                } else if height > 0 && self.selected >= self.offset + height {
-                    self.selected = self.offset + height - 1;
-                }
-                self.clamp();
+            Pane::Stats => {
+                self.stats_scroll = self
+                    .stats_scroll
+                    .saturating_add_signed(delta.clamp(-32, 32) as i16);
             }
+            // The column the pointer is over, which is usually not the one the
+            // cursor is in — peering into `done` should not move what you were
+            // about to claim.
+            Pane::Board => {
+                let over = match self.hit_at(column, row) {
+                    Some(Hit::Card(c, _) | Hit::Column(c)) => *c,
+                    _ => self.column,
+                };
+                self.scroll_column(over, delta);
+            }
+            Pane::List => match self.hit_at(column, row) {
+                Some(Hit::Detail) => {
+                    if let Some(id) = self.selected_item().map(|i| i.id) {
+                        self.detail.by(id, delta);
+                    }
+                }
+                _ => self.scroll_list(delta),
+            },
         }
+    }
+
+    fn scroll_list(&mut self, delta: isize) {
+        let height = self.list_area.height.saturating_sub(2) as usize;
+        let max = self.rows.len().saturating_sub(height);
+        self.offset = self.offset.saturating_add_signed(delta).min(max);
+        if self.selected < self.offset {
+            self.selected = self.offset;
+        } else if height > 0 && self.selected >= self.offset + height {
+            self.selected = self.offset + height - 1;
+        }
+        self.clamp();
+    }
+
+    /// One board column, by the same rule as the list — except that only the
+    /// focused column has a cursor to keep in view. The others are being
+    /// looked at, not worked in.
+    fn scroll_column(&mut self, index: usize, delta: isize) {
+        let Some(count) = self.columns.get(index).map(|c| c.items.len()) else {
+            return;
+        };
+        // A height of zero means the board has not been drawn yet, which is
+        // not a reason to allow scrolling past the last card.
+        let height = (self.board_area.height.saturating_sub(2) as usize).max(1);
+        let max = count.saturating_sub(height);
+        let Some(offset) = self.column_offsets.get_mut(index) else {
+            return;
+        };
+        *offset = offset.saturating_add_signed(delta).min(max);
+        if index != self.column || count == 0 {
+            return;
+        }
+        let offset = *offset;
+        if self.column_row < offset {
+            self.column_row = offset;
+        } else if height > 0 && self.column_row >= offset + height {
+            self.column_row = offset + height - 1;
+        }
+        self.clamp();
     }
 
     fn click(&mut self, column: u16, row: u16, double: bool) -> Action {
@@ -2113,6 +2251,22 @@ impl App {
                 "board row {} is past the end of {}",
                 self.column_row, column.status
             ));
+        }
+        if self.column_offsets.len() != self.columns.len() {
+            return Err(format!(
+                "{} scroll offsets for {} columns",
+                self.column_offsets.len(),
+                self.columns.len()
+            ));
+        }
+        for (index, offset) in self.column_offsets.iter().enumerate() {
+            let len = self.columns[index].items.len();
+            if *offset > 0 && *offset >= len {
+                return Err(format!(
+                    "column {} is scrolled to card {offset} of {len}",
+                    self.columns[index].status
+                ));
+            }
         }
         let heading_type = self.heading_type().map(str::to_string);
         let visible = self

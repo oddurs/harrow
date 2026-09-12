@@ -23,6 +23,8 @@ pub enum Command {
     PageUp,
     First,
     Last,
+    DetailDown,
+    DetailUp,
     ToggleGroup,
     PrevGroup,
     NextGroup,
@@ -55,13 +57,15 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 35] = [
+    pub const ALL: [Command; 37] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
         Command::PageUp,
         Command::First,
         Command::Last,
+        Command::DetailDown,
+        Command::DetailUp,
         Command::ToggleGroup,
         Command::PrevGroup,
         Command::NextGroup,
@@ -103,6 +107,8 @@ impl Command {
             Command::PageUp => "page-up",
             Command::First => "first",
             Command::Last => "last",
+            Command::DetailDown => "detail-down",
+            Command::DetailUp => "detail-up",
             Command::ToggleGroup => "toggle-group",
             Command::PrevGroup => "prev-group",
             Command::NextGroup => "next-group",
@@ -148,6 +154,8 @@ impl Command {
             Command::PageUp => "up a page",
             Command::First => "jump to the first item",
             Command::Last => "jump to the last item",
+            Command::DetailDown => "scroll the detail pane down",
+            Command::DetailUp => "scroll the detail pane up",
             Command::ToggleGroup => "mark it for the next change — a heading folds",
             Command::PrevGroup => "previous group — column, on the board",
             Command::NextGroup => "next group — column, on the board",
@@ -181,10 +189,11 @@ impl Command {
     }
 
     /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 27] {
+    pub fn help_order() -> [Command; 28] {
         [
             Command::Down,
             Command::First,
+            Command::DetailDown,
             Command::PrevGroup,
             Command::ToggleGroup,
             Command::ViewBoard,
@@ -239,6 +248,8 @@ impl Default for Keymap {
                 (K::Char('g'), n, C::First),
                 (K::End, n, C::Last),
                 (K::Char('G'), n, C::Last),
+                (K::Char('J'), n, C::DetailDown),
+                (K::Char('K'), n, C::DetailUp),
                 (K::Char(' '), n, C::ToggleGroup),
                 (K::Left, n, C::PrevGroup),
                 (K::Right, n, C::NextGroup),
@@ -397,6 +408,7 @@ impl Keymap {
             let keys = match command {
                 Command::Down => pair(self.keys_for(Command::Up), keys),
                 Command::First => pair(keys, self.keys_for(Command::Last)),
+                Command::DetailDown => pair(self.keys_for(Command::DetailUp), keys),
                 Command::PrevGroup => pair(keys, self.keys_for(Command::NextGroup)),
                 Command::Advance => pair(self.keys_for(Command::Retreat), keys),
                 _ => keys.join("/"),
@@ -404,6 +416,7 @@ impl Keymap {
             let describe = match command {
                 Command::Down => "move between items",
                 Command::First => "jump to the first or last",
+                Command::DetailDown => "scroll the detail pane",
                 Command::PrevGroup => "previous or next group — a column, on the board",
                 Command::Advance => "move it back or forward through the statuses",
                 other => other.describe(),
@@ -419,7 +432,7 @@ impl Keymap {
             "drag".to_string(),
             "a card to another column, which sets its status",
         ));
-        rows.push(("scroll".to_string(), "move the view"));
+        rows.push(("scroll".to_string(), "move the pane under the pointer"));
         rows
     }
 
@@ -447,6 +460,21 @@ impl Keymap {
                 key.map(|k| (k, label, command))
             })
             .collect()
+    }
+
+    /// `↑↓`, or `K/J` — the two keys that move a pane, for the hint a pane
+    /// holding more than it shows puts on its own edge. Glyphs sit together
+    /// the way the footer writes them; letters need the slash to read as two
+    /// keys rather than one word.
+    pub fn scroll_hint(&self, up: Command, down: Command) -> Option<String> {
+        let up = self.keys_for(up).into_iter().next()?;
+        let down = self.keys_for(down).into_iter().next()?;
+        let glyphs = up.chars().chain(down.chars()).all(|c| !c.is_alphanumeric());
+        Some(if glyphs {
+            format!("{up}{down}")
+        } else {
+            format!("{up}/{down}")
+        })
     }
 }
 

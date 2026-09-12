@@ -20,6 +20,7 @@ use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Padd
 use crate::app::{App, Hit, Pane, Row, ToastKind};
 use crate::diag;
 use crate::item::Item;
+use crate::keys::Command;
 use crate::schema::{Category, Schema};
 use crate::theme::Theme;
 
@@ -662,7 +663,11 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         .constraints(constraints)
         .split(area);
 
+    // One per column, in case the board was drawn before it was dealt.
+    app.column_offsets.resize(app.columns.len(), 0);
+
     let mut regions: Vec<(Rect, Hit)> = Vec::new();
+    let mut offsets: Vec<usize> = Vec::with_capacity(count);
     for (index, cell) in cells.iter().enumerate() {
         let column = &app.columns[index];
         let focused = index == app.column;
@@ -686,11 +691,16 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 
         let inner_width = cell.width.saturating_sub(2) as usize;
         let inner_height = cell.height.saturating_sub(2) as usize;
+        // Where the column was left, pulled back to what it can hold. The
+        // focused one gives way to its cursor: a card you are about to act on
+        // has to be on screen, wherever the column had been scrolled to.
+        let offset = app.column_offsets[index].min(column.items.len().saturating_sub(inner_height));
         let offset = if focused {
-            scroll_to(0, app.column_row, column.items.len(), inner_height)
+            scroll_to(offset, app.column_row, column.items.len(), inner_height)
         } else {
-            0
+            offset
         };
+        offsets.push(offset);
         let end = (offset + inner_height).min(column.items.len());
 
         let cards: Vec<ListItem> = column.items[offset.min(end)..end]
@@ -723,6 +733,7 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         );
         f.render_stateful_widget(list, *cell, &mut state);
     }
+    app.column_offsets = offsets;
     for (rect, hit) in regions {
         app.hit(rect, hit);
     }
@@ -797,8 +808,29 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         )));
 
     let inner = block.inner(area);
-    let lines = detail_lines(app, item, t, inner.width as usize, inner.height as usize);
-    f.render_widget(Paragraph::new(lines).block(block), area);
+    let id = item.id;
+    let lines = detail_lines(app, item, t, inner.width as usize);
+
+    // Clamped here because here is where the height of the content is known.
+    // Past the end of a short item is not a place the pane can be.
+    let over = lines.len().saturating_sub(inner.height as usize);
+    app.detail.clamp(over as u16);
+    let scroll = app.detail.at(id);
+
+    // A pane holding more than it shows says so on its own edge, with the keys
+    // that move it — taken from the bindings in force, not from ours.
+    let hint = app
+        .keymap
+        .scroll_hint(Command::DetailUp, Command::DetailDown);
+    let block = match (over > 0, hint) {
+        (true, Some(keys)) => block.title_bottom(Span::styled(
+            format!(" {keys} scroll "),
+            Style::default().fg(t.faint),
+        )),
+        _ => block,
+    };
+
+    f.render_widget(Paragraph::new(lines).scroll((scroll, 0)).block(block), area);
     app.hit(area, Hit::Detail);
 }
 
@@ -807,13 +839,10 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 /// Built as whole lines rather than handed to a wrapping widget: ratatui's wrap
 /// does not know about the indent a line started with, so a wrapped paragraph
 /// loses its left edge and the pane stops having one.
-fn detail_lines(
-    app: &App,
-    item: &Item,
-    t: &Theme,
-    width: usize,
-    height: usize,
-) -> Vec<Line<'static>> {
+///
+/// Everything the item has, at whatever length that comes to. What fits is the
+/// pane's business, and the pane scrolls.
+fn detail_lines(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'static>> {
     let schema = &app.schema;
     let mut lines: Vec<Line> = Vec::new();
 
@@ -1001,22 +1030,10 @@ fn detail_lines(
         }
     }
 
-    // The body, as much of it as fits. `enter` reads the rest.
-    let room = height.saturating_sub(lines.len() + 2);
-    if room > 1 && !item.body.trim().is_empty() {
+    if !item.body.trim().is_empty() {
         lines.push(Line::from(""));
         lines.push(section("Body", t, width));
-        let body = body_lines(&item.body, t, width.saturating_sub(2));
-        let shown = room.saturating_sub(1);
-        for line in body.iter().take(shown) {
-            lines.push(line.clone());
-        }
-        if body.len() > shown {
-            lines.push(Line::from(Span::styled(
-                "  … ↵ to read it all",
-                Style::default().fg(t.faint).italic(),
-            )));
-        }
+        lines.extend(body_lines(&item.body, t, width.saturating_sub(2)));
     }
 
     lines
@@ -1207,7 +1224,7 @@ fn wrap(text: &str, width: usize) -> Vec<String> {
 
 /// A backlog from a distance: how much of it there is, how much is moving, and
 /// what is in the way.
-fn draw_stats(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+fn draw_stats(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(t.border))
@@ -1233,17 +1250,32 @@ fn draw_stats(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         (all, Vec::new())
     };
 
+    // One pane in two columns, so both move together and by the same amount.
+    let tallest = left.len().max(right.len());
+    let over = tallest.saturating_sub(inner.height as usize);
+    app.stats_scroll = app.stats_scroll.min(over as u16);
+    let scroll = (app.stats_scroll, 0);
+
+    let hint = app.keymap.scroll_hint(Command::Up, Command::Down);
+    let block = match (over > 0, hint) {
+        (true, Some(keys)) => block.title_bottom(Span::styled(
+            format!(" {keys} scroll "),
+            Style::default().fg(t.faint),
+        )),
+        _ => block,
+    };
+
     f.render_widget(block, area);
     if right.is_empty() {
-        f.render_widget(Paragraph::new(left), inner);
+        f.render_widget(Paragraph::new(left).scroll(scroll), inner);
         return;
     }
     let columns = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(inner);
-    f.render_widget(Paragraph::new(left), columns[0]);
-    f.render_widget(Paragraph::new(right), columns[1]);
+    f.render_widget(Paragraph::new(left).scroll(scroll), columns[0]);
+    f.render_widget(Paragraph::new(right).scroll(scroll), columns[1]);
 }
 
 fn stats_left(app: &App, s: &crate::app::Stats, t: &Theme, width: usize) -> Vec<Line<'static>> {

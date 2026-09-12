@@ -340,3 +340,61 @@ fn accepting_nothing_says_so() {
     let (message, _, _) = app.toast.as_ref().expect("it says so");
     assert!(message.contains("nothing proposed"), "{message}");
 }
+
+#[test]
+fn the_detail_pane_scrolls_without_taking_the_list_with_it() {
+    let mut app = app();
+    let (offset, selected) = (app.offset, app.selected);
+
+    press(&mut app, 'J');
+    press(&mut app, 'J');
+    assert_eq!(app.detail.at(3), 2);
+    assert_eq!((app.offset, app.selected), (offset, selected));
+
+    press(&mut app, 'K');
+    assert_eq!(app.detail.at(3), 1);
+}
+
+#[test]
+fn the_detail_pane_starts_at_the_top_of_whatever_is_selected() {
+    let mut app = app();
+    press(&mut app, 'J');
+    assert_eq!(app.detail.at(3), 1);
+
+    app.select_id(4);
+    assert_eq!(app.detail.at(4), 0, "a different item is not part-read");
+
+    app.select_id(3);
+    assert_eq!(
+        app.detail.at(3),
+        1,
+        "and the one you left is where you left"
+    );
+}
+
+/// There is nothing on the stats pane to select, so the keys that would move a
+/// cursor move the pane — otherwise its bottom is unreachable on a short
+/// terminal, and the list's cursor moves where nobody can see it.
+#[test]
+fn the_stats_pane_scrolls_with_the_keys_that_move_a_cursor_elsewhere() {
+    let mut app = app();
+    app.pane = harrow::app::Pane::Stats;
+    let selected = app.selected;
+
+    app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+    app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+    assert_eq!(app.stats_scroll, 2);
+    assert_eq!(app.selected, selected, "the list's cursor did not move");
+
+    app.handle_key(KeyCode::Up, KeyModifiers::NONE);
+    assert_eq!(app.stats_scroll, 1);
+
+    // The end of the pane is wherever the drawing says it is.
+    app.run(Command::Last);
+    let _ = harrow::ui::render_frame(&mut app, 62, 24, 0);
+    assert!(app.stats_scroll > 0, "there is more than one screen of it");
+    assert!(
+        app.stats_scroll < u16::MAX,
+        "and it was pulled back to the end rather than left past it"
+    );
+}
