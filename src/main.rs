@@ -651,6 +651,11 @@ fn dispatch(
             Ok(()) => app.toast(format!("copied {text}"), ToastKind::Good),
             Err(e) => app.toast(format!("clipboard unavailable: {e}"), ToastKind::Bad),
         },
+        Action::Open(url) => {
+            if let Err(e) = open_in_browser(&url) {
+                app.toast(format!("could not open it: {e}"), ToastKind::Bad);
+            }
+        }
         Action::Edit(path) => {
             // The editor gets the terminal, whole and to itself; harrow takes
             // it back afterwards and re-reads what changed.
@@ -751,6 +756,34 @@ fn run_change(app: &mut App, handle: &runtime::Handle, config: &Config, change: 
 
 fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
+}
+
+/// Hand a URL to whatever the desktop opens URLs with.
+///
+/// Detached, with both streams closed: the opener on Linux prints to stderr
+/// and can outlive the click, and either would land in the middle of the
+/// interface. Not waited on for the same reason.
+fn open_in_browser(url: &str) -> std::io::Result<()> {
+    // A URL from a body is text somebody else wrote, and it reaches a process
+    // as one argument, never a shell. `--` so a url starting with a dash is
+    // an argument and not a flag.
+    let candidates: [&[&str]; 3] = [&["open"], &["xdg-open"], &["wslview"]];
+    let mut last = std::io::Error::other("no way to open a link found");
+    for cmd in candidates {
+        match Command::new(cmd[0])
+            .args(&cmd[1..])
+            .arg("--")
+            .arg(url)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            Ok(_) => return Ok(()),
+            Err(e) => last = e,
+        }
+    }
+    Err(last)
 }
 
 fn copy_to_clipboard(text: &str) -> std::io::Result<()> {

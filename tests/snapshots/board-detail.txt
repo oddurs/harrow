@@ -6,7 +6,9 @@
 │  ⊘ 0004 Draw the board     p2││                              ││                              ││   in progress · feature · v0.1 · @oddur  │
 │  ○ 0006 Write the readme   p3││                              ││                              ││                                          │
 │                              ││                              ││                              ││   Acceptance ──────────────────────────  │
-│                              ││                              ││                              ││   ▰▰▰▰▰▱▱▱▱▱  1 of 2 ticked              │
+│                              ││                              ││                              ││     ✓ rows                               │
+│                              ││                              ││                              ││     ☐ groups                             │
+│                              ││                              ││                              ││   1 of 2 ticked                          │
 │                              ││                              ││                              ││                                          │
 │                              ││                              ││                              ││   Body ────────────────────────────────  │
 │                              ││                              ││                              ││   Problem                                │
@@ -14,9 +16,7 @@
 │                              ││                              ││                              ││   A backlog you cannot move through is a │
 │                              ││                              ││                              ││   file you could have opened.            │
 │                              ││                              ││                              ││                                          │
-│                              ││                              ││                              ││   ✓ rows                                 │
-│                              ││                              ││                              ││   ☐ groups                               │
-│                              ││                              ││                              ││                                          │
 │                              ││                              ││                              ││   Fields ──────────────────────────────  │
+│                              ││                              ││                              ││   priority p1                            │
 ╰──────────────────────────────╯╰──────────────────────────────╯╰──────────────────────────────╯╰ K/J scroll ──────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

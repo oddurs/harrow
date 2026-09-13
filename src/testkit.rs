@@ -116,7 +116,7 @@ pub const ITEMS: &[(&str, &str)] = &[
     ),
     (
         "0005-the-detail-pane-scrolls-past-its-pane.md",
-        "---\nid: 5\ntitle: The detail pane scrolls past its pane\ntype: bug\nstatus: backlog\nmilestone: v0.1\ndepends_on:\n- 2\nlabels: [chrome]\ncreated: 2026-09-04\npriority: p1\narea: ui\n---\n\n## What happens\n\nA long body runs off the bottom.\n",
+        "---\nid: 5\ntitle: The detail pane scrolls past its pane\ntype: bug\nstatus: backlog\nmilestone: v0.1\ndepends_on:\n- 2\nlabels: [chrome]\ncreated: 2026-09-04\npriority: p1\narea: ui\n---\n\n## What happens\n\nA long body runs off the bottom, **every time**, and the\n[report](https://example.org/report) says why.\n",
     ),
     (
         "0006-write-the-readme.md",

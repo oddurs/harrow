@@ -317,12 +317,24 @@ pub fn count_criteria(body: &str, section: Option<&str>) -> (u32, u32) {
 /// Each criterion, ticked or not, in the order cairn numbers them — which is
 /// document order, one-based, and is what `cairn tick <ID> <N>` takes.
 pub fn criteria_in(body: &str, section: Option<&str>) -> Vec<(bool, String)> {
+    criteria_at(body, section)
+        .into_iter()
+        .map(|(_, ticked, text)| (ticked, text))
+        .collect()
+}
+
+/// The same criteria, with the line each was written on.
+///
+/// The line number exists for the detail pane: it hoists the criteria above
+/// the body and must then elide exactly the lines it hoisted, which means
+/// *these* lines and not a second guess at which ones they were.
+pub fn criteria_at(body: &str, section: Option<&str>) -> Vec<(usize, bool, String)> {
     let mut out = Vec::new();
     // Before any heading, with no section named, we are already counting, so
     // a body with no headings at all still works.
     let mut counting = section.is_none();
 
-    for line in body.lines() {
+    for (n, line) in body.lines().enumerate() {
         let trimmed = line.trim();
         if let Some(heading) = trimmed.strip_prefix('#') {
             if let Some(want) = section {
@@ -360,7 +372,7 @@ pub fn criteria_in(body: &str, section: Option<&str>) -> Vec<(bool, String)> {
         if !after.starts_with(char::is_whitespace) || after.trim().is_empty() {
             continue;
         }
-        out.push((ticked, after.trim().to_string()));
+        out.push((n, ticked, after.trim().to_string()));
     }
     out
 }

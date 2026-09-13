@@ -13,11 +13,11 @@ use std::time::Duration;
 
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Padding, Paragraph};
 
-use crate::app::{App, Door, Hit, Pane, ReadOnly, Row, ToastKind};
+use crate::app::{App, Door, Hit, Pane, ReadOnly, Row, Target, ToastKind};
 use crate::diag;
 use crate::item::Item;
 use crate::keys::Command;
@@ -969,11 +969,11 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 
     let inner = block.inner(area);
     let id = item.id;
-    let lines = detail_lines(app, item, t, inner.width as usize);
+    let prose = detail_prose(app, item, t, inner.width as usize);
 
     // Clamped here because here is where the height of the content is known.
     // Past the end of a short item is not a place the pane can be.
-    let over = lines.len().saturating_sub(inner.height as usize);
+    let over = prose.lines.len().saturating_sub(inner.height as usize);
     app.detail.clamp(over as u16);
     let scroll = app.detail.at(id);
 
@@ -990,8 +990,30 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         _ => block,
     };
 
-    f.render_widget(Paragraph::new(lines).scroll((scroll, 0)).block(block), area);
+    f.render_widget(
+        Paragraph::new(prose.lines).scroll((scroll, 0)).block(block),
+        area,
+    );
+    // The pane first, so a click that lands on nothing in particular still
+    // scrolls the pane rather than the list; the links on top of it, because
+    // the last thing registered wins.
     app.hit(area, Hit::Detail);
+    app.links.clear();
+    for (line, x, w, target) in prose.links {
+        let y = inner.y as i32 + line as i32 - scroll as i32;
+        if y >= inner.y as i32 && y < (inner.y + inner.height) as i32 {
+            app.hit(
+                Rect {
+                    x: inner.x + x,
+                    y: y as u16,
+                    width: w.min(inner.width.saturating_sub(x)),
+                    height: 1,
+                },
+                Hit::Link(app.links.len()),
+            );
+        }
+        app.links.push(target);
+    }
 }
 
 /// The body of the detail pane.
@@ -1002,9 +1024,9 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 ///
 /// Everything the item has, at whatever length that comes to. What fits is the
 /// pane's business, and the pane scrolls.
-fn detail_lines(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'static>> {
+fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
     let schema = &app.schema;
-    let mut lines: Vec<Line> = Vec::new();
+    let mut lines = Prose::default();
 
     // The title, wrapped under its own glyph.
     let title_width = width.saturating_sub(3);
@@ -1107,13 +1129,23 @@ fn detail_lines(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'st
                 .map(|i| i.title.clone())
                 .unwrap_or_default();
             let reference = schema.format_id(*id);
+            let width_of = reference.chars().count() as u16;
             let room = width.saturating_sub(reference.chars().count() + 3);
+            let title = truncate(&title, room);
+            let reach = width_of + 1 + title.chars().count() as u16;
             lines.push(Line::from(vec![
                 Span::raw("  "),
-                Span::styled(reference, Style::default().fg(t.blocked)),
+                Span::styled(
+                    reference,
+                    Style::default().fg(t.blocked).add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(" "),
-                Span::styled(truncate(&title, room), Style::default().fg(t.muted)),
+                Span::styled(title, Style::default().fg(t.muted)),
             ]));
+            // The whole line, not just the id: the thing you want to reach is
+            // the item you can read the title of, and a two-character target
+            // is a target you miss.
+            lines.link(2, reach, Target::Item(*id));
         }
     }
 
@@ -1153,43 +1185,100 @@ fn detail_lines(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'st
         ]));
     }
 
-    if let Some(percent) = item.progress() {
+    // A tally rather than a bar. A bar says *how far along*, which for a
+    // milestone is the least useful thing about it — the question is where
+    // the remaining work is, and the three numbers answer it in less room
+    // than the bar took.
+    if item.progress().is_some() {
         lines.push(Line::from(""));
-        lines.push(section("Progress", t, width));
-        lines.push(Line::from(vec![
-            Span::raw("  "),
-            Span::styled(
-                progress_bar(percent, 10),
-                Style::default().fg(if percent == 100 { t.done } else { t.accent }),
-            ),
-            Span::styled(
-                format!("  {} of {} done", item.scheduled_done, item.scheduled),
+        lines.push(section("Rollup", t, width));
+        let scheduled = app.rollup(item);
+        let mut spans = vec![Span::raw("  ")];
+        for (n, (mark, count, colour, what)) in [
+            ("✓", scheduled.done, t.done, "done"),
+            ("◐", scheduled.active, t.active, "in flight"),
+            ("○", scheduled.open, t.open, "to start"),
+        ]
+        .into_iter()
+        .filter(|(_, count, _, _)| *count > 0)
+        .enumerate()
+        {
+            if n > 0 {
+                spans.push(Span::styled(" · ", Style::default().fg(t.faint)));
+            }
+            spans.push(Span::styled(
+                format!("{mark} {count}"),
+                Style::default().fg(colour).add_modifier(Modifier::BOLD),
+            ));
+            spans.push(Span::styled(
+                format!(" {what}"),
                 Style::default().fg(t.muted),
-            ),
-        ]));
+            ));
+        }
+        if scheduled.blocked > 0 {
+            spans.push(Span::styled(" · ", Style::default().fg(t.faint)));
+            spans.push(Span::styled(
+                format!("⊘ {} blocked", scheduled.blocked),
+                Style::default().fg(t.blocked),
+            ));
+        }
+        lines.push(Line::from(spans));
     }
 
-    let (met, total) = item.criteria();
-    if let Some(percent) = (met * 100).checked_div(total) {
+    // The criteria themselves, in the room the bar was using. `3 of 3 ticked`
+    // says how many; this says which, and `t` ticks the one you are looking
+    // at, so the pane is the place the work is recorded and not a readout of
+    // it happening elsewhere.
+    let criteria = crate::item::criteria_at(&item.body, app.schema.criteria_section.as_deref());
+    let hoisted = hoisted_lines(&item.body, &criteria);
+    if !criteria.is_empty() {
+        let met = criteria.iter().filter(|(_, ticked, _)| *ticked).count();
+        // The one `t` would offer first, marked, so the key and the pane
+        // agree about which criterion is next.
+        let next = app
+            .can_tick
+            .then(|| criteria.iter().position(|(_, ticked, _)| !ticked))
+            .flatten();
         lines.push(Line::from(""));
         lines.push(section("Acceptance", t, width));
+        for (n, (_, ticked, text)) in criteria.iter().enumerate() {
+            let here = next == Some(n);
+            lines.hanging(
+                &inline(text),
+                t,
+                if *ticked { t.faint } else { t.text },
+                (
+                    "  ",
+                    vec![
+                        Span::styled(
+                            if here { "▸ " } else { "  " },
+                            Style::default().fg(t.accent),
+                        ),
+                        Span::styled(
+                            if *ticked { "✓ " } else { "☐ " },
+                            Style::default().fg(if *ticked { t.done } else { t.faint }),
+                        ),
+                    ],
+                ),
+                width.saturating_sub(6),
+            );
+        }
         lines.push(Line::from(vec![
             Span::raw("  "),
             Span::styled(
-                progress_bar(percent, 10),
-                Style::default().fg(if met == total { t.done } else { t.accent }),
-            ),
-            Span::styled(
-                format!("  {met} of {total} ticked"),
-                Style::default().fg(t.muted),
+                format!("{met} of {} ticked", criteria.len()),
+                Style::default().fg(t.faint),
             ),
         ]));
     }
 
     if !item.body.trim().is_empty() {
-        lines.push(Line::from(""));
-        lines.push(section("Body", t, width));
-        lines.extend(body_lines(&item.body, t, width.saturating_sub(2)));
+        let rest = body_prose_without(&item.body, &hoisted, t, width.saturating_sub(2));
+        if rest.lines.iter().any(|l| l.width() > 0) {
+            lines.push(Line::from(""));
+            lines.push(section("Body", t, width));
+            lines.extend(rest);
+        }
     }
 
     // Below the body, not above it. A grid of fields is reference material
@@ -1245,6 +1334,42 @@ fn detail_lines(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'st
     lines
 }
 
+/// Which lines of the body the Acceptance section has taken over.
+///
+/// The criteria themselves, and — where removing them empties a heading of
+/// everything but blank lines — that heading too. A body that says nothing
+/// under `## Acceptance criteria` but the criteria should not be left with a
+/// heading standing over a hole.
+fn hoisted_lines(
+    body: &str,
+    criteria: &[(usize, bool, String)],
+) -> std::collections::HashSet<usize> {
+    let mut skip: std::collections::HashSet<usize> = criteria.iter().map(|(n, _, _)| *n).collect();
+    if skip.is_empty() {
+        return skip;
+    }
+    let lines: Vec<&str> = body.lines().collect();
+    let level = |s: &str| {
+        let hashes = s.trim_start().chars().take_while(|c| *c == '#').count();
+        (1..=6).contains(&hashes).then_some(hashes)
+    };
+    for (n, line) in lines.iter().enumerate() {
+        let Some(depth) = level(line) else { continue };
+        let end = lines
+            .iter()
+            .enumerate()
+            .skip(n + 1)
+            .find(|(_, l)| level(l).is_some_and(|d| d <= depth))
+            .map(|(i, _)| i)
+            .unwrap_or(lines.len());
+        let empty = (n + 1..end).all(|i| skip.contains(&i) || lines[i].trim().is_empty());
+        if empty {
+            skip.extend(n..end);
+        }
+    }
+    skip
+}
+
 /// A heading, with a rule running out to the edge. Cheaper to scan than a
 /// column of capitals, and it gives the pane a horizontal rhythm.
 fn section(name: &str, t: &Theme, width: usize) -> Line<'static> {
@@ -1261,128 +1386,655 @@ fn section(name: &str, t: &Theme, width: usize) -> Line<'static> {
     ])
 }
 
-/// Markdown, at the fidelity a pane this size earns: headings stand out,
-/// checkboxes read as ticked or not, and everything else is text that keeps its
-/// left edge when it wraps.
-fn body_lines(body: &str, t: &Theme, width: usize) -> Vec<Line<'static>> {
-    let mut out = Vec::new();
-    let mut blank = false;
-    // A paragraph in the file is hard-wrapped at whatever width its author was
-    // working at. Re-wrapping each of those lines on its own reproduces their
-    // ragged edge inside a pane of a different width, so consecutive prose
-    // lines are joined back into a paragraph first and wrapped once.
-    let mut paragraph = String::new();
+/// A rendered body, and where the links in it landed.
+///
+/// The two travel together for the reason the stats pane's doors do: a link
+/// drawn in one place and registered in another is a target that moves when
+/// the layout does.
+#[derive(Default)]
+pub struct Prose {
+    lines: Vec<Line<'static>>,
+    /// `(line, x, width, target)`, x relative to the pane's inner area.
+    links: Vec<(u16, u16, u16, Target)>,
+}
 
-    macro_rules! flush {
-        () => {
-            if !paragraph.is_empty() {
-                for part in wrap(&plain_markdown(&paragraph), width) {
-                    out.push(Line::from(Span::styled(
-                        format!("  {part}"),
-                        Style::default().fg(t.muted),
-                    )));
-                }
-                paragraph.clear();
-            }
-        };
+impl Prose {
+    fn push(&mut self, line: Line<'static>) {
+        self.lines.push(line);
     }
 
-    for raw in body.lines() {
+    fn blank(&mut self) {
+        self.lines.push(Line::from(""));
+    }
+
+    /// Record that the span just pushed, at `x` and `width` columns wide,
+    /// leads somewhere.
+    fn link(&mut self, x: u16, width: u16, target: Target) {
+        let line = self.lines.len().saturating_sub(1) as u16;
+        self.links.push((line, x, width, target));
+    }
+
+    /// Fold another body's lines in, keeping its links pointing at the same
+    /// text now that it sits further down the pane.
+    fn extend(&mut self, other: Prose) {
+        let offset = self.lines.len() as u16;
+        self.links.extend(
+            other
+                .links
+                .into_iter()
+                .map(|(l, x, w, d)| (l + offset, x, w, d)),
+        );
+        self.lines.extend(other.lines);
+    }
+
+    /// Lay pieces out at an indent, recording where any links landed.
+    fn paragraph(&mut self, pieces: &[Piece], t: &Theme, base: Color, indent: &str, width: usize) {
+        self.hanging(pieces, t, base, (indent, Vec::new()), width);
+    }
+
+    /// A quotation, under a gutter that runs its whole height.
+    fn quote(&mut self, pieces: &[Piece], t: &Theme, width: usize) {
+        for row in wrap_pieces(pieces, width) {
+            let mut spans = vec![
+                Span::raw("  "),
+                Span::styled("▏ ", Style::default().fg(t.border)),
+            ];
+            for piece in row {
+                spans.push(Span::styled(piece.text, ink(piece.kind, t, t.faint)));
+            }
+            self.lines.push(Line::from(spans));
+        }
+    }
+
+    /// The same, under a marker the first line carries and the rest align to:
+    /// a bullet, a number, a checkbox, a quotation's gutter.
+    fn hanging(
+        &mut self,
+        pieces: &[Piece],
+        t: &Theme,
+        base: Color,
+        (indent, marker): (&str, Vec<Span<'static>>),
+        width: usize,
+    ) {
+        let lead: usize = marker.iter().map(|s| s.content.chars().count()).sum();
+        for (n, row) in wrap_pieces(pieces, width).into_iter().enumerate() {
+            let mut x = indent.chars().count() as u16;
+            let mut spans = vec![Span::raw(indent.to_string())];
+            if n == 0 {
+                spans.extend(marker.iter().cloned());
+            } else {
+                // Aligned under the first line's text rather than its
+                // marker, which is what makes a wrapped list still look
+                // like a list.
+                spans.push(Span::raw(" ".repeat(lead)));
+            }
+            x += lead as u16;
+            for piece in row {
+                let w = piece.text.chars().count() as u16;
+                if let Some(href) = &piece.href {
+                    // Trimmed of the space a wrap put in front of it, so the
+                    // target is the words and not the gap before them.
+                    let gap = u16::from(piece.text.starts_with(' '));
+                    self.links.push((
+                        self.lines.len() as u16,
+                        x + gap,
+                        w - gap,
+                        Target::Url(href.clone()),
+                    ));
+                }
+                spans.push(Span::styled(piece.text, ink(piece.kind, t, base)));
+                x += w;
+            }
+            self.lines.push(Line::from(spans));
+        }
+    }
+}
+
+/// Markdown, at the fidelity a pane this size earns.
+///
+/// Not a CommonMark implementation and not trying to be. The line it holds:
+/// this renders what cairn writes and what people write in cairn bodies, and
+/// **anything it does not recognise comes out as the text that was typed**.
+/// A renderer that swallows what it cannot parse is worse than one that
+/// renders nothing, because the reader cannot tell what is missing.
+fn body_prose(body: &str, t: &Theme, width: usize) -> Prose {
+    body_prose_without(body, &std::collections::HashSet::new(), t, width)
+}
+
+/// The same, with certain lines left out — the detail pane hoists the
+/// acceptance criteria above the body, and printing them twice would be the
+/// pane arguing with itself.
+/// `width` is how many columns the *text* may use; every line is drawn two
+/// columns in from that, which is how the body lines up under the section
+/// rules above it.
+fn body_prose_without(
+    body: &str,
+    skip: &std::collections::HashSet<usize>,
+    t: &Theme,
+    width: usize,
+) -> Prose {
+    let mut out = Prose::default();
+    let mut blank = false;
+    let mut fence: Option<String> = None;
+    let mut open = Open::None;
+
+    for (n, raw) in body.lines().enumerate() {
+        if skip.contains(&n) {
+            continue;
+        }
         let trimmed = raw.trim_start();
 
+        // Inside a fence nothing is markup, which is the point of a fence.
+        if let Some(marker) = &fence {
+            if trimmed.starts_with(marker.as_str()) {
+                fence = None;
+            } else {
+                out.push(code_line(raw, t, width));
+                blank = false;
+            }
+            continue;
+        }
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            open.flush(&mut out, t, width);
+            fence = Some(trimmed.chars().take(3).collect());
+            blank = false;
+            continue;
+        }
+
         if trimmed.is_empty() {
-            flush!();
+            open.flush(&mut out, t, width);
             // One blank line between things, never three.
-            if !out.is_empty() && !blank {
-                out.push(Line::from(""));
+            if !out.lines.is_empty() && !blank {
+                out.blank();
             }
             blank = true;
             continue;
         }
-        blank = false;
 
-        if trimmed.starts_with('#')
-            || trimmed.starts_with("- ")
-            || trimmed.starts_with("* ")
-            || raw.starts_with("    ")
-        {
-            flush!();
-        }
+        let indent = raw.len() - trimmed.len();
 
-        if let Some(heading) = trimmed
-            .strip_prefix("### ")
-            .or_else(|| trimmed.strip_prefix("## "))
-            .or_else(|| trimmed.strip_prefix("# "))
-        {
-            for part in wrap(&plain_markdown(heading), width) {
-                out.push(Line::from(Span::styled(
-                    format!("  {part}"),
-                    Style::default().fg(t.heading).bold(),
-                )));
-            }
-            continue;
-        }
-
-        if let Some(rest) = trimmed.strip_prefix("- [") {
-            let ticked = !rest.starts_with(' ');
-            let text = plain_markdown(rest.split_once("] ").map(|x| x.1).unwrap_or(""));
-            for (n, part) in wrap(&text, width.saturating_sub(2)).into_iter().enumerate() {
-                out.push(Line::from(vec![
-                    Span::raw("  "),
-                    if n == 0 {
-                        Span::styled(
-                            if ticked { "✓ " } else { "☐ " },
-                            Style::default().fg(if ticked { t.done } else { t.faint }),
-                        )
-                    } else {
-                        Span::raw("  ")
-                    },
-                    Span::styled(part, Style::default().fg(t.muted)),
-                ]));
-            }
-            continue;
-        }
-
-        if let Some(text) = trimmed.strip_prefix("- ").or(trimmed.strip_prefix("* ")) {
-            for (n, part) in wrap(&plain_markdown(text), width.saturating_sub(2))
-                .into_iter()
-                .enumerate()
-            {
-                out.push(Line::from(vec![
-                    Span::raw("  "),
-                    if n == 0 {
-                        Span::styled("· ", Style::default().fg(t.faint))
-                    } else {
-                        Span::raw("  ")
-                    },
-                    Span::styled(part, Style::default().fg(t.muted)),
-                ]));
-            }
-            continue;
-        }
-
-        // An indented line is code or a command; it keeps its own shape.
-        if raw.starts_with("    ") {
+        // A rule, which is a paragraph break somebody drew.
+        if rule(trimmed) {
+            open.flush(&mut out, t, width);
             out.push(Line::from(Span::styled(
-                format!("  {}", truncate(raw.trim_end(), width)),
-                Style::default().fg(t.faint),
+                format!("  {}", "─".repeat(width)),
+                Style::default().fg(t.border),
             )));
+            blank = false;
             continue;
         }
 
-        if !paragraph.is_empty() {
-            paragraph.push(' ');
+        // Levels differ, and none of them looks like the pane's own section
+        // headings — those carry a rule out to the edge, and a body heading
+        // must not be mistaken for one.
+        if let Some((level, text)) = heading(trimmed) {
+            open.flush(&mut out, t, width);
+            // Told apart by weight and not only by colour, so the levels are
+            // still three different things on a monochrome terminal — and
+            // none of them looks like the pane's own section headings, which
+            // carry a rule out to the edge.
+            let style = match level {
+                1 => Style::default().fg(t.heading).bold().underlined(),
+                2 => Style::default().fg(t.text).bold(),
+                _ => Style::default().fg(t.muted).italic(),
+            };
+            for row in wrap_pieces(&inline(text), width) {
+                let text: String = row.iter().map(|p| p.text.as_str()).collect();
+                out.push(Line::from(Span::styled(format!("  {text}"), style)));
+            }
+            blank = false;
+            continue;
         }
-        paragraph.push_str(trimmed.trim_end());
+
+        // An indented line is code or a command; it keeps its own shape. Only
+        // where it does not continue a list, where four spaces is nesting.
+        if raw.starts_with("    ") && !matches!(open, Open::Item { .. }) {
+            open.flush(&mut out, t, width);
+            out.push(code_line(raw.strip_prefix("    ").unwrap_or(raw), t, width));
+            blank = false;
+            continue;
+        }
+
+        // A second `>` continues the quotation rather than starting another
+        // one: a quotation is hard-wrapped in the file like any paragraph.
+        if trimmed.starts_with('>') && matches!(open, Open::Quote(_)) {
+            open.continues(trimmed);
+            blank = false;
+            continue;
+        }
+        if let Some(started) = Open::starting(trimmed, indent) {
+            open.flush(&mut out, t, width);
+            open = started;
+            blank = false;
+            continue;
+        }
+
+        // Anything else continues whatever is open, joined back into one
+        // paragraph: a body is hard-wrapped at the width its author was
+        // working at, and re-wrapping each of those lines on its own
+        // reproduces their ragged edge inside a pane of a different width.
+        open.continues(trimmed);
+        blank = false;
     }
-    flush!();
+    open.flush(&mut out, t, width);
+    // A body that ends in blank lines, or one whose last section was hoisted
+    // away, should not push a gap down in front of whatever follows it.
+    while out.lines.last().is_some_and(|l| l.width() == 0) {
+        out.lines.pop();
+    }
     out
 }
 
-/// The two bits of inline markup that are noise rather than emphasis when the
-/// emphasis cannot be rendered. Everything else is left exactly as written.
-fn plain_markdown(line: &str) -> String {
-    line.replace("**", "").replace('`', "")
+/// The block the reader is in the middle of.
+///
+/// Markdown's blocks run past their first line: a list item, a quotation and
+/// a paragraph all continue onto the next line unless something ends them.
+/// Held open until something does, so a wrapped line keeps the shape of the
+/// thing it belongs to instead of starting a new one at the left margin.
+enum Open {
+    None,
+    Para(String),
+    Quote(String),
+    /// A bullet, a number, or a checkbox — everything with a marker and a
+    /// hanging indent under it.
+    Item {
+        marker: String,
+        colour: Mark,
+        indent: usize,
+        text: String,
+    },
+}
+
+/// What a list marker is, which is all the colour depends on.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Mark {
+    Bullet,
+    Ticked,
+    Unticked,
+}
+
+impl Open {
+    /// Whether this line begins a block, and which.
+    fn starting(trimmed: &str, indent: usize) -> Option<Open> {
+        let item = |marker: String, colour: Mark, text: &str| Open::Item {
+            marker,
+            colour,
+            indent,
+            text: text.to_string(),
+        };
+        if let Some(rest) = trimmed
+            .strip_prefix("> ")
+            .or_else(|| trimmed.strip_prefix(">"))
+        {
+            return Some(Open::Quote(rest.trim().to_string()));
+        }
+        if let Some(rest) = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+            .or_else(|| trimmed.strip_prefix("+ "))
+        {
+            // A box, where there is one after the marker.
+            if let Some(after) = rest.strip_prefix("[ ]") {
+                return Some(item("☐".into(), Mark::Unticked, after.trim_start()));
+            }
+            if let Some(after) = rest
+                .strip_prefix("[x]")
+                .or_else(|| rest.strip_prefix("[X]"))
+            {
+                return Some(item("✓".into(), Mark::Ticked, after.trim_start()));
+            }
+            return Some(item("·".into(), Mark::Bullet, rest));
+        }
+        // The author's own number, kept rather than renumbered: a list that
+        // starts at 3 starts at 3 because somebody meant it to.
+        ordered(trimmed).map(|(number, rest)| item(format!("{number}."), Mark::Bullet, rest))
+    }
+
+    /// Another line of the same block.
+    fn continues(&mut self, trimmed: &str) {
+        let text = match self {
+            Open::None => {
+                *self = Open::Para(trimmed.to_string());
+                return;
+            }
+            Open::Para(text) | Open::Quote(text) | Open::Item { text, .. } => text,
+        };
+        // A quotation's continuation still carries its marker.
+        let trimmed = trimmed.strip_prefix("> ").unwrap_or(trimmed);
+        if !text.is_empty() {
+            text.push(' ');
+        }
+        text.push_str(trimmed.trim_end());
+    }
+
+    fn flush(&mut self, out: &mut Prose, t: &Theme, width: usize) {
+        match std::mem::replace(self, Open::None) {
+            Open::None => {}
+            Open::Para(text) => {
+                out.paragraph(&inline(&text), t, t.muted, "  ", width);
+            }
+            Open::Quote(text) => {
+                // A gutter rather than a `>`: it says where the quotation
+                // starts and stops without being read as part of it, and it
+                // runs the whole height of the quotation rather than
+                // marking only where it began.
+                out.quote(&inline(&text), t, width.saturating_sub(2));
+            }
+            Open::Item {
+                marker,
+                colour,
+                indent,
+                text,
+            } => {
+                let (mark, body) = match colour {
+                    Mark::Bullet => (t.faint, t.muted),
+                    Mark::Ticked => (t.done, t.faint),
+                    Mark::Unticked => (t.faint, t.muted),
+                };
+                let pad = " ".repeat(2 + indent);
+                let lead = marker.chars().count() + 1;
+                out.hanging(
+                    &inline(&text),
+                    t,
+                    body,
+                    (
+                        &pad,
+                        vec![Span::styled(
+                            format!("{marker} "),
+                            Style::default().fg(mark),
+                        )],
+                    ),
+                    width.saturating_sub(indent + lead),
+                );
+            }
+        }
+    }
+}
+
+/// Code keeps every space it was written with, and is never wrapped: a
+/// wrapped line of code is a line of code that has been altered.
+fn code_line(raw: &str, t: &Theme, width: usize) -> Line<'static> {
+    Line::from(vec![
+        Span::styled("  ▏ ", Style::default().fg(t.border)),
+        Span::styled(
+            truncate(raw.trim_end(), width.saturating_sub(4)),
+            Style::default().fg(t.label),
+        ),
+    ])
+}
+
+/// `# `, `## `, `### ` — the level, and what follows it.
+fn heading(trimmed: &str) -> Option<(usize, &str)> {
+    let hashes = trimmed.chars().take_while(|c| *c == '#').count();
+    (1..=6)
+        .contains(&hashes)
+        .then(|| trimmed[hashes..].strip_prefix(' '))
+        .flatten()
+        .map(|rest| (hashes, rest))
+}
+
+/// `1. ` and friends. The author's own number is kept.
+fn ordered(trimmed: &str) -> Option<(&str, &str)> {
+    let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
+    if digits == 0 || digits > 3 {
+        return None;
+    }
+    let rest = trimmed[digits..].strip_prefix(". ")?;
+    Some((&trimmed[..digits], rest))
+}
+
+/// `---`, `***`, `___` on a line of their own.
+fn rule(trimmed: &str) -> bool {
+    let t = trimmed.trim_end();
+    t.len() >= 3
+        && (t.chars().all(|c| c == '-')
+            || t.chars().all(|c| c == '*')
+            || t.chars().all(|c| c == '_'))
+}
+
+fn body_lines(body: &str, t: &Theme, width: usize) -> Vec<Line<'static>> {
+    body_prose(body, t, width).lines
+}
+
+/// One piece of a line, once the markup has been read off it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Piece {
+    text: String,
+    kind: Ink,
+    /// Where it goes, for the pieces that go somewhere.
+    href: Option<String>,
+}
+
+/// How a piece is drawn. Not a style: the theme decides that, and this only
+/// says what the markup claimed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Ink {
+    Plain,
+    Strong,
+    Emphasis,
+    Code,
+    Link,
+}
+
+/// Read the inline markup off a line.
+///
+/// Rendered rather than deleted, which is what this replaces: `plain_markdown`
+/// stripped `**` and backticks, so emphasis became ordinary prose and a
+/// command stopped looking like one.
+///
+/// The rule for everything it does not understand is that the source text
+/// survives. An unclosed `**` is two asterisks somebody typed, not an
+/// invitation to swallow the rest of the paragraph — which is the failure
+/// mode of every half-written markdown renderer.
+fn inline(text: &str) -> Vec<Piece> {
+    let mut out: Vec<Piece> = Vec::new();
+    let mut plain = String::new();
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+
+    // `[text](url)`, taking the text and keeping the destination.
+    let link_at = |from: usize| -> Option<(String, String, usize)> {
+        if chars.get(from) != Some(&'[') {
+            return None;
+        }
+        let close = (from + 1..chars.len()).find(|n| chars[*n] == ']')?;
+        if chars.get(close + 1) != Some(&'(') {
+            return None;
+        }
+        let end = (close + 2..chars.len()).find(|n| chars[*n] == ')')?;
+        Some((
+            chars[from + 1..close].iter().collect(),
+            chars[close + 2..end].iter().collect(),
+            end + 1,
+        ))
+    };
+
+    // A bare `https://…`, which people write far more often than they write
+    // the bracket form. It shows as itself — there is no other text to show —
+    // but it is still a target.
+    let url_at = |from: usize| -> Option<(String, usize)> {
+        let rest: String = chars[from..].iter().collect();
+        if !(rest.starts_with("https://") || rest.starts_with("http://")) {
+            return None;
+        }
+        // Only at a word boundary, so `see_https://x` is not half a link.
+        if from > 0 && !chars[from - 1].is_whitespace() && !"([<\"'".contains(chars[from - 1]) {
+            return None;
+        }
+        let mut end = from + rest.find(char::is_whitespace).unwrap_or(rest.len());
+        // A sentence ends in a full stop and the full stop is not part of the
+        // address; nor is the bracket the address was written inside.
+        while end > from && ".,;:!?)]}>\"'".contains(chars[end - 1]) {
+            end -= 1;
+        }
+        let url: String = chars[from..end].iter().collect();
+        (url.len() > "https://".len()).then_some((url, end))
+    };
+
+    // A run delimited by the same marker on both sides, with no blank
+    // between: `**a**`, `*a*`, `` `a` ``.
+    let run_at = |from: usize, marker: &str| -> Option<(String, usize)> {
+        let m: Vec<char> = marker.chars().collect();
+        if chars[from..].len() < m.len() * 2 + 1 || chars[from..from + m.len()] != m[..] {
+            return None;
+        }
+        let start = from + m.len();
+        // `a * b * c` is three words with asterisks between them, not
+        // emphasis: an opener is not followed by a space and a closer is not
+        // preceded by one. Without this every `*` in a sentence pairs up
+        // with the next one and swallows what is between them.
+        if chars.get(start).is_none_or(|c| c.is_whitespace()) {
+            return None;
+        }
+        let mut n = start;
+        while n + m.len() <= chars.len() {
+            if chars[n..n + m.len()] == m[..] && !chars[n - 1].is_whitespace() {
+                let body: String = chars[start..n].iter().collect();
+                return (!body.trim().is_empty()).then_some((body, n + m.len()));
+            }
+            n += 1;
+        }
+        None
+    };
+
+    while i < chars.len() {
+        // A backslash escapes the next character into the text as itself.
+        if chars[i] == '\\' && i + 1 < chars.len() {
+            plain.push(chars[i + 1]);
+            i += 2;
+            continue;
+        }
+        let found = if let Some((label, href, next)) = link_at(i) {
+            Some((label, Ink::Link, Some(href), next))
+        } else if let Some((url, next)) = url_at(i) {
+            Some((url.clone(), Ink::Link, Some(url), next))
+        } else if let Some((body, next)) = run_at(i, "`") {
+            // Code first and literally: backticks quote the markup inside
+            // them, which is how `**` gets written about at all.
+            Some((body, Ink::Code, None, next))
+        } else if let Some((body, next)) = run_at(i, "**") {
+            Some((body, Ink::Strong, None, next))
+        } else if let Some((body, next)) = run_at(i, "*") {
+            Some((body, Ink::Emphasis, None, next))
+        } else {
+            None
+        };
+        match found {
+            Some((body, kind, href, next)) => {
+                if !plain.is_empty() {
+                    out.push(Piece {
+                        text: std::mem::take(&mut plain),
+                        kind: Ink::Plain,
+                        href: None,
+                    });
+                }
+                out.push(Piece {
+                    text: body,
+                    kind,
+                    href,
+                });
+                i = next;
+            }
+            None => {
+                plain.push(chars[i]);
+                i += 1;
+            }
+        }
+    }
+    if !plain.is_empty() {
+        out.push(Piece {
+            text: plain,
+            kind: Ink::Plain,
+            href: None,
+        });
+    }
+    out
+}
+
+/// Break styled pieces across lines on word boundaries, the way `wrap` does
+/// for a plain string.
+///
+/// A word is what is between two spaces in the *rendered* text, which is not
+/// the same as a piece: `in`​`line`​`code` written with backticks in the middle
+/// is three pieces and one word, and breaking between them would put half a
+/// word on the next line. So the pieces are cut into words first, a word
+/// keeping whatever pieces it spans, and the break only ever falls where a
+/// space was actually written.
+fn wrap_pieces(pieces: &[Piece], width: usize) -> Vec<Vec<Piece>> {
+    if width == 0 {
+        return vec![Vec::new()];
+    }
+
+    // One entry per word: the pieces it is made of, and how wide it draws.
+    let mut words: Vec<(Vec<Piece>, usize)> = Vec::new();
+    let mut space = true;
+    for piece in pieces {
+        for part in piece.text.split_inclusive(char::is_whitespace) {
+            let trailing = part.ends_with(char::is_whitespace);
+            let word = part.trim_end();
+            if !word.is_empty() {
+                let fragment = Piece {
+                    text: word.to_string(),
+                    kind: piece.kind,
+                    href: piece.href.clone(),
+                };
+                match words.last_mut() {
+                    // Still the same word: the piece changed, the text did
+                    // not break.
+                    Some((parts, len)) if !space => {
+                        *len += word.chars().count();
+                        parts.push(fragment);
+                    }
+                    _ => words.push((vec![fragment], word.chars().count())),
+                }
+            }
+            space = trailing;
+        }
+    }
+
+    let mut lines: Vec<Vec<Piece>> = Vec::new();
+    let mut line: Vec<Piece> = Vec::new();
+    let mut used = 0usize;
+    for (parts, len) in words {
+        let gap = usize::from(used > 0);
+        if used > 0 && used + gap + len > width {
+            lines.push(std::mem::take(&mut line));
+            used = 0;
+        }
+        for (n, mut piece) in parts.into_iter().enumerate() {
+            if n == 0 && used > 0 {
+                piece.text.insert(0, ' ');
+            }
+            used += piece.text.chars().count();
+            // Runs of the same ink join, so the drawn line is as few spans
+            // as it can be rather than one per word.
+            match line.last_mut() {
+                Some(last) if last.kind == piece.kind && last.href == piece.href => {
+                    last.text.push_str(&piece.text);
+                }
+                _ => line.push(piece),
+            }
+        }
+    }
+    if !line.is_empty() || lines.is_empty() {
+        lines.push(line);
+    }
+    lines
+}
+
+/// What the markup claimed, in this theme.
+///
+/// Code takes the label colour rather than a background: a background on a
+/// span inside prose fights the selection tint and loses on a terminal that
+/// has neither.
+fn ink(kind: Ink, t: &Theme, base: Color) -> Style {
+    match kind {
+        Ink::Plain => Style::default().fg(base),
+        Ink::Strong => Style::default().fg(t.heading).bold(),
+        Ink::Emphasis => Style::default().fg(base).italic(),
+        Ink::Code => Style::default().fg(t.label),
+        Ink::Link => Style::default().fg(t.accent).underlined(),
+    }
 }
 
 /// Break text on word boundaries. A word longer than the line is cut rather
@@ -2085,7 +2737,7 @@ fn draw_reader(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         ]),
         Line::from(""),
     ];
-    lines.extend(body_lines(&item.body, t, inner));
+    lines.extend(body_lines(&item.body, t, inner.saturating_sub(2)));
 
     f.render_widget(Clear, popup);
     f.render_widget(
@@ -2767,6 +3419,217 @@ mod tests {
         // Anything above nothing shows something: rounding a real 4% down to an
         // empty bar says "not started", which is a different claim.
         assert!(progress_bar(4, 8).starts_with('▰'));
+    }
+
+    /// What the body renderer drew, as plain text, one line per line.
+    fn rendered(body: &str, width: usize) -> Vec<String> {
+        body_lines(body, &Theme::mono(), width)
+            .iter()
+            .map(|l| l.spans.iter().map(|s| s.content.as_ref()).collect())
+            .collect()
+    }
+
+    /// The old renderer deleted `**` and backticks, which turned emphasis
+    /// into prose and a command into a sentence.
+    #[test]
+    fn emphasis_is_rendered_rather_than_deleted() {
+        let pieces = inline("a **bold** and `code` and *soft* word");
+        let kinds: Vec<Ink> = pieces.iter().map(|p| p.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                Ink::Plain,
+                Ink::Strong,
+                Ink::Plain,
+                Ink::Code,
+                Ink::Plain,
+                Ink::Emphasis,
+                Ink::Plain
+            ]
+        );
+        let text: String = pieces.iter().map(|p| p.text.as_str()).collect();
+        assert_eq!(text, "a bold and code and soft word");
+    }
+
+    /// The failure mode of a half-written markdown renderer is swallowing
+    /// what it could not parse, and a reader cannot tell what is missing.
+    #[test]
+    fn anything_unrecognised_survives_as_what_was_typed() {
+        for source in [
+            "an **unclosed run",
+            "~~strikethrough~~ and <span>html</span>",
+            "a * b * c",
+            "an empty ** ** run",
+            "a [link with no destination]",
+            "trailing backtick `",
+        ] {
+            let text: String = inline(source).iter().map(|p| p.text.as_str()).collect();
+            assert_eq!(text, source, "mangled {source:?}");
+        }
+    }
+
+    #[test]
+    fn a_link_shows_its_text_and_keeps_its_destination() {
+        let pieces = inline("see [the spec](https://example.org/a) for more");
+        let link = pieces.iter().find(|p| p.kind == Ink::Link).expect("a link");
+        assert_eq!(link.text, "the spec");
+        assert_eq!(link.href.as_deref(), Some("https://example.org/a"));
+        let text: String = pieces.iter().map(|p| p.text.as_str()).collect();
+        assert_eq!(text, "see the spec for more");
+    }
+
+    /// People write far more bare urls than bracketed ones.
+    #[test]
+    fn a_bare_url_is_a_link_without_the_punctuation_after_it() {
+        let pieces = inline("at https://example.org/a, or (https://example.org/b).");
+        let links: Vec<&str> = pieces
+            .iter()
+            .filter(|p| p.kind == Ink::Link)
+            .map(|p| p.href.as_deref().unwrap())
+            .collect();
+        assert_eq!(
+            links,
+            vec!["https://example.org/a", "https://example.org/b"]
+        );
+        let text: String = pieces.iter().map(|p| p.text.as_str()).collect();
+        assert_eq!(
+            text,
+            "at https://example.org/a, or (https://example.org/b)."
+        );
+    }
+
+    /// Markup in the middle of a word is still one word, and a line may not
+    /// break inside it.
+    #[test]
+    fn a_word_split_across_markup_is_not_split_across_lines() {
+        let rows = wrap_pieces(&inline("aaaa `bb`cc"), 6);
+        let texts: Vec<String> = rows
+            .iter()
+            .map(|r| r.iter().map(|p| p.text.as_str()).collect())
+            .collect();
+        assert_eq!(texts, vec!["aaaa", "bbcc"]);
+    }
+
+    /// Rejoining pieces must not invent the whitespace markdown removed.
+    #[test]
+    fn markup_does_not_leave_a_space_behind_it() {
+        let rows = wrap_pieces(&inline("some **bold text**, then more"), 80);
+        let text: String = rows[0].iter().map(|p| p.text.as_str()).collect();
+        assert_eq!(text, "some bold text, then more");
+    }
+
+    #[test]
+    fn heading_levels_are_told_apart() {
+        let t = Theme::mono();
+        let styles: Vec<Style> = ["# one", "## two", "### three"]
+            .iter()
+            .map(|h| body_lines(h, &t, 40)[0].spans[0].style)
+            .collect();
+        assert_ne!(styles[0], styles[1]);
+        assert_ne!(styles[1], styles[2]);
+        assert_ne!(styles[0], styles[2]);
+    }
+
+    /// A wrapped line of code is a line of code that has been altered.
+    #[test]
+    fn a_fence_keeps_the_shape_of_what_is_inside_it() {
+        let out = rendered(
+            "```rust
+fn main() {
+    indented();
+}
+```",
+            40,
+        );
+        assert_eq!(out, vec!["  ▏ fn main() {", "  ▏     indented();", "  ▏ }"]);
+    }
+
+    /// Markup inside a fence is text, which is how `**` gets written about.
+    #[test]
+    fn a_fence_holds_its_markup_literally() {
+        let out = rendered(
+            "```
+# not a heading **not bold**
+```",
+            60,
+        );
+        assert_eq!(out, vec!["  ▏ # not a heading **not bold**"]);
+    }
+
+    #[test]
+    fn quotes_rules_and_ordered_lists_each_render() {
+        let out = rendered(
+            "> said
+
+---
+
+3. third
+4. fourth",
+            20,
+        );
+        assert_eq!(out[0], "  ▏ said");
+        assert!(out[2].trim().starts_with('─'), "{:?}", out[2]);
+        // The author's own numbers, not a renumbering from one.
+        assert_eq!(out[4], "  3. third");
+        assert_eq!(out[5], "  4. fourth");
+    }
+
+    /// A body is hard-wrapped at whatever width its author had. Wrapping each
+    /// of those lines on its own reproduces their ragged edge here.
+    #[test]
+    fn a_hard_wrapped_paragraph_is_rewrapped_as_one() {
+        let out = rendered(
+            "one two
+three four
+five six",
+            40,
+        );
+        assert_eq!(out, vec!["  one two three four five six"]);
+    }
+
+    /// A continuation line belongs to the list item above it, indented under
+    /// its text rather than restarting at the margin.
+    #[test]
+    fn a_wrapped_list_item_keeps_its_hanging_indent() {
+        let out = rendered("- one two three four five six seven", 16);
+        assert_eq!(out[0], "  · one two three");
+        for line in &out[1..] {
+            assert!(line.starts_with("    "), "lost the hang: {line:?}");
+        }
+    }
+
+    #[test]
+    fn nesting_is_kept() {
+        let out = rendered(
+            "- outer
+  - inner",
+            40,
+        );
+        assert_eq!(out, vec!["  · outer", "    · inner"]);
+    }
+
+    /// A bar said how far along a milestone was, which is the least useful
+    /// thing about it. This says where the remaining work is.
+    #[test]
+    fn a_container_gets_a_tally_rather_than_a_bar() {
+        let app = testkit::app();
+        let milestone = app
+            .items
+            .iter()
+            .find(|i| i.scheduled > 0)
+            .expect("the fixture has a milestone with work under it");
+        let text: String = detail_prose(&app, milestone, &Theme::mono(), 60)
+            .lines
+            .iter()
+            .flat_map(|l| l.spans.iter().map(|s| s.content.as_ref()))
+            .collect::<Vec<&str>>()
+            .join("");
+        assert!(text.contains("Rollup"), "{text}");
+        assert!(text.contains("✓ 1 done"), "{text}");
+        assert!(text.contains("◐ 1 in flight"), "{text}");
+        assert!(text.contains("○ 2 to start"), "{text}");
+        assert!(text.contains("⊘ 1 blocked"), "{text}");
+        assert!(!text.contains('▰'), "still drawing a bar: {text}");
     }
 
     #[test]

@@ -331,3 +331,62 @@ fn a_figure_on_the_stats_pane_is_clickable() {
     assert_eq!(app.filter, "ready=true", "the same door the key opens");
     assert_eq!(app.pane, Pane::List);
 }
+
+/// The criterion the item is filed under: a link shows its text, not its URL,
+/// and opens when clicked.
+#[test]
+fn a_link_in_the_body_opens_when_it_is_clicked() {
+    let mut app = testkit::app();
+    app.select_id(5);
+    drawn(&mut app);
+
+    let (x, y) = find(&app, &Hit::Link(0));
+    // What it says is the link text; the destination is not on the screen.
+    let screen = ui::render_frame(&mut app, 110, 26, 0);
+    let row: String = (0..110)
+        .map(|c| screen[(c, y)].symbol().to_string())
+        .collect();
+    assert!(
+        row.contains("report"),
+        "the link text is not drawn: {row:?}"
+    );
+    assert!(
+        !row.contains("example.org"),
+        "the url is on screen: {row:?}"
+    );
+
+    assert_eq!(
+        click(&mut app, x, y),
+        Action::Open("https://example.org/report".into())
+    );
+}
+
+/// A blocker is the one thing in the pane you always want to go to next.
+#[test]
+fn a_blocker_is_clickable() {
+    let mut app = testkit::app();
+    app.select_id(4);
+    drawn(&mut app);
+
+    let (x, y) = find(&app, &Hit::Link(0));
+    click(&mut app, x, y);
+    assert_eq!(app.selected_item().map(|i| i.id), Some(3));
+}
+
+/// Registered against where they were drawn, so scrolling moves the targets
+/// with the text rather than leaving them behind.
+#[test]
+fn scrolling_the_detail_pane_moves_what_is_clickable() {
+    let mut app = testkit::app();
+    app.select_id(5);
+    // Short enough that the pane holds more than it shows; a pane with
+    // nothing to scroll would pass this without meaning anything.
+    let _ = ui::render_frame(&mut app, 110, 14, 0);
+    let before = find(&app, &Hit::Link(0));
+
+    app.run(harrow::keys::Command::DetailDown);
+    let _ = ui::render_frame(&mut app, 110, 14, 0);
+    let after = find(&app, &Hit::Link(0));
+    assert_eq!(after.0, before.0);
+    assert_eq!(after.1 + 1, before.1);
+}

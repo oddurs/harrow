@@ -9,8 +9,8 @@
 │ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left ││   Body ────────────────────────────────────  │
 │  ○ 0006 Write the readme                             ?  p3 ││   What happens                               │
 │                                                            ││                                              │
-│                                                            ││   A long body runs off the bottom.           │
+│                                                            ││   A long body runs off the bottom, every     │
+│                                                            ││   time, and the report says why.             │
 │                                                            ││                                              │
-│                                                            ││   Fields ──────────────────────────────────  │
 ╰────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help
