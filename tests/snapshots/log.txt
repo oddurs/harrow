@@ -6,11 +6,11 @@
 │   2026-09-10 Oddur          0005 close the reader              ││   in progress · feature · v0.1 · @oddur  │
 │   2026-09-09 an agent       0006 file the readme               ││                                          │
 │                                                                ││   Acceptance ──────────────────────────  │
-│                                                                ││   ▰▰▰▰▰▱▱▱▱▱  1 of 2 ticked              │
+│                                                                ││     ✓ rows                               │
+│                                                                ││     ☐ groups                             │
+│                                                                ││   1 of 2 ticked                          │
 │                                                                ││                                          │
 │                                                                ││   Body ────────────────────────────────  │
 │                                                                ││   Problem                                │
-│                                                                ││                                          │
-│                                                                ││   A backlog you cannot move through is a │
 ╰────────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

@@ -83,9 +83,13 @@ Three ways of looking at one backlog, that behave like one program.
 
 ## v0.5 — The work is somebody else's; the deciding is yours
 
-`##########` 100% · 6 of 6 done · due 2027-04-01
+`#########·` 86% · 6 of 7 done · due 2027-04-01
 
 The work is somebody else's. The deciding is yours.
+
+### in progress
+
+- [ ] `0073` A detail pane worth reading <sup>feature · p1 · chrome</sup>
 
 ### done
 

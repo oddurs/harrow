@@ -8,13 +8,13 @@
 │  ◐ 000╭ 0003 · history ──────────────────────────────────────────────────────────────────╮─────  │
 │ ▾ no m│                                                                                  │       │
 │  ○ 000│  2026-09-02  Oddur Sigurdsson    created                                         │       │
-│       │  2026-09-03  Oddur Sigurdsson    status backlog -> doing                         │─────  │
+│       │  2026-09-03  Oddur Sigurdsson    status backlog -> doing                         │       │
 │       │  2026-09-03  an agent            priority p2 -> p1                               │       │
-│       ╰ ↑↓ scroll · any other key closes ────────────────────────────────────────────────╯       │
+│       ╰ ↑↓ scroll · any other key closes ────────────────────────────────────────────────╯─────  │
+│                                                      ││   Problem                                │
+│                                                      ││                                          │
 │                                                      ││   A backlog you cannot move through is a │
 │                                                      ││   file you could have opened.            │
 │                                                      ││                                          │
-│                                                      ││   ✓ rows                                 │
-│                                                      ││   ☐ groups                               │
 ╰──────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

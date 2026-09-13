@@ -8,14 +8,14 @@
 │  ○ 0006 Write the readme                             ?  p3 ││   Body ────────────────────────────────────  │
 │ ▾ in progress                          ▱▱▱▱▱▱   0%  1 left ││   What happens                               │
 │  ◐ 0003 Draw the list                      1/2  @oddur  p1 ││                                              │
-│                                                            ││   A long body runs off the bottom.           │
+│                                                            ││   A long body runs off the bottom, every     │
+│                                                            ││   time, and the report says why.             │
 │                                                            ││                                              │
 │                                                            ││   Fields ──────────────────────────────────  │
 │                                                            ││   priority p1                                │
 │                                                            ││   area     ui                                │
 │                                                            ││   labels   chrome                            │
 │                                                            ││   created  2026-09-04                        │
-│                                                            ││                                              │
 │                                                            ││                                              │
 │                                                            ││                                              │
 │                                                            ││                                              │

@@ -112,6 +112,29 @@ pub enum Hit {
     Question(usize),
     /// A change on the log lens, by index into `moments`.
     Moment(usize),
+    /// Something in the detail pane that leads somewhere, by index into
+    /// `links`.
+    Link(usize),
+}
+
+/// Where the work beneath a container stands. `blocked` overlaps the others:
+/// a blocked item is still open or active, and saying so twice is the point —
+/// it is both a thing not done and a thing nobody can do.
+#[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Rollup {
+    pub done: u32,
+    pub active: u32,
+    pub open: u32,
+    pub blocked: u32,
+}
+
+/// Where something in a body or a field leads.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Target {
+    /// A URL written in the body, to be handed to the system.
+    Url(String),
+    /// Another item — a blocker, or a reference to one.
+    Item(u32),
 }
 
 /// Something addressed to a person.
@@ -233,6 +256,8 @@ pub enum Action {
     Activity,
     /// Ask cairn to change something.
     Write(Change),
+    /// Hand a URL to whatever the system opens URLs with.
+    Open(String),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -577,6 +602,10 @@ pub struct App {
     /// What each figure on the stats pane opens, rebuilt as it is drawn, the
     /// same way the hit map is.
     pub doors: Vec<Door>,
+    /// Where the clickable things in the detail pane lead. Rebuilt by the
+    /// renderer each frame, for the same reason `doors` is: only the renderer
+    /// knows where they landed.
+    pub links: Vec<Target>,
     /// Which figure the stats cursor is on.
     pub figure: usize,
     /// The last click, for telling a double-click from two single ones.
@@ -663,6 +692,7 @@ impl App {
             keymap: Keymap::default(),
             hits: Vec::new(),
             doors: Vec::new(),
+            links: Vec::new(),
             figure: 0,
             last_click: None,
             dragging: None,
@@ -2310,6 +2340,70 @@ impl App {
     /// A set becomes the filter that produced it, on the list, because the
     /// list is where you act on a set. One item becomes that item, selected.
     /// `esc` comes back out of either, which it already did.
+    /// Where the work under a container stands.
+    ///
+    /// A percentage answers *how far along*, which for a milestone is the
+    /// least useful thing about it. The question a reader actually has is
+    /// where the remaining work **is** — and four numbers answer it in less
+    /// room than a bar took.
+    ///
+    /// Transitive, matching the rollup the engine computes, so this and the
+    /// count beside a group heading never disagree.
+    pub fn rollup(&self, item: &Item) -> Rollup {
+        let mut out = Rollup::default();
+        let mut seen = std::collections::HashSet::new();
+        let mut stack = item.contains.clone();
+        while let Some(id) = stack.pop() {
+            if !seen.insert(id) {
+                continue;
+            }
+            let Some(child) = self.by_id.get(&id).and_then(|&i| self.items.get(i)) else {
+                continue;
+            };
+            stack.extend(child.contains.iter().copied());
+            match self.schema.category(&child.status) {
+                Category::Done | Category::Dropped => out.done += 1,
+                Category::Active => out.active += 1,
+                Category::Open => out.open += 1,
+            }
+            if child.blocked {
+                out.blocked += 1;
+            }
+        }
+        out
+    }
+
+    /// Follow something in the detail pane: out to the browser, or across to
+    /// another item.
+    pub fn follow(&mut self, n: usize) -> Action {
+        match self.links.get(n).cloned() {
+            Some(Target::Url(url)) => {
+                self.toast(format!("opening {url}"), ToastKind::Info);
+                Action::Open(url)
+            }
+            Some(Target::Item(id)) => {
+                let shown = self.by_id.get(&id).is_some_and(|&i| {
+                    self.rows
+                        .iter()
+                        .any(|r| matches!(r, Row::Item(j) if *j == i))
+                });
+                if shown {
+                    self.select_id(id);
+                } else {
+                    // It exists — it is a blocker — but the filter in force is
+                    // hiding it, and jumping nowhere in silence is worse than
+                    // saying why nothing happened.
+                    self.toast(
+                        format!("{} is not in this view", self.schema.format_id(id)),
+                        ToastKind::Info,
+                    );
+                }
+                Action::None
+            }
+            None => Action::None,
+        }
+    }
+
     pub fn open_door(&mut self, n: usize) -> Action {
         let Some(door) = self.doors.get(n).cloned() else {
             return Action::None;
@@ -3355,6 +3449,7 @@ impl App {
             // click that closed an item would be a click nobody meant.
             Hit::Question(n) => self.select_question(n),
             Hit::Moment(n) => self.select_moment(n),
+            Hit::Link(n) => return self.follow(n),
         }
         Action::None
     }
