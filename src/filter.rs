@@ -175,11 +175,31 @@ pub const DERIVED: &[&str] = &[
     "criteria_met",
 ];
 
+/// Names that answer as another key.
+///
+/// cairn keeps the same two beside its own key list, with a note that it
+/// learned to: `cairn check` called a working saved view in a real project a
+/// typo the first time it ran outside the tests. The alias table and the
+/// list of legitimate keys have to move together, which is why they are
+/// adjacent here too.
+const ALIASES: &[(&str, &str)] = &[("kind", "type"), ("label", "labels")];
+
+/// The key a name actually answers as.
+pub fn canonical(name: &str) -> &str {
+    ALIASES
+        .iter()
+        .find(|(alias, _)| *alias == name)
+        .map(|(_, real)| *real)
+        .unwrap_or(name)
+}
+
 fn known_field(name: &str, schema: &Schema) -> bool {
+    let name = canonical(name);
     DERIVED.contains(&name) || schema.field(name).is_some()
 }
 
 pub fn resolve(item: &Item, schema: &Schema, key: &str) -> Field {
+    let key = canonical(key);
     let text = |s: String| {
         if s.is_empty() {
             Field::Missing
@@ -441,6 +461,37 @@ mod tests {
     fn a_bare_word_is_a_free_text_search() {
         assert_eq!(matching("board"), vec![4]);
         assert_eq!(matching("0003"), vec![3]);
+    }
+
+    /// cairn resolves `kind` to `type` and `label` to `labels`, and harrow
+    /// reads filters cairn wrote, so not knowing them is not leniency — it
+    /// is a different answer to the same question.
+    #[test]
+    fn the_aliases_cairn_accepts_resolve_here_too() {
+        assert_eq!(canonical("kind"), "type");
+        assert_eq!(canonical("label"), "labels");
+        assert_eq!(canonical("labels"), "labels", "and a real name is itself");
+        assert_eq!(canonical("priority"), "priority");
+
+        let schema = crate::testkit::schema();
+        for (a, b) in [("label=chrome", "labels=chrome"), ("kind=bug", "type=bug")] {
+            assert_eq!(matching(a), matching(b), "{a} and {b} name the same thing");
+            assert!(
+                Query::parse(a, &schema).unknown.is_empty(),
+                "{a} is not an unknown field"
+            );
+        }
+    }
+
+    /// `=` against a list means *any element equals*, which is what cairn's
+    /// `eq_field` does. Recorded because it looked like a defect and is not.
+    #[test]
+    fn equality_against_a_list_matches_any_element() {
+        assert_eq!(matching("labels=chrome"), matching("labels~chrome"));
+        assert!(
+            matching("labels=chrom").is_empty(),
+            "an element equals, it does not merely begin with"
+        );
     }
 
     #[test]

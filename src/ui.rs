@@ -439,7 +439,19 @@ fn draw_list(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 }
 
 fn empty_message(app: &App, t: &Theme) -> Vec<Line<'static>> {
-    let (headline, hint) = if app.items.is_empty() {
+    // A filter that did not parse is not an empty set, and saying "No
+    // matches" for one is the difference between a true answer and a
+    // silence that looks like one.
+    let (headline, hint) = if let Some(why) = app.filter_problem() {
+        return vec![
+            Line::from(""),
+            Line::from(Span::styled(why, Style::default().fg(t.warn))),
+            Line::from(Span::styled(
+                "esc clears the filter.",
+                Style::default().fg(t.faint),
+            )),
+        ];
+    } else if app.items.is_empty() {
         (
             "Nothing in the backlog yet.",
             "Press n to write the first item.",

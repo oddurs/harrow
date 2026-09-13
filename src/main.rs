@@ -366,6 +366,23 @@ fn cmd_themes(args: &[String]) -> Result<()> {
 }
 
 /// A scriptable one-shot: read the backlog, print a table, exit.
+/// A filter naming a field nothing declares matches nothing, and nothing is
+/// indistinguishable from an empty backlog. On the command line that is an
+/// error with a non-zero status, because a script cannot see an empty pane
+/// and wonder about it.
+///
+/// Named rather than counted: the point is to say *which* field, since the
+/// usual cause is a spelling cairn accepts and harrow did not.
+fn refuse_a_filter_that_does_not_parse(app: &App) {
+    if let Some(why) = app.filter_problem() {
+        eprintln!("harrow: {why}");
+        if let Some(view) = &app.view {
+            eprintln!("harrow: it came from the saved view `{view}` in cairn.toml");
+        }
+        std::process::exit(2);
+    }
+}
+
 fn plain(startup: Startup, args: &[String]) -> Result<()> {
     let mut project = open_project(&startup);
     let report = match project.load() {
@@ -381,6 +398,7 @@ fn plain(startup: Startup, args: &[String]) -> Result<()> {
 
     let mut app = prepare(&startup, args);
     app.ingest(report);
+    refuse_a_filter_that_does_not_parse(&app);
 
     for row in &app.rows {
         let harrow::app::Row::Item(i) = row else {

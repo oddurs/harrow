@@ -199,7 +199,13 @@ body~oauth                         full text
 
 A clause with no operator is a plain search, so `/` is useful before any of
 that has been learned. The list narrows as you type, and a field the project
-does not have is reported rather than silently matching nothing.
+does not have is named and refused — on the command line with a non-zero
+status, in the interface instead of the list, and never as an empty result
+that reads like a true empty set.
+
+The grammar is cairn's, because a saved view is a string the project wrote
+for cairn and harrow reads it verbatim. `harrow --doctor` parses every saved
+view in `cairn.toml` and names any it cannot evaluate.
 
 ## Configuration
 

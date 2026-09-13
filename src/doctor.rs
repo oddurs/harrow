@@ -70,6 +70,37 @@ pub fn run(config: &Config, config_path: Option<&Path>, theme: &Theme, start: &P
                     },
                 });
 
+                // Every saved view, parsed. These filters are strings the
+                // project wrote for cairn and harrow reads verbatim, so a
+                // grammar difference between the two shows up as a view
+                // that quietly selects nothing — which is what this check
+                // exists to catch before somebody stares at an empty pane
+                // and believes it.
+                let bad: Vec<String> = report
+                    .schema
+                    .views
+                    .iter()
+                    .filter_map(|view| {
+                        let filter = view.filter.as_deref()?;
+                        let query = crate::filter::Query::parse(filter, &report.schema);
+                        (!query.unknown.is_empty()).then(|| {
+                            format!("{}: no such field {}", view.name, query.unknown.join(", "))
+                        })
+                    })
+                    .collect();
+                checks.push(Check {
+                    name: "views",
+                    ok: bad.is_empty(),
+                    detail: if report.schema.views.is_empty() {
+                        "this project declares none".to_string()
+                    } else if bad.is_empty() {
+                        format!("{} saved, all of them readable", report.schema.views.len())
+                    } else {
+                        bad.join("; ")
+                    },
+                    fatal: false,
+                });
+
                 let problems = report.schema.problems();
                 checks.push(Check {
                     name: "schema",

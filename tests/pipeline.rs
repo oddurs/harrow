@@ -1060,3 +1060,89 @@ fn the_log_is_asked_once_and_again_when_something_changes() {
     app.ingest(project.load().expect("loads"));
     assert!(app.moments.is_none(), "until the backlog changes under it");
 }
+
+/// The defect this is all about: a filter harrow could not parse matched
+/// nothing, and nothing is indistinguishable from an empty backlog.
+#[test]
+fn a_filter_that_did_not_parse_never_reads_as_an_empty_backlog() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+
+    app.handle_key(KeyCode::Char('/'), KeyModifiers::NONE);
+    for c in "sprint=s1".chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+    }
+    app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+
+    assert!(app.rows.is_empty(), "it selects nothing, as cairn does");
+    let why = app.filter_problem().expect("and says why");
+    assert!(why.contains("sprint"), "naming the field: {why}");
+
+    let screen = harrow::ui::render_to_string(&mut app, 110, 20, 0);
+    assert!(
+        screen.contains("sprint"),
+        "on the screen, not only in the state"
+    );
+    assert!(
+        !screen.contains("No matches"),
+        "and never as a true empty set:\n{screen}"
+    );
+}
+
+/// A view whose filter harrow cannot evaluate is the same defect arriving
+/// from `cairn.toml` rather than from the keyboard, which is worse because
+/// nobody typed it and so nobody suspects it.
+#[test]
+fn a_view_harrow_cannot_evaluate_says_so_rather_than_selecting_nothing() {
+    let dir = testkit::project();
+    let cfg = dir.path().join("cairn.toml");
+    let text = std::fs::read_to_string(&cfg).expect("the fixture config");
+    std::fs::write(
+        &cfg,
+        format!("{text}\n[[view]]\nname = \"broken\"\nfilter = \"sprint=s1\"\n"),
+    )
+    .expect("add a view cairn would accept and harrow cannot read");
+
+    let mut project = Project::discover(dir.path()).expect("found");
+    let mut app = App::new();
+    app.view = Some("broken".into());
+    app.ingest(project.load().expect("loads"));
+
+    let why = app.filter_problem().expect("it is reported");
+    assert!(why.contains("sprint"), "{why}");
+}
+
+/// The check that would have caught this without anybody staring at an
+/// empty pane and believing it.
+#[test]
+fn the_doctor_parses_every_saved_view() {
+    let dir = testkit::project();
+    let cfg = dir.path().join("cairn.toml");
+    let text = std::fs::read_to_string(&cfg).expect("the fixture config");
+
+    let views = |app_dir: &std::path::Path| -> harrow::doctor::Check {
+        let config = harrow::config::Config::default();
+        let theme = harrow::theme::Theme::auto(true);
+        harrow::doctor::run(&config, None, &theme, app_dir)
+            .into_iter()
+            .find(|c| c.name == "views")
+            .expect("the doctor checks the views")
+    };
+
+    let good = views(dir.path());
+    assert!(good.ok, "the fixture's own view reads: {}", good.detail);
+
+    std::fs::write(
+        &cfg,
+        format!("{text}\n[[view]]\nname = \"broken\"\nfilter = \"sprint=s1\"\n"),
+    )
+    .expect("break one");
+    let bad = views(dir.path());
+    assert!(!bad.ok, "a view naming an undeclared field is not ok");
+    assert!(
+        bad.detail.contains("broken") && bad.detail.contains("sprint"),
+        "{}",
+        bad.detail
+    );
+}
