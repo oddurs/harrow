@@ -123,6 +123,18 @@ to *why is it like this*. A title with no body is not an item.
   remain listed against the item that closes each. Add a lens and you meet
   the contract; add a capability to one lens and it belongs to all of them.
 
+- **The filter grammar is cairn's, and harrow is louder about what it cannot
+  read.** A `[[view]]` filter is a string the project wrote for cairn, which
+  harrow reads out of `cairn.toml` verbatim and evaluates without asking
+  cairn anything. So a grammar narrower than cairn's does not fail — it
+  silently returns a different answer, which is how `label=thesis` came to
+  select nothing here and twenty-six items there. Every spelling cairn
+  accepts must work, aliases included; `tests/agreement.rs` holds the two
+  tools to the same ids for the same strings. Where they differ on purpose:
+  cairn returns an empty list for a field nothing declares and catches it in
+  `cairn check`, and harrow has no check time, so it refuses at query time
+  and says which field. Never let an unparsed filter render as an empty set.
+
 - **Nothing about a workflow is hardcoded.** Statuses, their order, types,
   icons, fields, board columns and colours all come from the project's
   `cairn.toml`. If you find yourself writing `"doing"` in a match arm, stop.

@@ -884,6 +884,25 @@ impl App {
         counts
     }
 
+    /// What is wrong with the filter in force, if anything.
+    ///
+    /// A field nothing declares matches nothing, which is indistinguishable
+    /// from a backlog with nothing in it — and that is the whole defect: a
+    /// `[[view]]` cairn accepts opened here as an empty pane saying *No
+    /// matches*. cairn is lenient at query time and strict in `check`;
+    /// harrow has no check time, so it is strict here.
+    pub fn filter_problem(&self) -> Option<String> {
+        let unknown = &self.query.unknown;
+        match unknown.len() {
+            0 => None,
+            1 => Some(format!(
+                "no such field `{}` — this project does not declare it",
+                unknown[0]
+            )),
+            _ => Some(format!("no such fields: {}", unknown.join(", "))),
+        }
+    }
+
     /// A view or a grouping named on the command line may not exist in this
     /// project. Say so and fall back, rather than showing an empty screen with
     /// a heading that claims a filter is in force.

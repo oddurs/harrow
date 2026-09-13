@@ -44,7 +44,7 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
 ## v0.3 — Read everything cairn writes, and nothing it does not
 
-`##########` 100% · 12 of 12 done · due 2027-02-15
+`##########` 100% · 13 of 13 done · due 2027-02-15
 
 harrow reads cairn's files directly. That is the decision the whole program
 
@@ -62,6 +62,7 @@ harrow reads cairn's files directly. That is the decision the whole program
 - [x] `0038` Run the project's own check and show what it says <sup>feature · p2 · chrome</sup>
 - [x] `0053` Reload throws away the terminal's palette <sup>bug · p1 · theme</sup>
 - [x] `0054` The derived theme paints chrome in the warning colour <sup>bug · p2 · theme</sup>
+- [x] `0071` A filter cairn accepts must not open as an empty backlog <sup>bug · p0 · filter</sup>
 
 ## v0.4 — One backlog, three lenses
 
