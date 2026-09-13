@@ -203,8 +203,15 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
     } else {
         harrow::app::Pane::from_name(&startup.config.pane).unwrap_or_default()
     };
-    app.group_by =
-        flag_value(args, "--group-by").unwrap_or_else(|| startup.config.group_by.clone());
+    // The axis of whatever is opening. The board keeps its own — a list by
+    // milestone beside a board by status is the pair that sharing one would
+    // cost — but asking for an axis on the command line while opening the
+    // board and getting the list's is just a flag that does nothing.
+    match flag_value(args, "--group-by") {
+        Some(axis) if app.pane == harrow::app::Pane::Board => app.board_by = axis,
+        Some(axis) => app.group_by = axis,
+        None => app.group_by = startup.config.group_by.clone(),
+    }
     app.sort = flag_value(args, "--sort").unwrap_or_else(|| startup.config.sort.clone());
     app.filter = flag_value(args, "--filter")
         .or_else(|| flag_value(args, "-f"))

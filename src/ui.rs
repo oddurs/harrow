@@ -35,6 +35,8 @@ const DETAIL_MIN_WIDTH: u16 = 96;
 const DETAIL_WIDTH: u16 = 44;
 /// What one board column needs to stay a card rather than a stub.
 const COLUMN_MIN: u16 = 26;
+/// What a column with nothing in it needs: its name, its nought, its edges.
+const EMPTY_COLUMN: u16 = 15;
 /// What the stats pane needs to lay itself out in two columns, which is what
 /// it does whenever it has the room: its sections are short, and one column
 /// of them is mostly whitespace.
@@ -723,12 +725,29 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         return;
     }
 
-    // Every column the same width. A board whose columns move as items arrive
-    // is a board you cannot learn the shape of.
+    // Every column with cards in it the same width. The rule that matters is
+    // that a board's shape is learnable — the same lanes, in the same order,
+    // and peers the same size — and an empty lane needs room for its name,
+    // not an equal share. Five lanes with three empty gave the hundred and
+    // nineteen items twenty-eight columns and spent ninety on nothing.
     let count = app.columns.len();
-    let constraints: Vec<Constraint> = (0..count)
-        .map(|_| Constraint::Ratio(1, count as u32))
-        .collect();
+    let filled = app.columns.iter().filter(|c| !c.items.is_empty()).count();
+    let constraints: Vec<Constraint> = if filled == 0 || filled == count {
+        (0..count)
+            .map(|_| Constraint::Ratio(1, count as u32))
+            .collect()
+    } else {
+        app.columns
+            .iter()
+            .map(|c| {
+                if c.items.is_empty() {
+                    Constraint::Length(EMPTY_COLUMN)
+                } else {
+                    Constraint::Min(COLUMN_MIN)
+                }
+            })
+            .collect()
+    };
     let cells = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(constraints)
@@ -759,16 +778,20 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(border))
-            .title(Line::from(vec![
-                Span::styled(
-                    format!(" {} ", column.label),
-                    Style::default().fg(color).bold(),
-                ),
-                Span::styled(
-                    format!("{} ", column.items.len()),
-                    Style::default().fg(t.faint),
-                ),
-            ]));
+            // The count is the half that must survive a narrow lane: a
+            // truncated name is still a name, and `in progress` cut to
+            // `in progress` with the nought gone reads as damage.
+            .title({
+                let n = column.items.len().to_string();
+                let room = (cell.width as usize).saturating_sub(n.chars().count() + 5);
+                Line::from(vec![
+                    Span::styled(
+                        format!(" {} ", truncate(&column.label, room)),
+                        Style::default().fg(color).bold(),
+                    ),
+                    Span::styled(format!("{n} "), Style::default().fg(t.faint)),
+                ])
+            });
 
         let inner_width = cell.width.saturating_sub(2) as usize;
         let inner_height = cell.height.saturating_sub(2) as usize;
@@ -803,6 +826,18 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
                 Hit::Card(index, offset + n),
             ));
         }
+
+        // A column showing twenty of a hundred and nineteen should say so.
+        // The heading carries the total; this is the part below the fold.
+        let hidden = column.items.len().saturating_sub(end);
+        let block = if hidden > 0 && inner_width > 12 {
+            block.title_bottom(Span::styled(
+                format!(" {hidden} more "),
+                Style::default().fg(t.faint),
+            ))
+        } else {
+            block
+        };
 
         let list = List::new(cards).block(block).highlight_style(if focused {
             t.selected()
