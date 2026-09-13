@@ -312,3 +312,19 @@ fn an_item_with_a_thread_on_it() {
     app.select_id(3);
     support::assert_snapshot("thread", &ui::render_to_string(&mut app, 110, 20, 0));
 }
+
+/// An empty lane costs its name, not an equal share. Five lanes with three
+/// empty gave a hundred and nineteen items twenty-eight columns and spent
+/// ninety on nothing.
+#[test]
+fn a_board_with_empty_lanes() {
+    let mut app = support::app();
+    app.pane = harrow::app::Pane::Board;
+    app.show_all = true;
+    app.filter = "category=done".into();
+    app.ingest(harrow::testkit::report());
+    support::assert_snapshot(
+        "board-empty-lanes",
+        &ui::render_to_string(&mut app, 110, 12, 0),
+    );
+}

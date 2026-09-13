@@ -1389,7 +1389,11 @@ impl App {
         let mut cards: Vec<usize> = (0..self.items.len())
             .filter(|i| self.on_board(&self.items[*i]))
             .collect();
-        cards.sort_by(order);
+        // By the sort keys alone. The list's grouping is invisible on a
+        // board grouped by something else, so carrying its rank here made a
+        // status board read as unsorted: priority ran p0, p0, p2, p2, p0 —
+        // which was milestone order, correctly applied and meaningless.
+        cards.sort_by(|a, b| self.compare(*a, *b, &sort));
 
         self.groups.clear();
         self.rows.clear();

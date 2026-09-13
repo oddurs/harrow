@@ -1146,3 +1146,68 @@ fn the_doctor_parses_every_saved_view() {
         bad.detail
     );
 }
+
+/// A board grouped by status shows no milestones, so carrying the list's
+/// group rank into the cards made the priority order appear to restart at
+/// random: p0, p0, p2, p2, p0 — correct milestone order, and meaningless
+/// where the milestone is invisible.
+#[test]
+fn cards_are_ordered_by_the_sort_and_not_by_the_lists_grouping() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    app.pane = harrow::app::Pane::Board;
+    app.group_by = "milestone".into();
+    app.sort = "priority,id".into();
+    app.rebuild();
+
+    for column in &app.columns {
+        let ranks: Vec<usize> = column
+            .items
+            .iter()
+            .map(|i| {
+                app.schema
+                    .field("priority")
+                    .map(|f| f.rank(app.items[*i].field_str("priority").unwrap_or("")))
+                    .unwrap_or(0)
+            })
+            .collect();
+        assert!(
+            ranks.windows(2).all(|w| w[0] <= w[1]),
+            "{} reads out of order: {ranks:?}",
+            column.label
+        );
+    }
+}
+
+/// An empty lane is still a lane — every declared column is drawn, in
+/// declared order — it just stops costing what a full one costs.
+#[test]
+fn an_empty_lane_is_still_drawn_in_its_place() {
+    let dir = testkit::project();
+    let mut app = app_for(dir.path());
+    app.pane = harrow::app::Pane::Board;
+    app.show_all = true;
+    app.filter = "category=done".into();
+    app.ingest({
+        let mut project = Project::discover(dir.path()).expect("found");
+        project.load().expect("loads")
+    });
+
+    let lanes: Vec<(&str, usize)> = app
+        .columns
+        .iter()
+        .map(|c| (c.value.as_str(), c.items.len()))
+        .collect();
+    assert_eq!(
+        lanes,
+        [("backlog", 0), ("doing", 0), ("done", 1)],
+        "declared order, empties included"
+    );
+
+    // And the one with cards gets the room.
+    let screen = harrow::ui::render_to_string(&mut app, 110, 12, 0);
+    assert!(
+        screen.contains("Read the item files"),
+        "the title is readable rather than truncated to nothing:\n{screen}"
+    );
+}
