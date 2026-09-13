@@ -2,7 +2,7 @@
 id: 73
 title: A detail pane worth reading
 type: feature
-status: doing
+status: done
 milestone: v0.5
 created: 2026-09-13
 updated: 2026-09-13
