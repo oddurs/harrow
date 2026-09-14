@@ -46,6 +46,11 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ### Added
 
+- `harrow completions fish|bash|zsh` and `harrow man`. Both are generated from
+  the same table as `--help` — which the usage text and the unknown-option check
+  now read too, so a flag cannot work while nothing says it exists. `--theme`
+  completes from the themes the machine actually has.
+
 - Release binaries for macOS and Linux on arm64 and x86_64, with checksums and a
   build attestation, and a Homebrew formula generated from them rather than
   transcribed. `brew install oddurs/tap/harrow`.

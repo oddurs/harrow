@@ -149,6 +149,30 @@ fn no_color_produces_a_screen_with_no_colour_in_it() {
     assert!(!text.contains('\u{1b}'), "an escape sequence got through");
 }
 
+/// What `brew install` runs to produce the completions and the man page. If the
+/// binary cannot print them, the formula installs nothing and says nothing.
+#[test]
+fn the_binary_prints_its_own_completions_and_man_page() {
+    for shell in ["fish", "bash", "zsh"] {
+        let (out, _, code) = run(&["completions", shell]);
+        assert_eq!(code, 0, "completions {shell}");
+        assert!(out.contains("harrow"), "{shell}: {out}");
+        assert!(out.len() > 400, "{shell} completions look empty:\n{out}");
+    }
+
+    let (_, err, code) = run(&["completions", "tcsh"]);
+    assert_eq!(code, 2, "a shell we do not speak is an error");
+    assert!(err.contains("fish"), "and says which we do: {err}");
+
+    let (out, _, code) = run(&["man"]);
+    assert_eq!(code, 0);
+    assert!(
+        out.starts_with(".\\\""),
+        "a man page starts with a comment: {out:.40}"
+    );
+    assert!(out.contains(".TH HARROW 1"), "{out:.200}");
+}
+
 /// The formula the release attaches. Generated rather than transcribed, because
 /// four checksums copied by hand is four chances to ship one that does not
 /// match the file it names.

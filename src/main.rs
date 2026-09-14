@@ -53,51 +53,28 @@ fn main() -> Result<()> {
     match args.first().map(String::as_str) {
         Some("config") => return cmd_config(&args),
         Some("themes") => return cmd_themes(&args),
+        Some("completions") => return cmd_completions(&args),
+        Some("man") => {
+            print!("{}", harrow::cli::man(env!("CARGO_PKG_VERSION")));
+            return Ok(());
+        }
         _ => {}
     }
 
-    let known_flags = [
-        "-a",
-        "--all",
-        "-b",
-        "--board",
-        "--stats",
-        "-p",
-        "--plain",
-        "--doctor",
-        "--fix-terminal",
-        "--no-color",
-        "-h",
-        "--help",
-        "-V",
-        "--version",
-    ];
-    let valued = [
-        "-C",
-        "--directory",
-        "--theme",
-        "--config",
-        "--screenshot",
-        "--color",
-        "--filter",
-        "-f",
-        "--view",
-        "--group-by",
-        "--sort",
-    ];
+    // One list, in `cli`: the usage text, this check and the completions all
+    // read it, so a flag cannot work while nothing says it exists.
     let mut i = 0;
     while i < args.len() {
         let a = &args[i];
         if a.starts_with('-') {
-            let base = a.split('=').next().unwrap_or(a);
-            if valued.contains(&base) {
-                if !a.contains('=') {
-                    i += 1;
+            match harrow::cli::flag(a) {
+                Some(flag) if flag.wants_value() && !a.contains('=') => i += 1,
+                Some(_) => {}
+                None => {
+                    eprintln!("harrow: unknown option {a}\n");
+                    print_usage();
+                    std::process::exit(2);
                 }
-            } else if !known_flags.contains(&a.as_str()) {
-                eprintln!("harrow: unknown option {a}\n");
-                print_usage();
-                std::process::exit(2);
             }
         }
         i += 1;
@@ -123,33 +100,7 @@ fn main() -> Result<()> {
 }
 
 fn print_usage() {
-    println!(
-        "harrow — work a cairn backlog from the terminal\n\n\
-         USAGE:\n  harrow [options]\n  harrow config [--write] [--force]\n  harrow themes\n\n\
-         OPTIONS:\n\
-         \x20 -C, --directory <DIR>  start looking for the project here\n\
-         \x20 -a, --all              show everything: finished, dropped, milestones\n\
-         \x20 -b, --board            open on the board\n\
-         \x20     --stats            open on the statistics\n\
-         \x20 -f, --filter <EXPR>    open filtered, in cairn's grammar\n\
-         \x20     --view <NAME>      open in one of the project's saved views\n\
-         \x20     --group-by <FIELD> milestone, status, type, or any field\n\
-         \x20     --sort <KEYS>      sort keys, `-` for descending\n\
-         \x20 -p, --plain            print one line per item and exit\n\
-         \x20     --theme <NAME>     use a theme for this run (auto, mono, gotham, …)\n\
-         \x20     --config <PATH>    read this config file instead of the usual one\n\
-         \x20     --color <WHEN>     always, never, or auto\n\
-         \x20     --no-color         same as --color never\n\
-         \x20     --doctor           check everything harrow depends on\n\
-         \x20     --screenshot WxH   render one frame as text and exit\n\
-         \x20     --fix-terminal     undo a terminal left in mouse-reporting mode\n\
-         \x20 -h, --help             show this help\n\
-         \x20 -V, --version          show the version\n\n\
-         ENVIRONMENT:\n\
-         \x20 HARROW_CONFIG  config file to read\n\
-         \x20 HARROW_LOG     append diagnostics to this file\n\
-         \x20 NO_COLOR       render without colour\n"
-    );
+    print!("{}", harrow::cli::usage());
 }
 
 /// Resolve the config, then let the command line override it. Flags win over
@@ -333,6 +284,20 @@ fn cmd_config(args: &[String]) -> Result<()> {
     );
     println!();
     print!("{}", startup.config.to_toml());
+    Ok(())
+}
+
+/// `harrow completions <shell>`.
+fn cmd_completions(args: &[String]) -> Result<()> {
+    let shell = args.iter().skip(1).find(|a| !a.starts_with('-'));
+    let Some(script) = shell.and_then(|s| harrow::cli::completions(s)) else {
+        eprintln!(
+            "usage: harrow completions <{}>",
+            harrow::cli::SHELLS.join("|")
+        );
+        std::process::exit(2);
+    };
+    print!("{script}");
     Ok(())
 }
 

@@ -99,6 +99,20 @@ and which commit produced it:
 gh attestation verify harrow-*.tar.gz --repo oddurs/harrow
 ```
 
+### Completions and the man page
+
+The tap installs both. Otherwise the binary prints them:
+
+```sh
+harrow completions fish > ~/.config/fish/completions/harrow.fish
+harrow completions zsh  > "${fpath[1]}/_harrow"
+harrow completions bash > /usr/local/etc/bash_completion.d/harrow
+harrow man > /usr/local/share/man/man1/harrow.1
+```
+
+Both are generated from the same table as `--help`, so a flag that exists is a
+flag all three know about.
+
 From a checkout:
 
 ```sh
