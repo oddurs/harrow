@@ -5,7 +5,7 @@ type: docs
 status: backlog
 milestone: v1.0
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-13
 priority: p1
 area: docs
 ---
@@ -46,7 +46,25 @@ an absent one, and the README stays where the prose lives.
 
 ## Acceptance criteria
 
-- [ ] `harrow man` writes a man page, and the packaging installs it
-- [ ] `harrow completions <shell>` writes completions for bash, zsh and fish
-- [ ] Both are generated from the same source as `--help`, and a test fails if they drift
+- [x] `harrow man` writes a man page, and the packaging installs it
+- [x] `harrow completions <shell>` writes completions for bash, zsh and fish
+- [x] Both are generated from the same source as `--help`, and a test fails if they drift
 - [ ] `man harrow` works after a `brew install`
+
+## Completions and the page, 2026-09-13
+
+Done except `man harrow` after a `brew install`, which cannot be ticked until
+there is a release to install.
+
+The three lists this was going to become — the usage text, the check that
+refuses an unknown option, and the completions — are one table in `src/cli.rs`.
+Everything reads it, and the tests fail if a flag is missing from any of them.
+Adding a flag without a completion is no longer a thing that can happen.
+
+Two things the tests caught that reading would not have. fish's `-r` means
+"requires a parameter" and still falls through to file completion, so `--color`
+offered `auto always never` and then every file in the directory; `-x` is the
+one that means what was wanted. And the whole of DESCRIPTION rendered as literal
+`.B harrow` because a line continuation in the Rust source carried its
+indentation into the string, and roff reads a leading space as text. The page
+still rendered, so only looking for the directive in the output finds it.
