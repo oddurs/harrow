@@ -63,7 +63,8 @@ selection    = "#245361"
 text         = "#98d1ce"   # item titles
 muted        = "#599caa"   # secondary text that still has to be read
 faint        = "#245361"   # borders, references, things you look past
-heading      = "#d3ebe9"   # headings inside an item's body
+heading      = "#d3ebe9"   # every heading level in a body; the levels are
+                           # told apart by weight, so one colour serves all
 
 accent       = "#edb54b"   # keys in the footer, the overlay borders
 secondary    = "#33859d"
@@ -85,8 +86,14 @@ warn         = "#d26939"
 error        = "#c23127"
 
 milestone    = "#888ca6"   # group headings, and the milestone in a detail pane
-label        = "#33859d"
-person       = "#195466"   # an assignee
+label        = "#33859d"   # an item's labels
+person       = "#195466"   # an assignee, and whoever filed it
+
+# Markup in an item's body. Code is not a label and a link is not chrome, so
+# they are roles of their own rather than borrowed ones.
+code         = "#2aa889"   # `inline code`, and fenced or indented blocks
+link         = "#33859d"   # drawn underlined as well, so it still reads as a
+                           # link where the palette has no colour to spare
 
 # Emphasis by position in a declared enum: the first value gets the first
 # colour, the last the last. Usually `priority`, so p0 is the one you notice —

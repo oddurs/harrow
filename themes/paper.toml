@@ -36,4 +36,9 @@ milestone    = "#7a3f9e"
 label        = "#0f6f8a"
 person       = "#2a6f9e"
 
+# Markup in an item's body. A link is drawn underlined as well, so it still
+# reads as a link where the palette has no colour to spare for it.
+code         = "#0f7a6a"
+link         = "#4b4bbf"
+
 ranks        = ["#b0261f", "#9a6410", "#0f6f8a", "#a8a496"]

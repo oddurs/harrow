@@ -1288,36 +1288,39 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
     //
     // A grid, not a list: one column of labels, one of values, so the eye runs
     // down the labels instead of reading every line to find the one it wants.
-    let mut fields: Vec<(String, String)> = Vec::new();
+    let mut fields: Vec<(String, String, Color)> = Vec::new();
     for field in &schema.fields {
         if field.name == "milestone" {
             continue;
         }
         if let Some(value) = item.field(&field.name).filter(|v| !v.is_empty()) {
-            fields.push((field.name.clone(), value.display()));
+            fields.push((field.name.clone(), value.display(), t.muted));
         }
     }
+    // The one row in the grid that carries a role of its own. Labels are how
+    // a project says what an item is *about*, across every other field, and
+    // the theme names a colour for saying so.
     if !item.labels.is_empty() {
-        fields.push(("labels".into(), item.labels.join(", ")));
+        fields.push(("labels".into(), item.labels.join(", "), t.label));
     }
     if let Some(by) = &item.created_by {
-        fields.push(("filed by".into(), by.clone()));
+        fields.push(("filed by".into(), by.clone(), t.person));
     }
     for (label, value) in [("created", &item.created), ("updated", &item.updated)] {
         if let Some(value) = value {
-            fields.push((label.into(), value.clone()));
+            fields.push((label.into(), value.clone(), t.muted));
         }
     }
     if !fields.is_empty() {
         let label_width = fields
             .iter()
-            .map(|(k, _)| k.chars().count())
+            .map(|(k, _, _)| k.chars().count())
             .max()
             .unwrap_or(0)
             .min(12);
         lines.push(Line::from(""));
         lines.push(section("Fields", t, width));
-        for (label, value) in fields {
+        for (label, value, colour) in fields {
             let room = width.saturating_sub(label_width + 3);
             lines.push(Line::from(vec![
                 Span::raw("  "),
@@ -1326,7 +1329,7 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
                     Style::default().fg(t.faint),
                 ),
                 Span::raw(" "),
-                Span::styled(truncate(&value, room), Style::default().fg(t.muted)),
+                Span::styled(truncate(&value, room), Style::default().fg(colour)),
             ]));
         }
     }
@@ -1440,7 +1443,7 @@ impl Prose {
                 Span::styled("▏ ", Style::default().fg(t.border)),
             ];
             for piece in row {
-                spans.push(Span::styled(piece.text, ink(piece.kind, t, t.faint)));
+                spans.push(Span::styled(piece.text, ink(piece.kind, t, t.muted)));
             }
             self.lines.push(Line::from(spans));
         }
@@ -1575,8 +1578,8 @@ fn body_prose_without(
             // carry a rule out to the edge.
             let style = match level {
                 1 => Style::default().fg(t.heading).bold().underlined(),
-                2 => Style::default().fg(t.text).bold(),
-                _ => Style::default().fg(t.muted).italic(),
+                2 => Style::default().fg(t.heading).bold(),
+                _ => Style::default().fg(t.heading).italic(),
             };
             for row in wrap_pieces(&inline(text), width) {
                 let text: String = row.iter().map(|p| p.text.as_str()).collect();
@@ -1758,7 +1761,7 @@ fn code_line(raw: &str, t: &Theme, width: usize) -> Line<'static> {
         Span::styled("  ▏ ", Style::default().fg(t.border)),
         Span::styled(
             truncate(raw.trim_end(), width.saturating_sub(4)),
-            Style::default().fg(t.label),
+            Style::default().fg(t.code),
         ),
     ])
 }
@@ -2030,10 +2033,15 @@ fn wrap_pieces(pieces: &[Piece], width: usize) -> Vec<Vec<Piece>> {
 fn ink(kind: Ink, t: &Theme, base: Color) -> Style {
     match kind {
         Ink::Plain => Style::default().fg(base),
-        Ink::Strong => Style::default().fg(t.heading).bold(),
+        // `text`, not `heading`: strong prose is the body lifted out of
+        // `muted`, and a heading is a different thing that may well be on
+        // the line above it.
+        Ink::Strong => Style::default().fg(t.text).bold(),
         Ink::Emphasis => Style::default().fg(base).italic(),
-        Ink::Code => Style::default().fg(t.label),
-        Ink::Link => Style::default().fg(t.accent).underlined(),
+        Ink::Code => Style::default().fg(t.code),
+        // Underlined as well as coloured, because a link that is only a
+        // colour is not a link on a monochrome terminal.
+        Ink::Link => Style::default().fg(t.link).underlined(),
     }
 }
 
@@ -3516,6 +3524,56 @@ mod tests {
         let rows = wrap_pieces(&inline("some **bold text**, then more"), 80);
         let text: String = rows[0].iter().map(|p| p.text.as_str()).collect();
         assert_eq!(text, "some bold text, then more");
+    }
+
+    /// The bug this replaced: code went out in `label`, a link in `accent`
+    /// and bold prose in `heading`, so a theme could not change any of them
+    /// and setting `label` changed the wrong thing.
+    #[test]
+    fn markup_answers_to_the_role_named_after_it() {
+        for name in ["night", "paper", "gotham"] {
+            let t = Theme::resolve(name).expect("a built-in theme");
+            let drawn = |source: &str| -> Vec<(String, Color)> {
+                body_lines(source, &t, 60)
+                    .iter()
+                    .flat_map(|l| l.spans.clone())
+                    .filter(|s| !s.content.trim().is_empty())
+                    .map(|s| (s.content.trim().to_string(), s.style.fg.expect("a colour")))
+                    .collect()
+            };
+            let prose = drawn("plain `code` and [a link](https://x.test) and **bold**.");
+            assert!(
+                prose.contains(&("code".into(), t.code)),
+                "{name}: {prose:?}"
+            );
+            assert!(
+                prose.contains(&("a link".into(), t.link)),
+                "{name}: {prose:?}"
+            );
+            assert!(
+                prose.contains(&("bold".into(), t.text)),
+                "{name}: {prose:?}"
+            );
+            // Nothing in a body reaches for chrome any more. `label` is
+            // not checked the same way: a narrow palette may spend one hex
+            // on two roles, and the fix is that they are separate keys, not
+            // that they must differ.
+            for (text, colour) in &prose {
+                assert_ne!(*colour, t.accent, "{name}: {text:?} is wearing `accent`");
+            }
+
+            let fenced = drawn("```\nfn main() {}\n```");
+            assert!(
+                fenced
+                    .iter()
+                    .any(|(text, c)| text.contains("fn main") && *c == t.code),
+                "{name}: a fence is not drawn in `code`: {fenced:?}"
+            );
+            for level in ["# one", "## one", "### one"] {
+                let heading = drawn(level);
+                assert_eq!(heading[0].1, t.heading, "{name}: {level}");
+            }
+        }
     }
 
     #[test]
