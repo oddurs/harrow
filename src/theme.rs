@@ -106,6 +106,12 @@ pub struct Theme {
     pub label: Color,
     pub person: Color,
 
+    // Markup in an item's body. Their own roles rather than borrowed ones:
+    // code is not a label and a link is not chrome, and a theme that cannot
+    // name them cannot change them.
+    pub code: Color,
+    pub link: Color,
+
     /// Emphasis by position in a declared enum: `p0` gets the first, `p3` the
     /// last. Generic on purpose — the field is usually `priority`, and a project
     /// that calls it `severity` gets the same treatment for free.
@@ -214,6 +220,8 @@ impl Theme {
             milestone: Color::Magenta,
             label: Color::Cyan,
             person: Color::Blue,
+            code: Color::Green,
+            link: Color::Cyan,
             ranks: [Color::Red, Color::Yellow, Color::Cyan, Color::DarkGray],
             types: BTreeMap::new(),
             statuses: BTreeMap::new(),
@@ -296,6 +304,11 @@ impl Theme {
             milestone: hue(5, 13, secondary),
             label: secondary,
             person: hue(4, 12, secondary),
+            // Neither falls back onto `muted`, which is what the prose
+            // around them is drawn in: a run of code the exact colour of the
+            // sentence it sits in is a run of code nobody can see is code.
+            code: hue(2, 10, mix(foreground, background, 0.08)),
+            link: hue(4, 12, foreground),
             ranks: [error, warn, secondary, faint],
 
             types: BTreeMap::new(),
@@ -336,6 +349,8 @@ impl Theme {
             milestone: r,
             label: r,
             person: r,
+            code: r,
+            link: r,
             ranks: [r; 4],
             types: BTreeMap::new(),
             statuses: BTreeMap::new(),
@@ -345,39 +360,7 @@ impl Theme {
     /// Fill in from a parsed file, leaving unmentioned roles as they are. A
     /// theme file that only changes the accent is valid and useful.
     fn apply(mut self, file: ThemeFile, name: String, source: Source) -> Theme {
-        macro_rules! set {
-            ($($field:ident),* $(,)?) => {
-                $(if let Some(v) = file.$field.as_deref().and_then(parse_color) {
-                    self.$field = v;
-                })*
-            };
-        }
-        set!(
-            background,
-            surface,
-            overlay,
-            border,
-            border_focus,
-            selection,
-            text,
-            muted,
-            faint,
-            heading,
-            accent,
-            secondary,
-            open,
-            active,
-            done,
-            dropped,
-            blocked,
-            ready,
-            ok,
-            warn,
-            error,
-            milestone,
-            label,
-            person,
-        );
+        self.apply_roles(&file);
         for (i, raw) in file.ranks.iter().enumerate().take(4) {
             if let Some(c) = parse_color(raw) {
                 self.ranks[i] = c;
@@ -645,45 +628,80 @@ impl std::fmt::Display for ThemeError {
 
 impl std::error::Error for ThemeError {}
 
-/// The on-disk form. Every colour optional, so a file states only what it means
-/// to change.
-#[derive(Debug, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ThemeFile {
-    name: Option<String>,
-    dark: Option<bool>,
-    selection_reverse: Option<bool>,
-    background: Option<String>,
-    surface: Option<String>,
-    overlay: Option<String>,
-    border: Option<String>,
-    border_focus: Option<String>,
-    selection: Option<String>,
-    text: Option<String>,
-    muted: Option<String>,
-    faint: Option<String>,
-    heading: Option<String>,
-    accent: Option<String>,
-    secondary: Option<String>,
-    open: Option<String>,
-    active: Option<String>,
-    done: Option<String>,
-    dropped: Option<String>,
-    blocked: Option<String>,
-    ready: Option<String>,
-    ok: Option<String>,
-    warn: Option<String>,
-    error: Option<String>,
-    milestone: Option<String>,
-    label: Option<String>,
-    person: Option<String>,
-    #[serde(default)]
-    ranks: Vec<String>,
-    #[serde(default)]
-    types: BTreeMap<String, String>,
-    #[serde(default)]
-    statuses: BTreeMap<String, String>,
+/// Every colour role, in one place.
+///
+/// The on-disk form, the code that reads it and [`ROLES`] are generated from
+/// this list together, so a role cannot be added to one and forgotten in
+/// another — which is how `code` and `link` came to be un-themable in the
+/// first place. The names have to match the fields of [`Theme`].
+macro_rules! roles {
+    ($($role:ident),* $(,)?) => {
+        /// Every role a theme file may name.
+        pub const ROLES: &[&str] = &[$(stringify!($role)),*];
+
+        /// The on-disk form. Every colour optional, so a file states only what
+        /// it means to change.
+        #[derive(Debug, Default, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct ThemeFile {
+            name: Option<String>,
+            dark: Option<bool>,
+            selection_reverse: Option<bool>,
+            $($role: Option<String>,)*
+            #[serde(default)]
+            ranks: Vec<String>,
+            #[serde(default)]
+            types: BTreeMap<String, String>,
+            #[serde(default)]
+            statuses: BTreeMap<String, String>,
+        }
+
+        impl Theme {
+            /// Every role and the colour it currently holds, for the checks
+            /// that have to cover all of them rather than the ones somebody
+            /// remembered to list.
+            pub fn roles(&self) -> Vec<(&'static str, Color)> {
+                vec![$((stringify!($role), self.$role)),*]
+            }
+
+            /// Take every colour the file names, and leave the rest alone.
+            fn apply_roles(&mut self, file: &ThemeFile) {
+                $(if let Some(c) = file.$role.as_deref().and_then(parse_color) {
+                    self.$role = c;
+                })*
+            }
+        }
+    };
 }
+
+roles!(
+    background,
+    surface,
+    overlay,
+    border,
+    border_focus,
+    selection,
+    text,
+    muted,
+    faint,
+    heading,
+    accent,
+    secondary,
+    open,
+    active,
+    done,
+    dropped,
+    blocked,
+    ready,
+    ok,
+    warn,
+    error,
+    milestone,
+    label,
+    person,
+    code,
+    link,
+);
 
 /// Accepts `#rrggbb`, `#rgb`, `rgb:RR/GG/BB` as xterm writes it, an ANSI index,
 /// a colour name, and `reset` for "whatever the terminal already uses".
@@ -845,45 +863,108 @@ mod tests {
         // The entire point of `auto`: one RGB value here and the theme stops
         // following the terminal.
         let t = Theme::auto(true);
-        let mut all = vec![
-            t.background,
-            t.surface,
-            t.overlay,
-            t.border,
-            t.border_focus,
-            t.selection,
-            t.text,
-            t.muted,
-            t.faint,
-            t.heading,
-            t.accent,
-            t.secondary,
-            t.open,
-            t.active,
-            t.done,
-            t.dropped,
-            t.blocked,
-            t.ready,
-            t.ok,
-            t.warn,
-            t.error,
-            t.milestone,
-            t.label,
-            t.person,
-        ];
-        all.extend_from_slice(&t.ranks);
-        for c in all {
+        let mut all = t.roles();
+        all.extend(t.ranks.iter().map(|c| ("rank", *c)));
+        for (role, c) in all {
             assert!(
                 !matches!(c, Color::Rgb(..)),
-                "auto must not name an absolute colour, found {c:?}"
+                "auto must not name an absolute colour, found {c:?} for {role}"
             );
         }
+    }
+
+    /// The roles a theme file names, sorted — `toml::Table` is a map, so
+    /// the order a file was written in is not recoverable and not the point.
+    fn roles_named(body: &str) -> Vec<String> {
+        body.parse::<toml::Table>()
+            .expect("a theme file is TOML")
+            .keys()
+            .filter(|k| !NOT_A_ROLE.contains(&k.as_str()))
+            .cloned()
+            .collect()
+    }
+
+    /// Every role, sorted, to compare against what a file named.
+    fn every_role() -> Vec<String> {
+        let mut all: Vec<String> = ROLES.iter().map(|r| r.to_string()).collect();
+        all.sort();
+        all
+    }
+
+    /// What a theme file may say, other than a role.
+    const NOT_A_ROLE: &[&str] = &[
+        "name",
+        "dark",
+        "selection_reverse",
+        "ranks",
+        "types",
+        "statuses",
+    ];
+
+    /// The documented table is the format. A role the file accepts and the
+    /// documentation does not is a colour nobody knows they can set; a role
+    /// the documentation names and the file rejects is worse, because
+    /// `deny_unknown_fields` turns it into a parse error for anyone who
+    /// copies the example.
+    #[test]
+    fn the_documented_theme_file_is_exactly_the_one_harrow_reads() {
+        let doc = include_str!("../THEMES.md");
+        let example = doc
+            .split("## The roles")
+            .nth(1)
+            .and_then(|rest| rest.split("```toml").nth(1))
+            .and_then(|b| b.split("```").next())
+            .expect("THEMES.md shows a theme file under `## The roles`");
+        // It has to be a file harrow would accept, or the first thing anyone
+        // does with the documentation fails.
+        Theme::from_toml(example, "doc", Source::User).expect("the documented example parses");
+
+        assert_eq!(
+            roles_named(example),
+            every_role(),
+            "THEMES.md and the role list disagree"
+        );
+    }
+
+    /// A built-in that leaves a role out silently inherits it from `auto`,
+    /// which means two palettes on one screen. A theme somebody else wrote
+    /// may say as little as it likes; one shipped here may not.
+    #[test]
+    fn every_built_in_theme_names_every_role() {
+        for (name, body) in BUILTIN {
+            assert_eq!(
+                roles_named(body),
+                every_role(),
+                "the {name} theme does not name every role"
+            );
+        }
+    }
+
+    /// Roles are additive: a file written before one existed still parses,
+    /// and inherits the new role rather than losing its own colours.
+    #[test]
+    fn a_theme_file_that_predates_a_role_still_works() {
+        let before = "name = \"Old\"\ndark = true\naccent = \"#ff0000\"\n";
+        let t = Theme::from_toml(before, "old", Source::User).expect("an old file parses");
+        assert_eq!(t.accent, Color::Rgb(0xff, 0, 0));
+        assert_eq!(t.code, Theme::auto(true).code);
+    }
+
+    /// The bug this replaced: `label` coloured code and nothing else, so a
+    /// theme that set it changed the wrong thing.
+    #[test]
+    fn code_and_links_answer_to_their_own_roles() {
+        let file = "code = \"#010203\"\nlink = \"#040506\"\nlabel = \"#070809\"\n";
+        let t = Theme::from_toml(file, "x", Source::User).expect("it parses");
+        assert_eq!(t.code, Color::Rgb(1, 2, 3));
+        assert_eq!(t.link, Color::Rgb(4, 5, 6));
+        assert_eq!(t.label, Color::Rgb(7, 8, 9));
     }
 
     #[test]
     fn mono_emits_no_colour_at_all() {
         let t = Theme::mono();
-        let mut all = vec![t.text, t.accent, t.done, t.blocked, t.milestone, t.border];
+        let mut all: Vec<Color> = t.roles().into_iter().map(|(_, c)| c).collect();
         all.extend_from_slice(&t.ranks);
         for c in all {
             assert_eq!(c, Color::Reset, "mono must be colourless");
@@ -1111,6 +1192,19 @@ mod tests {
                 one: "text",
                 other: "background",
                 of: |t| (t.text, t.background),
+            },
+            // Markup is set apart from the prose it sits in. `muted` is what
+            // a body is drawn in, so a run of code or a link that lands on it
+            // is a run of code or a link nobody can see.
+            Apart {
+                one: "code",
+                other: "muted",
+                of: |t| (t.code, t.muted),
+            },
+            Apart {
+                one: "link",
+                other: "muted",
+                of: |t| (t.link, t.muted),
             },
         ];
 

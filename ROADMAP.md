@@ -83,7 +83,7 @@ Three ways of looking at one backlog, that behave like one program.
 
 ## v0.5 — The work is somebody else's; the deciding is yours
 
-`##########` 100% · 7 of 7 done · due 2027-04-01
+`##########` 100% · 8 of 8 done · due 2027-04-01
 
 The work is somebody else's. The deciding is yours.
 
@@ -96,6 +96,7 @@ The work is somebody else's. The deciding is yours.
 - [x] `0068` Whose work is whose <sup>feature · p2 · chrome</sup>
 - [x] `0069` Five lenses need a direct route <sup>feature · p3 · chrome</sup>
 - [x] `0073` A detail pane worth reading <sup>feature · p1 · chrome</sup>
+- [x] `0074` Markdown wears roles that mean something else <sup>bug · p1 · chrome</sup>
 
 ## v1.0 — Stable release
 
