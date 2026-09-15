@@ -2719,9 +2719,20 @@ fn title_case(s: &str) -> String {
 
 // ── Overlays ─────────────────────────────────────────────────────────────────
 
+/// What an overlay says along its bottom edge. The scroll keys go there only
+/// when they lead somewhere, the way a pane holding more than it shows is the
+/// only one that puts them on its own border.
+fn overlay_edge(scrollable: bool) -> &'static str {
+    if scrollable {
+        " ↑↓ scroll · any other key closes "
+    } else {
+        " any other key closes "
+    }
+}
+
 /// The whole item, which is the thing cairn keeps that a listing cannot show:
 /// the problem, the proposal, and what was decided.
-fn draw_reader(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+fn draw_reader(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let Some(item) = app.selected_item() else {
         return;
     };
@@ -2747,6 +2758,15 @@ fn draw_reader(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     ];
     lines.extend(body_lines(&item.body, t, inner.saturating_sub(2)));
 
+    // Clamped here for the reason the detail pane is clamped here: the draw is
+    // the only place that knows how tall the body came out. An overlay is a
+    // pane that happens to be centred, and past the end is not a place either
+    // of them can be.
+    let over = lines
+        .len()
+        .saturating_sub(height.saturating_sub(2) as usize);
+    app.read_scroll = app.read_scroll.min(over as u16);
+
     f.render_widget(Clear, popup);
     f.render_widget(
         Paragraph::new(lines).scroll((app.read_scroll, 0)).block(
@@ -2756,12 +2776,15 @@ fn draw_reader(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
                 .padding(Padding::horizontal(1))
                 .title(Span::styled(" Item ", Style::default().fg(t.muted)))
                 .title_bottom(Span::styled(
-                    " ↑↓ scroll · any other key closes ",
+                    overlay_edge(over > 0),
                     Style::default().fg(t.faint),
                 )),
         ),
         popup,
     );
+    // On top of the list it covers, so a click on the body reaches the overlay
+    // rather than the row behind it. Last registered wins.
+    app.hit(popup, Hit::Overlay);
 }
 
 /// How an item got the way it is.
@@ -2769,7 +2792,7 @@ fn draw_reader(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
 /// The reason an item file is worth keeping in the repository rather than in a
 /// database: its history is the answer to "when did this become p0, and who
 /// decided that?", and it is already there.
-fn draw_history(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+fn draw_history(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let Some(history) = &app.history else { return };
     let width = 84u16.min(area.width.saturating_sub(4));
     let room = width.saturating_sub(6) as usize;
@@ -2827,24 +2850,37 @@ fn draw_history(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     // a sentence and not a list.
     let height = ((lines.len() + 2) as u16).min(area.height.saturating_sub(4));
     let popup = centered(area, width, height);
+    let over = lines
+        .len()
+        .saturating_sub(height.saturating_sub(2) as usize) as u16;
+    let title = format!(" {} · history ", app.schema.format_id(history.id));
+
+    // Clamped once the borrow on the history is done with, for the same reason
+    // the reader is: here is where the height of the content is known. A
+    // history short enough to fit does not scroll at all.
+    let scroll = match app.history.as_mut() {
+        Some(history) => {
+            history.scroll = history.scroll.min(over);
+            history.scroll
+        }
+        None => 0,
+    };
 
     f.render_widget(Clear, popup);
     f.render_widget(
-        Paragraph::new(lines).scroll((history.scroll, 0)).block(
+        Paragraph::new(lines).scroll((scroll, 0)).block(
             Block::bordered()
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(t.border_focus))
-                .title(Span::styled(
-                    format!(" {} · history ", app.schema.format_id(history.id)),
-                    Style::default().fg(t.muted),
-                ))
+                .title(Span::styled(title, Style::default().fg(t.muted)))
                 .title_bottom(Span::styled(
-                    " ↑↓ scroll · any other key closes ",
+                    overlay_edge(over > 0),
                     Style::default().fg(t.faint),
                 )),
         ),
         popup,
     );
+    app.hit(popup, Hit::Overlay);
 }
 
 fn draw_picker(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {

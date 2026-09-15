@@ -9,6 +9,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use harrow::app::{Action, App};
 use harrow::keys::Command;
 use harrow::testkit;
+use harrow::ui;
 
 fn app() -> App {
     let mut app = testkit::app();
@@ -277,6 +278,90 @@ fn reading_an_item_scrolls_and_any_other_key_leaves() {
     assert_eq!(app.read_scroll, 1);
     app.handle_key(KeyCode::Char('q'), KeyModifiers::NONE);
     assert!(!app.reading, "and q must close the reader, not quit harrow");
+}
+
+/// A body long enough to need scrolling, so the frame it is read in is
+/// smaller than the text in it.
+fn with_a_long_body(app: &mut App) {
+    let long = (1..=80)
+        .map(|n| format!("Paragraph {n} of a proposal nobody will finish reading."))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    for item in &mut app.items {
+        item.body = long.clone();
+    }
+}
+
+/// 0024 clamped every pane to the height of its own content, and the overlays
+/// were not panes at the time. The reader kept counting: the text stopped
+/// moving, the offset did not, and the body scrolled up out of its own frame
+/// until nothing was left to read.
+#[test]
+fn a_reader_cannot_be_scrolled_past_the_end_of_the_item() {
+    let mut app = app();
+    with_a_long_body(&mut app);
+    app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+    assert!(app.reading);
+
+    // The draw is the only thing that knows how tall the body came out, so a
+    // scroll is only as bounded as the frame that follows it.
+    for _ in 0..200 {
+        app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+    }
+    ui::render_frame(&mut app, 110, 26, 0);
+    let end = app.read_scroll;
+    assert!(end > 0, "a body this long has somewhere to scroll to");
+
+    for _ in 0..200 {
+        app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+    }
+    ui::render_frame(&mut app, 110, 26, 0);
+    assert_eq!(
+        app.read_scroll, end,
+        "the last line of the item is the end of the scroll"
+    );
+}
+
+/// The other half of the same bound: an item that fits has nowhere to go, and
+/// scrolling it was the quickest way to hide it completely.
+#[test]
+fn an_item_that_fits_its_frame_does_not_scroll_at_all() {
+    let mut app = app();
+    app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+    for _ in 0..40 {
+        app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+    }
+    ui::render_frame(&mut app, 110, 26, 0);
+    assert_eq!(app.read_scroll, 0, "there was no more of it to show");
+}
+
+/// The history overlay counted forever for the same reason, and is held to the
+/// same bound rather than to a second version of it.
+#[test]
+fn a_history_cannot_be_scrolled_past_its_last_line() {
+    let mut app = app();
+    let long = (1..=60)
+        .map(|n| format!("2026-09-{:02}  somebody  touched it again", (n % 28) + 1))
+        .collect::<Vec<_>>()
+        .join("\n");
+    app.show_history(3, Ok(long));
+
+    for _ in 0..200 {
+        app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+    }
+    ui::render_frame(&mut app, 110, 26, 0);
+    let end = app.history.as_ref().map(|h| h.scroll);
+    assert!(end.is_some_and(|s| s > 0), "a history this long scrolls");
+
+    for _ in 0..200 {
+        app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+    }
+    ui::render_frame(&mut app, 110, 26, 0);
+    assert_eq!(
+        app.history.as_ref().map(|h| h.scroll),
+        end,
+        "the last change recorded is the end of the scroll"
+    );
 }
 
 #[test]
