@@ -25,13 +25,9 @@ Enough to dogfood in a real project.
 
 ## v0.2 — Triage that scales past one item at a time
 
-`##########` 92% · 11 of 12 done · due 2027-01-15
+`##########` 100% · 12 of 12 done · due 2027-01-15
 
 Everything that makes harrow useful on a backlog somebody else wrote: bulk
-
-### in progress
-
-- [ ] `0075` An overlay cannot be scrolled past its end, and answers the mouse <sup>bug · p1 · chrome</sup>
 
 ### done
 
@@ -45,6 +41,7 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 - [x] `0028` Find items the way the specification says to find them <sup>bug · p1 · read</sup>
 - [x] `0039` Hold the reader to cairn's own conformance corpus <sup>chore · p1 · testing</sup>
 - [x] `0040` Watch a change land instead of watching it vanish <sup>bug · p1 · chrome</sup>
+- [x] `0075` An overlay cannot be scrolled past its end, and answers the mouse <sup>bug · p1 · chrome</sup>
 - [x] `0076` Read a ticket in a panel, not over the backlog <sup>feature · p1 · chrome</sup>
 
 ## v0.3 — Read everything cairn writes, and nothing it does not
