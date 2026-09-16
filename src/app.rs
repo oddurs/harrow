@@ -2932,12 +2932,13 @@ impl App {
                 // Backing out closes what is open; with nothing open it does
                 // nothing, rather than quitting out from under you. Marks go
                 // first: they are the most recent thing you did.
-                // Focus first, then the panel. Stepping out of the reader
-                // without closing it is what makes `esc j j ↵` a way to read
-                // three items rather than three openings and three closings.
-                if self.focus == Focus::Reader {
-                    self.focus = Focus::List;
-                } else if self.reading {
+                //
+                // The panel and the keys in it are one thing, not two. Handing
+                // the keys back and leaving the panel open was meant to make
+                // `esc j j ↵` cheap, and it is exactly the same four keys
+                // either way — so all the extra step bought was an `esc` that
+                // looked like it had not worked.
+                if self.reading {
                     self.reading = false;
                     self.focus = Focus::List;
                 } else if !self.marked.is_empty() {

@@ -12,7 +12,7 @@
 │      │  tab, backtab  the next lens, or the one bef…  y             copy the item's reference       │      │
 │      │  1…5           go straight to the first, sec…  /             filter, in cairn's own grammar  │      │
 │      │  v             group by something else         a             show everything — finished, d…  │────  │
-│      │  ↵/o           read it in the panel, and dri…  esc           back out — the panel, then a …  │      │
+│      │  ↵/o           read it in the panel, and dri…  esc           back out — one press leaves w…  │      │
 │      │  e             open the item in your editor    r             re-read the backlog now         │      │
 │      │  N             add a line to the item's body…  D             diagnostics — what failed, an…  │      │
 │      │  H             how this item got the way it …  ctrl-k        validate the project against …  │      │
