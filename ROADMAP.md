@@ -102,7 +102,7 @@ The work is somebody else's. The deciding is yours.
 
 ## v1.0 — Stable release
 
-`###·······` 21% · 3 of 14 done · due 2027-05-01
+`##········` 20% · 3 of 15 done · due 2027-05-01
 
 Documented, tested, and safe to depend on.
 
@@ -119,6 +119,7 @@ Documented, tested, and safe to depend on.
 - [ ] `0050` Suspend it, and come back to it <sup>feature · p3 · runtime</sup>
 - [ ] `0051` Select the item a cairn check finding names <sup>feature · p3 · chrome</sup>
 - [ ] `0052` A digit in a picker does not pick outright <sup>bug · p3 · chrome</sup>
+- [ ] `0077` The log reads the repository it was pointed at <sup>bug · p2 · read</sup>
 
 ### done
 

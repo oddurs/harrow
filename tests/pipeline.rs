@@ -1041,24 +1041,30 @@ fn the_log_is_asked_once_and_again_when_something_changes() {
     let dir = testkit::project();
     let mut app = app_for(dir.path());
     assert!(app.moments.is_none(), "nothing asked yet");
+    assert_eq!(app.pending(), None, "and nothing to ask from another lens");
 
+    // Arriving does not ask. Being there with nothing to show does — which is
+    // the same thing on the way in, and not the same thing at all when a
+    // re-read empties it while you are already sitting on it.
     app.pane = harrow::app::Pane::Stats;
-    assert_eq!(
-        app.run(harrow::keys::Command::ViewBoard),
-        Action::Activity,
-        "arriving asks"
-    );
+    app.run(harrow::keys::Command::ViewBoard);
+    assert_eq!(app.pane, harrow::app::Pane::Log);
+    assert_eq!(app.pending(), Some(Action::Activity), "being there asks");
+    assert_eq!(app.pending(), None, "and not again while the ask is out");
+
     app.show_activity(Ok(String::new()));
-    app.pane = harrow::app::Pane::Stats;
-    assert_eq!(
-        app.run(harrow::keys::Command::ViewBoard),
-        Action::None,
-        "and does not ask again"
-    );
+    assert_eq!(app.pending(), None, "answered, so nothing to ask");
 
+    // The watcher makes this happen whenever anybody touches the backlog, and
+    // it used to leave the lens saying "Asking the repository" at nobody.
     let mut project = Project::discover(dir.path()).expect("found");
     app.ingest(project.load().expect("loads"));
-    assert!(app.moments.is_none(), "until the backlog changes under it");
+    assert!(app.moments.is_none(), "the backlog changed under it");
+    assert_eq!(
+        app.pending(),
+        Some(Action::Activity),
+        "so it asks again on its own"
+    );
 }
 
 /// The defect this is all about: a filter harrow could not parse matched

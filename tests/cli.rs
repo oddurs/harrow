@@ -224,3 +224,40 @@ fn the_homebrew_formula_is_generated_from_the_checksums() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+/// A screenshot has no event loop, so whatever the interface still needs has to
+/// be asked for before the frame is drawn. Otherwise the log lens renders the
+/// question it asks before the repository has answered.
+#[test]
+fn a_screenshot_of_the_log_shows_the_history_rather_than_the_asking() {
+    let dir = testkit::project();
+    let config = dir.path().join("harrow.toml");
+    std::fs::write(&config, "pane = \"log\"\n").expect("write a config");
+
+    let (out, _, code) = run(&[
+        "-C",
+        &dir.path().display().to_string(),
+        "--config",
+        &config.display().to_string(),
+        "--screenshot",
+        "100x20",
+    ]);
+    assert_eq!(code, 0);
+    assert!(
+        out.contains("What happened"),
+        "the log lens is drawn:\n{out}"
+    );
+    assert!(
+        !out.contains("Asking the repository"),
+        "and it has been answered:\n{out}"
+    );
+    // Either answer is a real one: "no history to read" where git declines the
+    // directory, "nothing has changed here yet" where it resolves a repository
+    // and finds no commits touching it. Which of the two depends on the
+    // environment — a git hook exports GIT_DIR, and a child git reads it — so
+    // asserting one of them is asserting where the suite was run from.
+    assert!(
+        out.contains("no history") || out.contains("Nothing has changed"),
+        "the lens has to say something it means:\n{out}"
+    );
+}

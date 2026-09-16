@@ -593,6 +593,9 @@ pub struct App {
     /// keystroke. Cleared when the backlog changes, so the next visit to the
     /// lens asks again.
     pub moments: Option<Result<Vec<Moment>, String>>,
+    /// An ask is out. Without this the loop would ask again on the next frame,
+    /// and again, for as long as `git log` took to answer.
+    asking_activity: bool,
     /// Which moment the cursor is on.
     moment: usize,
     /// What `cairn check` last said, if it has been asked.
@@ -713,6 +716,7 @@ impl App {
             can_tick: false,
             proposing: None,
             moments: None,
+            asking_activity: false,
             moment: 0,
             checked: None,
             changed: HashMap::new(),
@@ -2651,6 +2655,7 @@ impl App {
     /// One record per item per commit: a commit that moved four items is
     /// four lines, because the reader is asking about items, not commits.
     pub fn show_activity(&mut self, result: Result<String, String>) {
+        self.asking_activity = false;
         self.moment = 0;
         self.moments = Some(result.map(|text| {
             let mut out: Vec<Moment> = Vec::new();
@@ -2732,6 +2737,23 @@ impl App {
     /// Called once per frame by the shell.
     pub fn tick_clock(&mut self) {
         self.now = unix_seconds();
+    }
+
+    /// What the interface needs before it can draw something true.
+    ///
+    /// Asked every pass rather than on arriving at a lens. Arriving is not the
+    /// only way to end up on the log with nothing to show: a re-read throws
+    /// away what the repository said, and the watcher makes that happen
+    /// whenever anybody touches the backlog — so sitting on the log while an
+    /// agent worked in the other pane left it saying "asking the repository"
+    /// at nobody, forever. Opening straight onto the log did the same, because
+    /// no lens was ever arrived at.
+    pub fn pending(&mut self) -> Option<Action> {
+        if self.pane == Pane::Log && self.moments.is_none() && !self.asking_activity {
+            self.asking_activity = true;
+            return Some(Action::Activity);
+        }
+        None
     }
 
     pub fn expire_toast(&mut self) {
@@ -3005,13 +3027,9 @@ impl App {
                     self.select_id(id);
                 }
                 self.clamp();
-                if self.pane == Pane::Log && self.moments.is_none() {
-                    return Action::Activity;
-                }
             }
             Command::ViewBoard | Command::ViewBack => {
                 let id = self.selected_item().map(|i| i.id);
-                let ask = self.pane != Pane::Log;
                 self.pane = if command == Command::ViewBack {
                     self.pane.previous()
                 } else {
@@ -3023,11 +3041,6 @@ impl App {
                     self.select_id(id);
                 }
                 self.clamp();
-                // Arriving asks the repository, once. It is a process, and
-                // the answer only changes when the backlog does.
-                if ask && self.pane == Pane::Log && self.moments.is_none() {
-                    return Action::Activity;
-                }
             }
             Command::GroupBy => self.cycle_grouping(),
             // On the stats pane, `enter` is how you follow a figure to what
