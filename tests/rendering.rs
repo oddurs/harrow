@@ -242,6 +242,27 @@ fn reading_when_there_is_no_room_to_browse_as_well() {
     support::assert_snapshot("reader-narrow", &ui::render_to_string(&mut app, 84, 24, 0));
 }
 
+/// The whole vocabulary of the project, with what each choice would leave.
+#[test]
+fn the_filter_panel() {
+    let mut app = support::app();
+    app.select_id(3);
+    app.filtering = true;
+    app.rebuild();
+    support::assert_snapshot("filter-panel", &ui::render_to_string(&mut app, 140, 28, 0));
+}
+
+/// Narrow enough that something has to give, and the detail goes first: the
+/// filter and the result it produces are the pair that has to stay together.
+#[test]
+fn the_filter_panel_without_room_for_the_detail() {
+    let mut app = support::app();
+    app.select_id(3);
+    app.filtering = true;
+    app.rebuild();
+    support::assert_snapshot("filter-narrow", &ui::render_to_string(&mut app, 96, 20, 0));
+}
+
 #[test]
 fn the_history_of_one_item() {
     let mut app = support::app();

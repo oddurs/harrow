@@ -25,6 +25,21 @@ pub enum Op {
 }
 
 impl Op {
+    /// How it was written, so a clause the panel did not touch is written
+    /// back the way it was read.
+    fn text(self) -> &'static str {
+        match self {
+            Op::Eq => "=",
+            Op::Ne => "!=",
+            Op::Contains => "~",
+            Op::NotContains => "!~",
+            Op::Gt => ">",
+            Op::Ge => ">=",
+            Op::Lt => "<",
+            Op::Le => "<=",
+        }
+    }
+
     fn parse(clause: &str) -> Option<(usize, usize, Op)> {
         // Longest first: `!=` must not be read as `=` with a stray `!`.
         const OPS: &[(&str, Op)] = &[
@@ -120,6 +135,68 @@ impl Query {
     }
 
     /// Clauses are ANDed; alternatives within a clause are ORed.
+    /// The same query with every clause on `field` taken out.
+    ///
+    /// What a facet counts against. Ticking `backlog` must not drop
+    /// `in progress` to nought and strand you there with no way back, so a
+    /// facet's own choices do not count against its own values.
+    pub fn without(&self, field: &str) -> Query {
+        let field = canonical(field);
+        Query {
+            clauses: self
+                .clauses
+                .iter()
+                .filter(|clause| !matches!(clause, Clause::Compare { field: f, .. } if canonical(f) == field))
+                .cloned()
+                .collect(),
+            unknown: self.unknown.clone(),
+        }
+    }
+
+    /// The values this query tests `field` for equality against.
+    ///
+    /// What the panel reads back to know which boxes are ticked, so a filter
+    /// typed into the box shows as ticks and the two are one filter rather
+    /// than two that agree by accident.
+    pub fn ticked(&self, field: &str) -> Vec<String> {
+        let field = canonical(field);
+        self.clauses
+            .iter()
+            .filter_map(|clause| match clause {
+                Clause::Compare {
+                    field: f,
+                    op: Op::Eq,
+                    values,
+                } if canonical(f) == field => Some(values.clone()),
+                _ => None,
+            })
+            .flatten()
+            .collect()
+    }
+
+    /// The clauses the panel does not manage, written back out as they were
+    /// read. Ranges, `!=` and free text survive a tick untouched.
+    pub fn except(&self, fields: &[String]) -> Vec<String> {
+        let managed: Vec<&str> = fields.iter().map(|f| canonical(f)).collect();
+        self.clauses
+            .iter()
+            .filter_map(|clause| match clause {
+                Clause::Compare {
+                    field,
+                    op: Op::Eq,
+                    values,
+                } if managed.contains(&canonical(field)) => {
+                    let _ = values;
+                    None
+                }
+                Clause::Compare { field, op, values } => {
+                    Some(format!("{field}{}{}", op.text(), values.join("|")))
+                }
+                Clause::Text(needle) => Some(needle.clone()),
+            })
+            .collect()
+    }
+
     pub fn matches(&self, item: &Item, schema: &Schema) -> bool {
         self.clauses.iter().all(|clause| match clause {
             Clause::Text(needle) => item.matches(needle, schema),

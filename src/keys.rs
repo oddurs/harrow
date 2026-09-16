@@ -51,6 +51,7 @@ pub enum Command {
     Retreat,
     Copy,
     Filter,
+    Facets,
     Back,
     ToggleAll,
     Refresh,
@@ -63,7 +64,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 47] = [
+    pub const ALL: [Command; 48] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -102,6 +103,7 @@ impl Command {
         Command::Retreat,
         Command::Copy,
         Command::Filter,
+        Command::Facets,
         Command::Back,
         Command::ToggleAll,
         Command::Refresh,
@@ -155,6 +157,7 @@ impl Command {
             Command::Retreat => "retreat",
             Command::Copy => "copy",
             Command::Filter => "filter",
+            Command::Facets => "facets",
             Command::Back => "back",
             Command::ToggleAll => "toggle-all",
             Command::Refresh => "refresh",
@@ -208,6 +211,7 @@ impl Command {
             Command::Retreat => "move it one status back",
             Command::Copy => "copy the item's reference",
             Command::Filter => "filter, in cairn's own grammar",
+            Command::Facets => "open the filter panel",
             Command::Back => "back out — one press leaves whatever is open",
             Command::ToggleAll => "show everything — finished, dropped, and milestones",
             Command::Refresh => "re-read the backlog now",
@@ -221,7 +225,7 @@ impl Command {
     }
 
     /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 33] {
+    pub fn help_order() -> [Command; 34] {
         [
             Command::Down,
             Command::First,
@@ -248,6 +252,7 @@ impl Command {
             Command::Reopen,
             Command::New,
             Command::Copy,
+            Command::Facets,
             Command::Filter,
             Command::ToggleAll,
             Command::Back,
@@ -285,6 +290,7 @@ impl Default for Keymap {
                 (K::Char('g'), n, C::First),
                 (K::End, n, C::Last),
                 (K::Char('G'), n, C::Last),
+                (K::Char('f'), n, C::Facets),
                 (K::Char('J'), n, C::DetailDown),
                 (K::Char('K'), n, C::DetailUp),
                 (K::Char(' '), n, C::ToggleGroup),
@@ -519,7 +525,7 @@ impl Keymap {
             (Command::Claim, "claim"),
             (Command::Status, "status"),
             (Command::Close, "close"),
-            (Command::Filter, "filter"),
+            (Command::Facets, "filter"),
             (Command::ViewBoard, "views"),
             (Command::Help, "help"),
         ];

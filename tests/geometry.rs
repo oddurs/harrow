@@ -45,6 +45,13 @@ fn screens() -> Vec<Screen> {
         "the reader",
         Box::new(|a: &mut App| a.reading = true),
     ));
+    out.push(overlay(
+        "the filter panel",
+        Box::new(|a: &mut App| {
+            a.filtering = true;
+            a.rebuild();
+        }),
+    ));
     out.push(overlay("the help", Box::new(|a: &mut App| a.help = true)));
     out.push(overlay(
         "the diagnostics",
@@ -251,4 +258,39 @@ fn the_detail_pane_is_not_drawn_beside_the_reader() {
         !app.hits.iter().any(|(_, hit)| *hit == Hit::Detail),
         "and gives way to the reader when you are"
     );
+}
+
+/// Three panes, two, or one, decided by the room. The filter takes its column
+/// off the left first, so what is left is divided the way it always was.
+#[test]
+fn the_filter_panel_is_placed_by_the_room_it_has() {
+    // `(width, the panel is there, the backlog is there, the detail is there)`
+    for (width, panel, backlog, detail) in [
+        (140u16, true, true, true),
+        (96, true, true, false),
+        (68, true, false, false),
+    ] {
+        let mut app = testkit::app();
+        app.select_id(3);
+        app.filtering = true;
+        app.rebuild();
+        let _ = ui::render_frame(&mut app, width, 24, 0);
+
+        let has = |want: &dyn Fn(&Hit) -> bool| app.hits.iter().any(|(_, hit)| want(hit));
+        assert_eq!(
+            has(&|h| matches!(h, Hit::Facet(_))),
+            panel,
+            "at {width}: the panel"
+        );
+        assert_eq!(
+            has(&|h| matches!(h, Hit::Row(_))),
+            backlog,
+            "at {width}: the backlog beside it"
+        );
+        assert_eq!(
+            has(&|h| matches!(h, Hit::Detail)),
+            detail,
+            "at {width}: the detail as well"
+        );
+    }
 }
