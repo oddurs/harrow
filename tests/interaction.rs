@@ -269,15 +269,50 @@ fn a_saved_view_is_a_filter_the_project_wrote_down() {
     assert!(app.view.is_none(), "esc backs out of a view");
 }
 
+/// The popover took every key and gave back only scrolling, so reading four
+/// items was four opens and four closes. A panel leaves the backlog where it
+/// is: the selection goes on moving and the panel follows it.
 #[test]
-fn reading_an_item_scrolls_and_any_other_key_leaves() {
+fn reading_follows_the_selection_rather_than_taking_the_keys() {
     let mut app = app();
     app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
     assert!(app.reading);
+    let first = app.selected_item().map(|i| i.id);
+
     app.handle_key(KeyCode::Down, KeyModifiers::NONE);
-    assert_eq!(app.read_scroll, 1);
-    app.handle_key(KeyCode::Char('q'), KeyModifiers::NONE);
-    assert!(!app.reading, "and q must close the reader, not quit harrow");
+    assert!(app.reading, "moving the cursor does not close the panel");
+    assert_ne!(
+        app.selected_item().map(|i| i.id),
+        first,
+        "and the selection is what moved"
+    );
+
+    // `esc` is the way out, and it goes before the marks it would otherwise
+    // clear: the panel is the newer thing open.
+    app.handle_key(KeyCode::Esc, KeyModifiers::NONE);
+    assert!(!app.reading, "esc closes the panel");
+}
+
+/// The offset belongs to the item, so walking the backlog with the panel open
+/// starts each one at its top and returns you to where you had got to.
+#[test]
+fn the_panel_keeps_its_place_in_each_item_separately() {
+    let mut app = app();
+    with_a_long_body(&mut app);
+    app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+    let first = app.selected_item().map(|i| i.id).expect("an item");
+
+    app.run(Command::DetailDown);
+    app.run(Command::DetailDown);
+    ui::render_frame(&mut app, 140, 30, 0);
+    assert_eq!(app.reader.at(first), 2);
+
+    app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+    let second = app.selected_item().map(|i| i.id).expect("another item");
+    assert_eq!(app.reader.at(second), 0, "a new item starts at its top");
+
+    app.handle_key(KeyCode::Up, KeyModifiers::NONE);
+    assert_eq!(app.reader.at(first), 2, "and stepping back returns to it");
 }
 
 /// A body long enough to need scrolling, so the frame it is read in is
@@ -305,19 +340,21 @@ fn a_reader_cannot_be_scrolled_past_the_end_of_the_item() {
 
     // The draw is the only thing that knows how tall the body came out, so a
     // scroll is only as bounded as the frame that follows it.
+    let id = app.selected_item().map(|i| i.id).expect("an item");
     for _ in 0..200 {
-        app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+        app.run(Command::DetailDown);
     }
     ui::render_frame(&mut app, 110, 26, 0);
-    let end = app.read_scroll;
+    let end = app.reader.at(id);
     assert!(end > 0, "a body this long has somewhere to scroll to");
 
     for _ in 0..200 {
-        app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+        app.run(Command::DetailDown);
     }
     ui::render_frame(&mut app, 110, 26, 0);
     assert_eq!(
-        app.read_scroll, end,
+        app.reader.at(id),
+        end,
         "the last line of the item is the end of the scroll"
     );
 }
@@ -328,11 +365,12 @@ fn a_reader_cannot_be_scrolled_past_the_end_of_the_item() {
 fn an_item_that_fits_its_frame_does_not_scroll_at_all() {
     let mut app = app();
     app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+    let id = app.selected_item().map(|i| i.id).expect("an item");
     for _ in 0..40 {
-        app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+        app.run(Command::DetailDown);
     }
     ui::render_frame(&mut app, 110, 26, 0);
-    assert_eq!(app.read_scroll, 0, "there was no more of it to show");
+    assert_eq!(app.reader.at(id), 0, "there was no more of it to show");
 }
 
 /// The history overlay counted forever for the same reason, and is held to the

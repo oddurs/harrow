@@ -14,7 +14,7 @@
 //! only because somebody reads the diff. This asserts a property — it
 //! renders, and it stays inside the lines.
 
-use harrow::app::{App, Pane};
+use harrow::app::{App, Hit, Pane};
 use harrow::{testkit, ui};
 
 /// One screen harrow can show: a name for the failure message, and what
@@ -194,4 +194,61 @@ fn every_screen_survives_being_used_at_every_size() {
             }
         }
     }
+}
+
+/// Whether the lens keeps a column beside the reader is decided by the room,
+/// and each lens gets a say in what "enough room" means. A list browses in
+/// thirty columns; a board browses by having its columns beside each other,
+/// so one squeezed column is not a board and it would rather step aside.
+#[test]
+fn the_lens_keeps_a_column_beside_the_reader_only_when_it_can_use_one() {
+    // `(lens, the width where it starts splitting)`. Below it the reader has
+    // the body to itself; at it and above, both are drawn.
+    for (lens, splits_at) in [(Pane::List, 92u16), (Pane::Board, 140u16)] {
+        for (width, both) in [(splits_at - 1, false), (splits_at, true)] {
+            let mut app = testkit::app();
+            app.pane = lens;
+            app.select_id(3);
+            app.reading = true;
+            let _ = ui::render_frame(&mut app, width, 24, 0);
+
+            let reader = app.hits.iter().any(|(_, hit)| *hit == Hit::Reader);
+            assert!(reader, "{lens:?} at {width}: the reader is always drawn");
+
+            let browsing = app
+                .hits
+                .iter()
+                .any(|(_, hit)| matches!(hit, Hit::Row(_) | Hit::Card(..) | Hit::Column(_)));
+            assert_eq!(
+                browsing,
+                both,
+                "{lens:?} at {width}: expected the lens {}",
+                if both {
+                    "beside the reader"
+                } else {
+                    "to step aside"
+                }
+            );
+        }
+    }
+}
+
+/// The detail pane and the reader answer the same question, and two answers to
+/// one question is what a second pane is supposed to avoid.
+#[test]
+fn the_detail_pane_is_not_drawn_beside_the_reader() {
+    let mut app = testkit::app();
+    app.select_id(3);
+    let _ = ui::render_frame(&mut app, 140, 30, 0);
+    assert!(
+        app.hits.iter().any(|(_, hit)| *hit == Hit::Detail),
+        "the detail pane is there when you are not reading"
+    );
+
+    app.reading = true;
+    let _ = ui::render_frame(&mut app, 140, 30, 0);
+    assert!(
+        !app.hits.iter().any(|(_, hit)| *hit == Hit::Detail),
+        "and gives way to the reader when you are"
+    );
 }

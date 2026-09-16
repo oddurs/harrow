@@ -109,6 +109,8 @@ pub enum Hit {
     /// An open overlay's own frame. Inert: it is there so that a click on the
     /// text you are reading is not also a click on whatever it covers.
     Overlay,
+    /// The reader panel, which scrolls on its own beside the lens.
+    Reader,
     /// A figure on the stats pane, by index into `doors`.
     Figure(usize),
     /// A question on the needs-you lens, by index into `questions`.
@@ -508,7 +510,11 @@ pub struct App {
     pub pane: Pane,
 
     pub reading: bool,
-    pub read_scroll: u16,
+    /// The reader panel's scroll. A `DetailScroll` rather than a counter
+    /// because the panel now follows the selection: stepping onto the next
+    /// item starts at the top of it, and stepping back returns you to where
+    /// you had got to.
+    pub reader: DetailScroll,
     /// Which acceptance criterion the detail pane is pointing at.
     ///
     /// Ticking one is the single judgement in cairn's agent loop that is
@@ -663,7 +669,7 @@ impl App {
             show_all: false,
             pane: Pane::List,
             reading: false,
-            read_scroll: 0,
+            reader: DetailScroll::default(),
             criterion: 0,
             detail: DetailScroll::default(),
             stats_scroll: 0,
@@ -2815,26 +2821,6 @@ impl App {
             }
             return Action::None;
         }
-        if self.reading {
-            match code {
-                KeyCode::Down | KeyCode::Char('j') => {
-                    self.read_scroll = self.read_scroll.saturating_add(1)
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    self.read_scroll = self.read_scroll.saturating_sub(1)
-                }
-                KeyCode::PageDown | KeyCode::Char(' ') => {
-                    self.read_scroll = self.read_scroll.saturating_add(10)
-                }
-                KeyCode::PageUp => self.read_scroll = self.read_scroll.saturating_sub(10),
-                // Everything else leaves, including the key that opened it.
-                _ => {
-                    self.reading = false;
-                    self.read_scroll = 0;
-                }
-            }
-            return Action::None;
-        }
         if self.help || self.diagnostics {
             self.help = false;
             self.diagnostics = false;
@@ -2887,7 +2873,9 @@ impl App {
                 // Backing out closes what is open; with nothing open it does
                 // nothing, rather than quitting out from under you. Marks go
                 // first: they are the most recent thing you did.
-                if !self.marked.is_empty() {
+                if self.reading {
+                    self.reading = false;
+                } else if !self.marked.is_empty() {
                     let n = self.marked.len();
                     self.marked.clear();
                     self.toast(format!("{n} unmarked"), ToastKind::Info);
@@ -2919,7 +2907,12 @@ impl App {
                     -1
                 };
                 if let Some(id) = self.selected_item().map(|i| i.id) {
-                    self.detail.by(id, delta);
+                    // One gesture, whichever pane the item is being read in.
+                    if self.reading {
+                        self.reader.by(id, delta);
+                    } else {
+                        self.detail.by(id, delta);
+                    }
                 }
             }
             // On a heading, fold. On an item, mark it — which is where the
@@ -2987,7 +2980,6 @@ impl App {
             Command::Read => {
                 if self.selected_item().is_some() {
                     self.reading = true;
-                    self.read_scroll = 0;
                 }
             }
             // A proposal is somebody asking; accepting is cairn's own command,
@@ -3303,10 +3295,11 @@ impl App {
                 .saturating_add_signed(delta.clamp(-32, 32) as i16);
             return;
         }
-        if self.reading {
-            self.read_scroll = self
-                .read_scroll
-                .saturating_add_signed(delta.clamp(-32, 32) as i16);
+        if self.reading
+            && matches!(self.hit_at(column, row), Some(Hit::Reader))
+            && let Some(id) = self.selected_item().map(|i| i.id)
+        {
+            self.reader.by(id, delta);
             return;
         }
         match self.pane {
@@ -3383,10 +3376,8 @@ impl App {
         // dismissal rather than a gesture meant for the surface it is
         // covering. `any other key closes` on its edge promises as much, and a
         // click was the one gesture that neither closed it nor was ignored.
-        if self.reading || self.history.is_some() {
+        if self.history.is_some() {
             if !matches!(self.hit_at(column, row), Some(Hit::Overlay)) {
-                self.reading = false;
-                self.read_scroll = 0;
                 self.history = None;
             }
             return Action::None;
@@ -3430,7 +3421,6 @@ impl App {
                     self.selected = idx;
                     if double {
                         self.reading = true;
-                        self.read_scroll = 0;
                     }
                 }
                 None => {}
@@ -3447,7 +3437,6 @@ impl App {
                 self.dragging = Some((at, Hit::Card(col, at)));
                 if double {
                     self.reading = true;
-                    self.read_scroll = 0;
                 }
             }
             Hit::Option(index) => {
@@ -3458,7 +3447,7 @@ impl App {
             }
             Hit::Answer(yes) => return self.resolve_confirm(yes),
             Hit::Run(command) => return self.run(command),
-            Hit::Detail | Hit::Overlay => {}
+            Hit::Detail | Hit::Overlay | Hit::Reader => {}
             Hit::Figure(n) => return self.open_door(n),
             // Selecting it, not answering it: the answers are keys, and a
             // click that closed an item would be a click nobody meant.
