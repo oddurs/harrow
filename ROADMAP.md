@@ -25,9 +25,13 @@ Enough to dogfood in a real project.
 
 ## v0.2 — Triage that scales past one item at a time
 
-`##########` 100% · 10 of 10 done · due 2027-01-15
+`##########` 91% · 10 of 11 done · due 2027-01-15
 
 Everything that makes harrow useful on a backlog somebody else wrote: bulk
+
+### in progress
+
+- [ ] `0075` An overlay cannot be scrolled past its end, and answers the mouse <sup>bug · p1 · chrome</sup>
 
 ### done
 

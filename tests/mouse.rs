@@ -93,6 +93,69 @@ fn clicking_a_row_selects_it_and_clicking_twice_reads_it() {
     assert!(app.reading, "two is a read");
 }
 
+/// The reader used to be transparent to a click: the hit map still held the
+/// list's rows, so a click on the body you were reading moved the selection
+/// behind it, and one that landed on a tab switched lens with the overlay still
+/// over the new one.
+#[test]
+fn a_click_inside_an_open_reader_does_not_reach_the_list_behind_it() {
+    let mut app = testkit::app();
+    drawn(&mut app);
+    let (x, y) = find(&app, &Hit::Row(2));
+    click(&mut app, x, y);
+    click(&mut app, x, y);
+    assert!(app.reading, "two clicks open the reader");
+
+    let was = app.selected;
+    drawn(&mut app);
+    let (ox, oy) = find(&app, &Hit::Overlay);
+    // A few cells in, so it is the body rather than the border.
+    click(&mut app, ox + 4, oy + 4);
+    assert!(
+        app.reading,
+        "a click on what you are reading is not a dismissal"
+    );
+    assert_eq!(app.selected, was, "nor a selection in the list it covers");
+}
+
+/// What `any other key closes` already promises, for the one gesture that
+/// used to neither close it nor be ignored.
+#[test]
+fn a_click_outside_an_open_reader_closes_it() {
+    let mut app = testkit::app();
+    app.reading = true;
+    drawn(&mut app);
+    let (ox, oy) = find(&app, &Hit::Overlay);
+
+    let was = app.selected;
+    // The top-left corner of the screen: outside a centred overlay by
+    // construction, whatever size the terminal is.
+    assert!(
+        ox > 0 && oy > 0,
+        "the overlay is centred, so 0,0 is outside it"
+    );
+    click(&mut app, 0, 0);
+    assert!(!app.reading, "a click behind the overlay dismisses it");
+    assert_eq!(app.read_scroll, 0, "and leaves it at the top for next time");
+    assert_eq!(
+        app.selected, was,
+        "the click that dismissed it is spent doing that and nothing else"
+    );
+}
+
+/// The history overlay is the same surface and gets the same answer.
+#[test]
+fn a_click_outside_the_history_closes_it() {
+    let mut app = testkit::app();
+    app.select_id(3);
+    app.show_history(3, Ok("2026-09-02  somebody  created\n".into()));
+    drawn(&mut app);
+    find(&app, &Hit::Overlay);
+
+    click(&mut app, 0, 0);
+    assert!(app.history.is_none(), "a click behind it dismisses it");
+}
+
 #[test]
 fn clicking_a_group_heading_folds_it() {
     let mut app = testkit::app();

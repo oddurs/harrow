@@ -106,6 +106,9 @@ pub enum Hit {
     Run(Command),
     /// The body of the detail pane, which scrolls on its own.
     Detail,
+    /// An open overlay's own frame. Inert: it is there so that a click on the
+    /// text you are reading is not also a click on whatever it covers.
+    Overlay,
     /// A figure on the stats pane, by index into `doors`.
     Figure(usize),
     /// A question on the needs-you lens, by index into `questions`.
@@ -3376,6 +3379,18 @@ impl App {
     }
 
     fn click(&mut self, column: u16, row: u16, double: bool) -> Action {
+        // An overlay covers what is behind it, so a click behind it is a
+        // dismissal rather than a gesture meant for the surface it is
+        // covering. `any other key closes` on its edge promises as much, and a
+        // click was the one gesture that neither closed it nor was ignored.
+        if self.reading || self.history.is_some() {
+            if !matches!(self.hit_at(column, row), Some(Hit::Overlay)) {
+                self.reading = false;
+                self.read_scroll = 0;
+                self.history = None;
+            }
+            return Action::None;
+        }
         let Some(what) = self.hit_at(column, row).cloned() else {
             return Action::None;
         };
@@ -3443,7 +3458,7 @@ impl App {
             }
             Hit::Answer(yes) => return self.resolve_confirm(yes),
             Hit::Run(command) => return self.run(command),
-            Hit::Detail => {}
+            Hit::Detail | Hit::Overlay => {}
             Hit::Figure(n) => return self.open_door(n),
             // Selecting it, not answering it: the answers are keys, and a
             // click that closed an item would be a click nobody meant.

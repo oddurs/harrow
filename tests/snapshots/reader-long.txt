@@ -1,0 +1,26 @@
+ harrow  sample    needs  list  board  stats  log    1 needs you                                     starting
+ ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+─────────╭ Item ────────────────────────────────────────────────────────────────────────────────────╮─────────
+╭ Backlog│                                                                                          │────────╮
+│ ▾ v0.1 │   0003  Draw the list                                                                    │        │
+│  ○ 0005│                                                                                          │ur      │
+│  ⊘ 0004│   Paragraph 1 of a proposal nobody will finish reading.                                  │        │
+│  ◐ 0003│                                                                                          │──────  │
+│ ▾ no mi│   Paragraph 2 of a proposal nobody will finish reading.                                  │ll      │
+│  ○ 0006│                                                                                          │        │
+│        │   Paragraph 3 of a proposal nobody will finish reading.                                  │        │
+│        │                                                                                          │ll      │
+│        │   Paragraph 4 of a proposal nobody will finish reading.                                  │        │
+│        │                                                                                          │        │
+│        │   Paragraph 5 of a proposal nobody will finish reading.                                  │ll      │
+│        │                                                                                          │        │
+│        │   Paragraph 6 of a proposal nobody will finish reading.                                  │        │
+│        │                                                                                          │ll      │
+│        │   Paragraph 7 of a proposal nobody will finish reading.                                  │        │
+│        │                                                                                          │        │
+│        │   Paragraph 8 of a proposal nobody will finish reading.                                  │ll      │
+│        │                                                                                          │        │
+│        │   Paragraph 9 of a proposal nobody will finish reading.                                  │        │
+│        ╰ ↑↓ scroll · any other key closes ────────────────────────────────────────────────────────╯ll      │
+╰────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────────╯
+ ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help

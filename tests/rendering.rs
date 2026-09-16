@@ -203,6 +203,24 @@ fn an_empty_project_is_not_an_empty_screen() {
     );
 }
 
+/// The other side of the reader's edge. An item that overflows its frame says
+/// which keys move it, the way a pane holding more than it shows does — and
+/// recording only the short item would let that stop happening unnoticed.
+#[test]
+fn an_item_too_long_for_its_frame_says_which_keys_move_it() {
+    let mut app = support::app();
+    app.select_id(3);
+    let long = (1..=40)
+        .map(|n| format!("Paragraph {n} of a proposal nobody will finish reading."))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    for item in &mut app.items {
+        item.body = long.clone();
+    }
+    app.reading = true;
+    support::assert_snapshot("reader-long", &ui::render_to_string(&mut app, 110, 26, 0));
+}
+
 #[test]
 fn the_history_of_one_item() {
     let mut app = support::app();
