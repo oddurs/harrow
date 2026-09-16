@@ -6,7 +6,7 @@
 
 use crossterm::event::{KeyCode, KeyModifiers};
 
-use harrow::app::{Action, App};
+use harrow::app::{Action, App, Focus};
 use harrow::keys::Command;
 use harrow::testkit;
 use harrow::ui;
@@ -273,24 +273,45 @@ fn a_saved_view_is_a_filter_the_project_wrote_down() {
 /// items was four opens and four closes. A panel leaves the backlog where it
 /// is: the selection goes on moving and the panel follows it.
 #[test]
-fn reading_follows_the_selection_rather_than_taking_the_keys() {
+fn the_panel_takes_the_keys_when_it_is_focused_and_gives_them_back() {
     let mut app = app();
+    with_a_long_body(&mut app);
+    let first = app.selected_item().map(|i| i.id).expect("an item");
+
+    // `↵` opens it and focuses it: a panel you have to open and then reach for
+    // is two gestures for one intention.
     app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
     assert!(app.reading);
-    let first = app.selected_item().map(|i| i.id);
+    assert_eq!(app.focus, Focus::Reader);
 
     app.handle_key(KeyCode::Down, KeyModifiers::NONE);
-    assert!(app.reading, "moving the cursor does not close the panel");
-    assert_ne!(
+    ui::render_frame(&mut app, 140, 30, 0);
+    assert_eq!(app.reader.at(first), 1, "the text moved");
+    assert_eq!(
         app.selected_item().map(|i| i.id),
-        first,
-        "and the selection is what moved"
+        Some(first),
+        "and the cursor did not"
     );
 
-    // `esc` is the way out, and it goes before the marks it would otherwise
-    // clear: the panel is the newer thing open.
+    // `esc` hands the keys back without closing the panel, so moving through
+    // the backlog with it open is `esc j j ↵` rather than an open and a close
+    // for every item.
     app.handle_key(KeyCode::Esc, KeyModifiers::NONE);
-    assert!(!app.reading, "esc closes the panel");
+    assert_eq!(app.focus, Focus::List);
+    assert!(app.reading, "and the panel is still there");
+
+    app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+    assert_ne!(
+        app.selected_item().map(|i| i.id),
+        Some(first),
+        "now the cursor is what moves, and the panel follows it"
+    );
+    assert!(app.reading);
+
+    // A second `esc` is the one that closes it.
+    app.handle_key(KeyCode::Esc, KeyModifiers::NONE);
+    assert!(!app.reading);
+    assert_eq!(app.focus, Focus::List, "and nothing is left focused on it");
 }
 
 /// The offset belongs to the item, so walking the backlog with the panel open
@@ -307,12 +328,34 @@ fn the_panel_keeps_its_place_in_each_item_separately() {
     ui::render_frame(&mut app, 140, 30, 0);
     assert_eq!(app.reader.at(first), 2);
 
+    // Out of the panel, then along the list: the cursor moves, the panel
+    // follows, and the place it was left at belongs to the item rather than to
+    // the pane.
+    app.handle_key(KeyCode::Esc, KeyModifiers::NONE);
     app.handle_key(KeyCode::Down, KeyModifiers::NONE);
     let second = app.selected_item().map(|i| i.id).expect("another item");
     assert_eq!(app.reader.at(second), 0, "a new item starts at its top");
 
     app.handle_key(KeyCode::Up, KeyModifiers::NONE);
     assert_eq!(app.reader.at(first), 2, "and stepping back returns to it");
+}
+
+/// The keyboard's way into the pane without leaving the list, which is the
+/// gesture for glancing at the end of an item rather than settling into it.
+#[test]
+fn the_detail_keys_scroll_the_panel_without_taking_the_focus() {
+    let mut app = app();
+    with_a_long_body(&mut app);
+    let first = app.selected_item().map(|i| i.id).expect("an item");
+
+    app.run(Command::DetailDown);
+    ui::render_frame(&mut app, 140, 30, 0);
+    assert_eq!(app.detail.at(first), 1, "the detail pane moved");
+    assert_eq!(
+        app.focus,
+        Focus::List,
+        "and the keys stayed where they were"
+    );
 }
 
 /// A body long enough to need scrolling, so the frame it is read in is
