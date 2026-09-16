@@ -2,7 +2,7 @@
 id: 75
 title: An overlay cannot be scrolled past its end, and answers the mouse
 type: bug
-status: doing
+status: done
 milestone: v0.2
 created: 2026-09-15
 updated: 2026-09-15
