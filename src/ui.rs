@@ -43,6 +43,21 @@ const EMPTY_COLUMN: u16 = 15;
 const STATS_TWO_COLUMN: u16 = 88;
 /// Below this, the header drops to the identity and the counts.
 const ROOMY: u16 = 74;
+/// The least a reader is worth drawing in. Narrower than this and the prose is
+/// being squeezed rather than read, so the lens steps aside and gives it the
+/// body instead.
+const READER_MIN: u16 = 62;
+/// The least a browsing column is worth keeping — an id, a glyph, and enough
+/// title to tell two items apart.
+const BROWSE_MIN: u16 = 30;
+/// A line longer than this stops being read and starts being scanned. Running
+/// text edge to edge is what makes a wide terminal worse to read in than a
+/// narrow one.
+const READER_MEASURE: u16 = 76;
+/// The measure, plus the padding and borders around it. What the panel asks
+/// for when the body can spare it, and never more: a wider browsing column is
+/// useful and a wider column of prose is not.
+const READER_PANEL: u16 = READER_MEASURE + 6;
 
 /// One glyph per state, so the screen still says everything it needs to when
 /// there is no colour at all — `mono`, `NO_COLOR`, or a reader who cannot tell
@@ -139,28 +154,42 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     // should know less about it than a list does. What differs is how much
     // room a lens needs before it can spare the width — which is a property
     // of the arrangement, so each lens says.
-    let (body, detail) = split_off_detail(app, chunks[3]);
-    match app.pane {
-        Pane::Needs => draw_needs(f, app, &t, body),
-        Pane::Log => draw_log(f, app, &t, body),
-        Pane::Stats => draw_stats(f, app, &t, body),
-        Pane::Board => {
-            app.board_area = body;
-            draw_board(f, app, &t, body);
-        }
-        Pane::List => {
-            app.list_area = body;
-            draw_list(f, app, &t, body);
+    // Reading rearranges the body rather than covering it. The detail pane is
+    // not drawn beside the reader: they answer the same question, and two
+    // answers to one question is the thing a second pane is supposed to avoid.
+    let reading = app.reading && app.selected_item().is_some();
+    let (lens, detail, reader) = if reading {
+        let (lens, reader) = split_off_reader(app, chunks[3]);
+        (lens, None, Some(reader))
+    } else {
+        let (lens, detail) = split_off_detail(app, chunks[3]);
+        (Some(lens), detail, None)
+    };
+    // Left as it was when the lens is not drawn, so the page-height the
+    // scrolling arithmetic reads is the last one that meant anything.
+    if let Some(body) = lens {
+        match app.pane {
+            Pane::Needs => draw_needs(f, app, &t, body),
+            Pane::Log => draw_log(f, app, &t, body),
+            Pane::Stats => draw_stats(f, app, &t, body),
+            Pane::Board => {
+                app.board_area = body;
+                draw_board(f, app, &t, body);
+            }
+            Pane::List => {
+                app.list_area = body;
+                draw_list(f, app, &t, body);
+            }
         }
     }
     if let Some(detail) = detail {
         draw_detail(f, app, &t, detail);
     }
+    if let Some(reader) = reader {
+        draw_reader(f, app, &t, reader);
+    }
     draw_footer(f, app, &t, chunks[4]);
 
-    if app.reading {
-        draw_reader(f, app, &t, area);
-    }
     if app.history.is_some() {
         draw_history(f, app, &t, area);
     }
@@ -935,6 +964,33 @@ fn split_off_detail(app: &App, body: Rect) -> (Rect, Option<Rect>) {
         })
         .split(body);
     (split[0], Some(split[1]))
+}
+
+/// Where the reader panel goes, and what the lens keeps.
+///
+/// The same judgement `split_off_detail` makes, and for the same reason each
+/// lens gets a say in it: browse on the left and inspect on the right while
+/// both fit, and the reader alone once they do not. A lens squeezed under
+/// what it needs is not a browsing column, it is a stub beside the thing you
+/// actually wanted, so below the threshold it steps aside entirely.
+fn split_off_reader(app: &App, body: Rect) -> (Option<Rect>, Rect) {
+    let browse = match app.pane {
+        // A board browses by having its columns beside each other. One
+        // squeezed column is not a board, so it asks for all of them.
+        Pane::Board => COLUMN_MIN * app.columns.len().max(1) as u16,
+        _ => BROWSE_MIN,
+    };
+    if body.width < browse.saturating_add(READER_MIN) {
+        return (None, body);
+    }
+    // The reader takes the measure it can use and the lens keeps the rest,
+    // rather than both growing and only one of them able to spend it.
+    let reader = READER_PANEL.min(body.width.saturating_sub(browse));
+    let split = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Min(0), Constraint::Length(reader)])
+        .split(body);
+    (Some(split[0]), split[1])
 }
 
 // ── The detail pane ──────────────────────────────────────────────────────────
@@ -2730,61 +2786,147 @@ fn overlay_edge(scrollable: bool) -> &'static str {
     }
 }
 
-/// The whole item, which is the thing cairn keeps that a listing cannot show:
-/// the problem, the proposal, and what was decided.
+/// What an item says about itself before its prose starts: where it stands,
+/// what kind of thing it is, who has it. All of it was in the detail pane the
+/// old popover covered, which made the fullest view of an item the one that
+/// said least about it.
+fn reader_masthead(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<'static>> {
+    let schema = &app.schema;
+    let mut lines = Vec::new();
+
+    for (n, part) in wrap(&item.title, width).into_iter().enumerate() {
+        lines.push(Line::from(vec![
+            if n == 0 {
+                Span::styled(
+                    format!("{} ", glyph(item)),
+                    Style::default().fg(state_color(item, t, schema)),
+                )
+            } else {
+                Span::raw("  ")
+            },
+            Span::styled(part, Style::default().fg(t.heading).bold()),
+        ]));
+    }
+    lines.push(Line::from(""));
+
+    // Where it stands, then why it is ranked where it is. Two lines rather
+    // than one because six facts on one line is a line that truncates.
+    let mut standing = vec![Span::styled(
+        schema
+            .status(&item.status)
+            .map(|s| s.display().to_string())
+            .unwrap_or_else(|| item.status.clone()),
+        Style::default().fg(t.status(schema.status(&item.status))),
+    )];
+    let dot = |spans: &mut Vec<Span<'static>>| {
+        spans.push(Span::styled(" · ", Style::default().fg(t.faint)));
+    };
+    dot(&mut standing);
+    standing.push(Span::styled(
+        item.kind.clone(),
+        Style::default().fg(t.item_type(schema.item_type(&item.kind))),
+    ));
+    if let Some(milestone) = item.milestone() {
+        dot(&mut standing);
+        standing.push(Span::styled(
+            milestone.to_string(),
+            Style::default().fg(t.milestone),
+        ));
+    }
+    lines.push(Line::from(standing));
+
+    // The rank the project ranks by, then the rest of the columns it chose.
+    // Nothing here is named in this file: a project that ranks by `severity`
+    // and files by `component` gets its own words, the way every other surface
+    // in harrow does.
+    let mut ranking: Vec<Span<'static>> = Vec::new();
+    if let Some(rank) = rank_field(schema)
+        && let Some(value) = item.field(&rank.name).filter(|v| !v.is_empty())
+    {
+        ranking.push(Span::styled(value.display(), rank_style(item, schema, t)));
+    }
+    for field in schema.fields.iter().filter(|f| f.column) {
+        if rank_field(schema).is_some_and(|r| r.name == field.name) || field.name == "milestone" {
+            continue;
+        }
+        if let Some(value) = item.field(&field.name).filter(|v| !v.is_empty()) {
+            if !ranking.is_empty() {
+                dot(&mut ranking);
+            }
+            ranking.push(Span::styled(value.display(), Style::default().fg(t.muted)));
+        }
+    }
+    if let Some(who) = &item.assignee {
+        if !ranking.is_empty() {
+            dot(&mut ranking);
+        }
+        let stale = app.claim_is_stale(item);
+        let (mark, style) = actor_style(app, who, stale, t);
+        ranking.push(Span::styled(format!("{mark}{who}"), style));
+        if let Some(days) = app.claimed_days(item).filter(|_| stale) {
+            ranking.push(Span::styled(
+                format!(" · held {days} days"),
+                Style::default().fg(t.warn),
+            ));
+        }
+    }
+    if !ranking.is_empty() {
+        lines.push(Line::from(ranking));
+    }
+    lines
+}
+
+/// The whole item, read beside the backlog rather than over it.
+///
+/// A panel, not a popover: the lens keeps its own column while there is room
+/// for one, the selection goes on moving, and what is shown here follows it.
 fn draw_reader(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let Some(item) = app.selected_item() else {
         return;
     };
-    let width = 92u16.min(area.width.saturating_sub(4));
-    // Below the header, so what you are reading stays identified while you read.
-    let height = area.height.saturating_sub(4);
-    let popup = centered(area, width, height);
-    let inner = width.saturating_sub(4) as usize;
+    let id = item.id;
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(t.border_focus))
+        .padding(Padding::horizontal(2))
+        .title(Span::styled(
+            format!(" {} ", app.schema.format_id(id)),
+            Style::default().fg(t.muted),
+        ));
+    let inner = block.inner(area);
+    // Held to a measure. Everything past it is margin, so the panel can be as
+    // wide as the terminal allows without the prose becoming unreadable.
+    let measure = inner.width.min(READER_MEASURE) as usize;
 
-    let mut lines = vec![
-        Line::from(""),
-        Line::from(vec![
-            Span::styled(
-                format!("  {}  ", app.schema.format_id(item.id)),
-                Style::default().fg(t.faint),
-            ),
-            Span::styled(
-                truncate(&item.title, inner.saturating_sub(10)),
-                Style::default().fg(t.heading).bold(),
-            ),
-        ]),
-        Line::from(""),
-    ];
-    lines.extend(body_lines(&item.body, t, inner.saturating_sub(2)));
+    let mut lines = vec![Line::from("")];
+    lines.extend(reader_masthead(app, item, t, measure));
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "─".repeat(measure),
+        Style::default().fg(t.border),
+    )));
+    lines.push(Line::from(""));
+    lines.extend(body_lines(&item.body, t, measure));
 
-    // Clamped here for the reason the detail pane is clamped here: the draw is
-    // the only place that knows how tall the body came out. An overlay is a
-    // pane that happens to be centred, and past the end is not a place either
-    // of them can be.
-    let over = lines
-        .len()
-        .saturating_sub(height.saturating_sub(2) as usize);
-    app.read_scroll = app.read_scroll.min(over as u16);
+    // Clamped here because here is where the height of the content is known.
+    let over = lines.len().saturating_sub(inner.height as usize);
+    app.reader.clamp(over as u16);
+    let scroll = app.reader.at(id);
 
-    f.render_widget(Clear, popup);
-    f.render_widget(
-        Paragraph::new(lines).scroll((app.read_scroll, 0)).block(
-            Block::bordered()
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(t.border_focus))
-                .padding(Padding::horizontal(1))
-                .title(Span::styled(" Item ", Style::default().fg(t.muted)))
-                .title_bottom(Span::styled(
-                    overlay_edge(over > 0),
-                    Style::default().fg(t.faint),
-                )),
-        ),
-        popup,
-    );
-    // On top of the list it covers, so a click on the body reaches the overlay
-    // rather than the row behind it. Last registered wins.
-    app.hit(popup, Hit::Overlay);
+    let hint = app
+        .keymap
+        .scroll_hint(Command::DetailUp, Command::DetailDown);
+    let block = match (over > 0, hint) {
+        (true, Some(keys)) => block.title_bottom(Span::styled(
+            format!(" {keys} scroll · esc closes "),
+            Style::default().fg(t.faint),
+        )),
+        _ => block.title_bottom(Span::styled(" esc closes ", Style::default().fg(t.faint))),
+    };
+
+    f.render_widget(Clear, area);
+    f.render_widget(Paragraph::new(lines).scroll((scroll, 0)).block(block), area);
+    app.hit(area, Hit::Reader);
 }
 
 /// How an item got the way it is.

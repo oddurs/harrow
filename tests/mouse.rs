@@ -93,53 +93,64 @@ fn clicking_a_row_selects_it_and_clicking_twice_reads_it() {
     assert!(app.reading, "two is a read");
 }
 
-/// The reader used to be transparent to a click: the hit map still held the
-/// list's rows, so a click on the body you were reading moved the selection
-/// behind it, and one that landed on a tab switched lens with the overlay still
-/// over the new one.
+/// A panel is not a modal. The list beside it goes on answering the pointer,
+/// and what the panel shows follows what the click selected — which is the
+/// whole reason for reading beside the backlog rather than over it.
 #[test]
-fn a_click_inside_an_open_reader_does_not_reach_the_list_behind_it() {
-    let mut app = testkit::app();
-    drawn(&mut app);
-    let (x, y) = find(&app, &Hit::Row(2));
-    click(&mut app, x, y);
-    click(&mut app, x, y);
-    assert!(app.reading, "two clicks open the reader");
-
-    let was = app.selected;
-    drawn(&mut app);
-    let (ox, oy) = find(&app, &Hit::Overlay);
-    // A few cells in, so it is the body rather than the border.
-    click(&mut app, ox + 4, oy + 4);
-    assert!(
-        app.reading,
-        "a click on what you are reading is not a dismissal"
-    );
-    assert_eq!(app.selected, was, "nor a selection in the list it covers");
-}
-
-/// What `any other key closes` already promises, for the one gesture that
-/// used to neither close it nor be ignored.
-#[test]
-fn a_click_outside_an_open_reader_closes_it() {
+fn clicking_the_list_while_reading_moves_what_the_panel_shows() {
     let mut app = testkit::app();
     app.reading = true;
-    drawn(&mut app);
-    let (ox, oy) = find(&app, &Hit::Overlay);
+    let _ = ui::render_frame(&mut app, 140, 30, 0);
 
-    let was = app.selected;
-    // The top-left corner of the screen: outside a centred overlay by
-    // construction, whatever size the terminal is.
-    assert!(
-        ox > 0 && oy > 0,
-        "the overlay is centred, so 0,0 is outside it"
+    // The lens keeps a column at this width, so its rows are still clickable.
+    let (x, y) = find(&app, &Hit::Row(2));
+    click(&mut app, x, y);
+    let first = app.selected_item().map(|i| i.id);
+    assert!(app.reading, "clicking the list does not dismiss the panel");
+
+    let _ = ui::render_frame(&mut app, 140, 30, 0);
+    let (x, y) = find(&app, &Hit::Row(3));
+    click(&mut app, x, y);
+    assert!(app.reading, "still reading");
+    assert_ne!(
+        app.selected_item().map(|i| i.id),
+        first,
+        "and the panel is showing the item the click selected"
     );
-    click(&mut app, 0, 0);
-    assert!(!app.reading, "a click behind the overlay dismisses it");
-    assert_eq!(app.read_scroll, 0, "and leaves it at the top for next time");
+}
+
+/// The wheel goes to the pane under the pointer, which is the rule everywhere
+/// else on the screen. The panel used to swallow every scroll while it was up.
+#[test]
+fn the_wheel_scrolls_the_panel_or_the_list_by_where_it_is() {
+    let mut app = testkit::app();
+    app.select_id(3);
+    app.reading = true;
+    let long = (1..=80)
+        .map(|n| format!("Paragraph {n} of a proposal nobody will finish reading."))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    for item in &mut app.items {
+        item.body = long.clone();
+    }
+    let _ = ui::render_frame(&mut app, 140, 30, 0);
+    let id = app.selected_item().map(|i| i.id).expect("an item");
+
+    let (rx, ry) = find(&app, &Hit::Reader);
+    app.handle_mouse(at(MouseEventKind::ScrollDown, rx + 4, ry + 4));
+    let _ = ui::render_frame(&mut app, 140, 30, 0);
+    assert!(app.reader.at(id) > 0, "the pointer was over the panel");
+
+    // Over the list instead: the panel stays where it was put.
+    let moved = app.reader.at(id);
+    let (lx, ly) = find(&app, &Hit::Row(2));
+    app.handle_mouse(at(MouseEventKind::ScrollDown, lx, ly));
+    let _ = ui::render_frame(&mut app, 140, 30, 0);
     assert_eq!(
-        app.selected, was,
-        "the click that dismissed it is spent doing that and nothing else"
+        app.reader
+            .at(app.selected_item().map(|i| i.id).expect("an item")),
+        moved,
+        "a scroll over the list is not a scroll of the panel"
     );
 }
 

@@ -221,6 +221,27 @@ fn an_item_too_long_for_its_frame_says_which_keys_move_it() {
     support::assert_snapshot("reader-long", &ui::render_to_string(&mut app, 110, 26, 0));
 }
 
+/// Browse on the left, inspect on the right. The lens keeps a column and the
+/// panel takes the measure it can use — not the whole of a wide terminal,
+/// because a wider column of prose is not a better one.
+#[test]
+fn reading_beside_the_backlog() {
+    let mut app = support::app();
+    app.select_id(3);
+    app.reading = true;
+    support::assert_snapshot("reader-panel", &ui::render_to_string(&mut app, 140, 30, 0));
+}
+
+/// Too narrow for both, so the lens steps aside rather than the two of them
+/// splitting a width neither can use.
+#[test]
+fn reading_when_there_is_no_room_to_browse_as_well() {
+    let mut app = support::app();
+    app.select_id(3);
+    app.reading = true;
+    support::assert_snapshot("reader-narrow", &ui::render_to_string(&mut app, 84, 24, 0));
+}
+
 #[test]
 fn the_history_of_one_item() {
     let mut app = support::app();
