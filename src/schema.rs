@@ -13,6 +13,8 @@
 //! Unknown keys are ignored on purpose. cairn's format grows, and a project
 //! written for a newer cairn must still open here.
 
+use std::ffi::OsStr;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -497,9 +499,11 @@ impl Schema {
 
         Ok(Schema {
             name: project.name.unwrap_or_else(|| {
-                root.file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| "project".to_string())
+                repository_name(&root).unwrap_or_else(|| {
+                    root.file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| "project".to_string())
+                })
             }),
             description: project.description,
             dir: PathBuf::from(project.dir.unwrap_or_else(|| "items".to_string())),
@@ -754,9 +758,238 @@ struct RenderFile {
     target: Option<String>,
 }
 
+/// What the repository is called, for a project that did not say.
+///
+/// The directory is the wrong answer often enough to be worth the walk. This
+/// project's own worktrees live at `../.worktrees/<repo>/<type>/<slug>`, so the
+/// directory name is a branch slug and two agents on one repository would see
+/// two different project names, neither of them the repository.
+///
+/// Read rather than asked: `git` is a process, and finding out what a project
+/// is called is not a reason to start one. Both answers here are files.
+fn repository_name(root: &Path) -> Option<String> {
+    let git = git_dir(root)?;
+    // `origin` first. It is what the project is called where other people
+    // refer to it, which is what a name is for.
+    if let Ok(config) = fs::read_to_string(git.join("config"))
+        && let Some(name) = origin_name(&config)
+    {
+        return Some(name);
+    }
+    // Otherwise the directory holding `.git`, which for a worktree is the main
+    // checkout rather than the worktree itself.
+    git.parent()
+        .and_then(|d| d.file_name())
+        .map(|n| n.to_string_lossy().to_string())
+}
+
+/// The `.git` belonging to `root` or to a directory above it, following the
+/// one-line file a worktree has in place of a directory.
+fn git_dir(root: &Path) -> Option<PathBuf> {
+    let mut at = Some(root);
+    while let Some(dir) = at {
+        let candidate = dir.join(".git");
+        if candidate.is_dir() {
+            return Some(candidate);
+        }
+        if candidate.is_file() {
+            // `gitdir: /path/to/repo/.git/worktrees/<slug>` — the repository's
+            // own `.git` is two directories up from there.
+            let text = fs::read_to_string(&candidate).ok()?;
+            let path = PathBuf::from(text.strip_prefix("gitdir:")?.trim());
+            return match path.parent().and_then(|p| p.parent()) {
+                Some(main) if main.file_name() == Some(OsStr::new(".git")) => {
+                    Some(main.to_path_buf())
+                }
+                _ => Some(path),
+            };
+        }
+        at = dir.parent();
+    }
+    None
+}
+
+/// The repository name out of a remote URL, whichever way it is written.
+/// `git@host:owner/name.git` and `https://host/owner/name` are the same name.
+fn origin_name(config: &str) -> Option<String> {
+    let mut in_origin = false;
+    for line in config.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            in_origin = line.replace(' ', "") == "[remote\"origin\"]";
+            continue;
+        }
+        if !in_origin {
+            continue;
+        }
+        if let Some(url) = line.strip_prefix("url") {
+            let url = url
+                .trim_start()
+                .strip_prefix('=')?
+                .trim()
+                .trim_end_matches('/');
+            let name = url.rsplit(['/', ':']).next()?;
+            let name = name.strip_suffix(".git").unwrap_or(name);
+            if !name.is_empty() {
+                return Some(name.to_string());
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A directory nobody else is using, removed when the test ends.
+    struct Dir(PathBuf);
+
+    impl Dir {
+        fn new(tag: &str) -> Dir {
+            let at =
+                std::env::temp_dir().join(format!("harrow-schema-{tag}-{}", std::process::id()));
+            let _ = fs::remove_dir_all(&at);
+            fs::create_dir_all(&at).expect("a temp dir");
+            Dir(at)
+        }
+        fn at(&self, rel: &str) -> PathBuf {
+            self.0.join(rel)
+        }
+    }
+
+    impl Drop for Dir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn write(at: &Path, text: &str) {
+        if let Some(parent) = at.parent() {
+            fs::create_dir_all(parent).expect("a parent");
+        }
+        fs::write(at, text).expect("a write");
+    }
+
+    const ORIGIN: &str = "[core]\n\trepositoryformatversion = 0\n[remote \"origin\"]\n\turl = git@github.com:oddurs/harrow.git\n";
+
+    /// The directory is the wrong answer in a worktree, where it is a branch
+    /// slug — so two agents on one repository saw two different project names.
+    #[test]
+    fn a_worktree_is_named_after_its_repository_not_its_slug() {
+        let dir = Dir::new("worktree");
+        write(&dir.at("repo/.git/config"), ORIGIN);
+        let slug = dir.at("worktrees/harrow/fix/some-slug");
+        fs::create_dir_all(&slug).expect("a worktree");
+        write(
+            &slug.join(".git"),
+            &format!(
+                "gitdir: {}\n",
+                dir.at("repo/.git/worktrees/some-slug").display()
+            ),
+        );
+        assert_eq!(repository_name(&slug).as_deref(), Some("harrow"));
+    }
+
+    #[test]
+    fn an_ordinary_checkout_is_named_after_its_repository() {
+        let dir = Dir::new("checkout");
+        write(&dir.at("anything/.git/config"), ORIGIN);
+        assert_eq!(
+            repository_name(&dir.at("anything")).as_deref(),
+            Some("harrow")
+        );
+    }
+
+    /// A directory inside the repository is still the repository.
+    #[test]
+    fn a_directory_below_the_root_still_finds_it() {
+        let dir = Dir::new("below");
+        write(&dir.at("repo/.git/config"), ORIGIN);
+        let deep = dir.at("repo/a/b/c");
+        fs::create_dir_all(&deep).expect("a deep dir");
+        assert_eq!(repository_name(&deep).as_deref(), Some("harrow"));
+    }
+
+    /// No remote, so the directory holding `.git` answers instead.
+    #[test]
+    fn a_repository_with_no_remote_is_named_after_its_own_directory() {
+        let dir = Dir::new("noremote");
+        write(&dir.at("standalone/.git/config"), "[core]\n");
+        assert_eq!(
+            repository_name(&dir.at("standalone")).as_deref(),
+            Some("standalone")
+        );
+    }
+
+    #[test]
+    fn a_directory_that_is_not_a_repository_has_no_repository_name() {
+        let dir = Dir::new("bare");
+        fs::create_dir_all(dir.at("plain")).expect("a dir");
+        assert_eq!(repository_name(&dir.at("plain")), None);
+    }
+
+    /// Both ways a remote is written name the same repository.
+    #[test]
+    fn a_remote_names_the_same_thing_however_it_is_written() {
+        for url in [
+            "git@github.com:oddurs/harrow.git",
+            "https://github.com/oddurs/harrow.git",
+            "https://github.com/oddurs/harrow",
+            "https://github.com/oddurs/harrow/",
+        ] {
+            let config = format!("[remote \"origin\"]\n\turl = {url}\n");
+            assert_eq!(origin_name(&config).as_deref(), Some("harrow"), "for {url}");
+        }
+    }
+
+    /// The bug itself, through the door harrow actually uses. The helpers
+    /// above can all be right while the schema goes on reading the folder.
+    #[test]
+    fn a_project_with_no_name_of_its_own_loads_as_its_repository() {
+        let dir = Dir::new("load");
+        write(&dir.at("repo/.git/config"), ORIGIN);
+        let slug = dir.at("worktrees/harrow/fix/repo-name-over-folder");
+        fs::create_dir_all(slug.join("items")).expect("a worktree");
+        write(
+            &slug.join(".git"),
+            &format!(
+                "gitdir: {}\n",
+                dir.at("repo/.git/worktrees/repo-name-over-folder")
+                    .display()
+            ),
+        );
+        // No `name` in it, which is the whole case.
+        write(&slug.join("cairn.toml"), "[project]\ndir = \"items\"\n");
+
+        let schema = Schema::load(&slug.join("cairn.toml")).expect("it loads");
+        assert_eq!(
+            schema.name, "harrow",
+            "the branch slug is not the name of the project"
+        );
+    }
+
+    /// And a name it did say still wins, wherever it is opened.
+    #[test]
+    fn a_project_that_names_itself_keeps_its_name() {
+        let dir = Dir::new("named");
+        write(&dir.at("repo/.git/config"), ORIGIN);
+        let at = dir.at("repo/somewhere");
+        fs::create_dir_all(at.join("items")).expect("a dir");
+        write(
+            &at.join("cairn.toml"),
+            "[project]\nname = \"quarry\"\ndir = \"items\"\n",
+        );
+        let schema = Schema::load(&at.join("cairn.toml")).expect("it loads");
+        assert_eq!(schema.name, "quarry");
+    }
+
+    /// Another remote is not the project's name.
+    #[test]
+    fn only_origin_names_the_project() {
+        let config = "[remote \"upstream\"]\n\turl = git@github.com:someone/else.git\n";
+        assert_eq!(origin_name(config), None);
+    }
 
     const SAMPLE: &str = r#"
 format = 3
