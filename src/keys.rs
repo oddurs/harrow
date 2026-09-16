@@ -208,7 +208,7 @@ impl Command {
             Command::Retreat => "move it one status back",
             Command::Copy => "copy the item's reference",
             Command::Filter => "filter, in cairn's own grammar",
-            Command::Back => "back out — the panel, then a filter, then an overlay",
+            Command::Back => "back out — one press leaves whatever is open",
             Command::ToggleAll => "show everything — finished, dropped, and milestones",
             Command::Refresh => "re-read the backlog now",
             Command::Reload => "reload the config and theme",

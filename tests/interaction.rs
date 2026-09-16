@@ -293,25 +293,45 @@ fn the_panel_takes_the_keys_when_it_is_focused_and_gives_them_back() {
         "and the cursor did not"
     );
 
-    // `esc` hands the keys back without closing the panel, so moving through
-    // the backlog with it open is `esc j j ↵` rather than an open and a close
-    // for every item.
+    // One `esc` backs out of both, because the panel and the keys in it are
+    // one thing. Two presses to leave one panel reads as the first one having
+    // failed.
     app.handle_key(KeyCode::Esc, KeyModifiers::NONE);
-    assert_eq!(app.focus, Focus::List);
-    assert!(app.reading, "and the panel is still there");
+    assert!(!app.reading, "the panel is closed");
+    assert_eq!(app.focus, Focus::List, "and nothing is left focused on it");
 
     app.handle_key(KeyCode::Down, KeyModifiers::NONE);
     assert_ne!(
         app.selected_item().map(|i| i.id),
         Some(first),
-        "now the cursor is what moves, and the panel follows it"
+        "and the cursor moves again"
     );
-    assert!(app.reading);
+}
 
-    // A second `esc` is the one that closes it.
-    app.handle_key(KeyCode::Esc, KeyModifiers::NONE);
-    assert!(!app.reading);
-    assert_eq!(app.focus, Focus::List, "and nothing is left focused on it");
+/// Clicking a row while the panel is open says "look at this one" rather than
+/// "I am done", so the panel stays and the keys go back to the list.
+#[test]
+fn the_pointer_can_leave_the_panel_open() {
+    let mut app = app();
+    with_a_long_body(&mut app);
+    app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+    assert_eq!(app.focus, Focus::Reader);
+
+    ui::render_frame(&mut app, 140, 30, 0);
+    let (area, _) = app
+        .hits
+        .iter()
+        .find(|(_, hit)| matches!(hit, harrow::app::Hit::Row(_)))
+        .expect("a row on screen");
+    app.handle_mouse(crossterm::event::MouseEvent {
+        kind: crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),
+        column: area.x,
+        row: area.y,
+        modifiers: KeyModifiers::NONE,
+    });
+
+    assert_eq!(app.focus, Focus::List, "the keys went back to the list");
+    assert!(app.reading, "and the panel stayed open");
 }
 
 /// The offset belongs to the item, so walking the backlog with the panel open

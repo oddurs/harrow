@@ -2923,7 +2923,7 @@ fn draw_reader(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     // telling you the second half of the answer.
     let hint = if focused {
         let scroll = if over > 0 { "↑↓ scroll · " } else { "" };
-        format!(" {scroll}esc back to the list ")
+        format!(" {scroll}esc closes ")
     } else {
         let keys = app
             .keymap
@@ -3436,7 +3436,7 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
                 Span::styled("  ↑↓", Style::default().fg(t.accent).bold()),
                 Span::styled(" scroll  ", Style::default().fg(t.faint)),
                 Span::styled("esc", Style::default().fg(t.accent).bold()),
-                Span::styled(" back to the list  ", Style::default().fg(t.faint)),
+                Span::styled(" closes  ", Style::default().fg(t.faint)),
                 Span::styled("e", Style::default().fg(t.accent).bold()),
                 Span::styled(" edit", Style::default().fg(t.faint)),
             ]),
