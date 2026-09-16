@@ -251,10 +251,13 @@ fn a_screenshot_of_the_log_shows_the_history_rather_than_the_asking() {
         !out.contains("Asking the repository"),
         "and it has been answered:\n{out}"
     );
-    // The fixture is a temp directory rather than a repository, so the honest
-    // answer is that there is no history to read — not a question left hanging.
+    // Either answer is a real one: "no history to read" where git declines the
+    // directory, "nothing has changed here yet" where it resolves a repository
+    // and finds no commits touching it. Which of the two depends on the
+    // environment — a git hook exports GIT_DIR, and a child git reads it — so
+    // asserting one of them is asserting where the suite was run from.
     assert!(
-        out.contains("no history") || out.contains("not a git repository"),
-        "{out}"
+        out.contains("no history") || out.contains("Nothing has changed"),
+        "the lens has to say something it means:\n{out}"
     );
 }
