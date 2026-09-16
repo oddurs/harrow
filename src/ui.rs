@@ -47,6 +47,16 @@ const ROOMY: u16 = 74;
 /// being squeezed rather than read, so the lens steps aside and gives it the
 /// body instead.
 const READER_MIN: u16 = 62;
+/// What the filter panel asks for: the longest value a project is likely to
+/// declare, its count, its box, and the edges around them.
+const FILTER_WIDTH: u16 = 26;
+/// What has to be left over for the backlog to still be worth narrowing. Below
+/// it the panel takes the body, because a filter you cannot read the result of
+/// is not a filter, and one you cannot read is not either.
+const FILTER_MIN_REST: u16 = 44;
+/// The widest a value row is drawn, however wide the panel gets. A count at
+/// the far end of a wide terminal is not beside the thing it counts.
+const FILTER_ROW: u16 = 32;
 /// The least a browsing column is worth keeping — an id, a glyph, and enough
 /// title to tell two items apart.
 const BROWSE_MIN: u16 = 30;
@@ -157,13 +167,21 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     // Reading rearranges the body rather than covering it. The detail pane is
     // not drawn beside the reader: they answer the same question, and two
     // answers to one question is the thing a second pane is supposed to avoid.
+    // The filter takes its column off the left before anything else divides
+    // what is left: it is what you are doing *to* the backlog, so the backlog
+    // and everything about one item stay together beside it.
+    let (filter, body) = split_off_filter(app, chunks[3]);
     let reading = app.reading && app.selected_item().is_some();
-    let (lens, detail, reader) = if reading {
-        let (lens, reader) = split_off_reader(app, chunks[3]);
-        (lens, None, Some(reader))
-    } else {
-        let (lens, detail) = split_off_detail(app, chunks[3]);
-        (Some(lens), detail, None)
+    let (lens, detail, reader) = match body {
+        None => (None, None, None),
+        Some(body) if reading => {
+            let (lens, reader) = split_off_reader(app, body);
+            (lens, None, Some(reader))
+        }
+        Some(body) => {
+            let (lens, detail) = split_off_detail(app, body);
+            (Some(lens), detail, None)
+        }
     };
     // Left as it was when the lens is not drawn, so the page-height the
     // scrolling arithmetic reads is the last one that meant anything.
@@ -187,6 +205,9 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     }
     if let Some(reader) = reader {
         draw_reader(f, app, &t, reader);
+    }
+    if let Some(filter) = filter {
+        draw_filter(f, app, &t, filter);
     }
     draw_footer(f, app, &t, chunks[4]);
 
@@ -715,6 +736,20 @@ fn rank_tag(item: &Item, schema: &Schema) -> String {
         .to_string()
 }
 
+/// The colour a rank value wears, by where the project put it in its own
+/// order. The same ramp the list paints a rank tag with, asked by value rather
+/// than by item, because the panel has a value and no item to hand.
+fn rank_colour(schema: &Schema, value: &str, t: &Theme) -> Color {
+    let Some(field) = rank_field(schema) else {
+        return t.muted;
+    };
+    let index = field.rank(value);
+    if index == usize::MAX {
+        return t.muted;
+    }
+    t.rank(index, field.values.len())
+}
+
 fn rank_style(item: &Item, schema: &Schema, t: &Theme) -> Style {
     let Some(field) = rank_field(schema) else {
         return Style::default().fg(t.muted);
@@ -968,6 +1003,159 @@ fn split_off_detail(app: &App, body: Rect) -> (Rect, Option<Rect>) {
         })
         .split(body);
     (split[0], Some(split[1]))
+}
+
+/// Where the filter panel goes, and what is left for everything else.
+///
+/// Placed by the room, the way the reader is. With enough left over it takes a
+/// column off the left and the backlog carries on beside it; without, it takes
+/// the body — a panel you cannot read is no more use than a result you cannot.
+fn split_off_filter(app: &App, body: Rect) -> (Option<Rect>, Option<Rect>) {
+    if !app.filtering {
+        return (None, Some(body));
+    }
+    if body.width < FILTER_WIDTH + FILTER_MIN_REST {
+        return (Some(body), None);
+    }
+    let split = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Length(FILTER_WIDTH), Constraint::Min(0)])
+        .split(body);
+    (Some(split[0]), Some(split[1]))
+}
+
+/// What the backlog can be narrowed by, and what each choice would leave.
+///
+/// Every heading and every row comes from the project's own schema. The panel
+/// has no opinion about what a backlog is filtered by; it reads what the
+/// project declared and offers that.
+fn draw_filter(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
+    let focused = app.focus == crate::app::Focus::Filter;
+    let (shown, total) = app.shown_and_total();
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(if focused { t.border_focus } else { t.border }))
+        .padding(Padding::horizontal(1))
+        .title(Span::styled(" Filter ", Style::default().fg(t.muted)))
+        .title_bottom(Span::styled(
+            if shown == total {
+                format!(" {total} items ")
+            } else {
+                format!(" {shown} of {total} ")
+            },
+            Style::default().fg(if shown == total { t.faint } else { t.accent }),
+        ));
+    let inner = block.inner(area);
+    // A value and its count, and no more: when the panel has the body to
+    // itself the rows stop growing rather than stranding a count at the far
+    // edge of a terminal from the label it belongs to.
+    let room = (inner.width as usize).min(FILTER_ROW as usize);
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    // Where the cursor is, counted the way the cursor counts: over values,
+    // because a heading is not somewhere it can be.
+    let mut nth = 0usize;
+    let mut cursor_line = 0usize;
+    for facet in &app.facets {
+        if !lines.is_empty() {
+            lines.push(Line::from(""));
+        }
+        lines.push(Line::from(Span::styled(
+            facet.label.clone(),
+            Style::default().fg(t.heading).bold(),
+        )));
+        for value in &facet.values {
+            let here = nth == app.facet;
+            if here {
+                cursor_line = lines.len();
+            }
+            // An empty box and a ticked one, rather than colour alone: the
+            // state of a checkbox has to survive a terminal with no colour.
+            let box_glyph = if value.ticked { "☑" } else { "☐" };
+            let colour = match value.role {
+                crate::app::FacetRole::Status => t.status(app.schema.status(&value.value)),
+                crate::app::FacetRole::Type => t.item_type(app.schema.item_type(&value.value)),
+                crate::app::FacetRole::Rank => rank_colour(&app.schema, &value.value, t),
+                crate::app::FacetRole::Plain => t.text,
+            };
+            // Nothing to find is dimmed rather than dropped: "there are no
+            // p0s" is an answer, and an absence is not.
+            let colour = if value.count == 0 { t.faint } else { colour };
+            let count = value.count.to_string();
+            let label = truncate(&value.label, room.saturating_sub(count.chars().count() + 5));
+            let gap = room.saturating_sub(label.chars().count() + count.chars().count() + 4);
+            let row = Line::from(vec![
+                Span::styled(
+                    format!(" {box_glyph} "),
+                    Style::default().fg(if value.ticked { t.accent } else { t.faint }),
+                ),
+                Span::styled(label, Style::default().fg(colour)),
+                Span::raw(" ".repeat(gap)),
+                Span::styled(count, Style::default().fg(t.faint)),
+            ]);
+            // The same lift the list gives its own cursor, so "here" looks the
+            // same wherever you are. Only while the panel holds the keys: a
+            // cursor in a pane that is not listening is a lie about where you
+            // are.
+            lines.push(if here && focused {
+                row.style(t.selected())
+            } else {
+                row
+            });
+            nth += 1;
+        }
+    }
+
+    // The cursor stays in view, which is the one thing a pane with a cursor
+    // owes a pane without one.
+    let height = inner.height as usize;
+    let over = lines.len().saturating_sub(height);
+    let want = cursor_line.saturating_sub(height / 2);
+    app.facet_scroll = (app.facet_scroll as usize).clamp(
+        cursor_line
+            .saturating_sub(height.saturating_sub(1))
+            .min(over),
+        cursor_line.min(over),
+    ) as u16;
+    if over == 0 {
+        app.facet_scroll = 0;
+    } else if cursor_line < app.facet_scroll as usize
+        || cursor_line >= app.facet_scroll as usize + height
+    {
+        app.facet_scroll = want.min(over) as u16;
+    }
+
+    f.render_widget(
+        Paragraph::new(lines)
+            .scroll((app.facet_scroll, 0))
+            .block(block),
+        area,
+    );
+    app.hit(area, Hit::Filter);
+    // The rows on top of the pane, so a click lands on the value it is over.
+    let mut nth = 0usize;
+    let mut y = inner.y as i32 - app.facet_scroll as i32;
+    for facet in &app.facets {
+        if nth > 0 {
+            y += 1;
+        }
+        y += 1; // the heading
+        for _ in &facet.values {
+            if y >= inner.y as i32 && y < (inner.y + inner.height) as i32 {
+                app.hits.push((
+                    Rect {
+                        x: inner.x,
+                        y: y as u16,
+                        width: inner.width,
+                        height: 1,
+                    },
+                    Hit::Facet(nth),
+                ));
+            }
+            nth += 1;
+            y += 1;
+        }
+    }
 }
 
 /// Where the reader panel goes, and what the lens keeps.

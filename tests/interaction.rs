@@ -465,6 +465,150 @@ fn a_history_cannot_be_scrolled_past_its_last_line() {
     );
 }
 
+/// Every value the panel offers, as `field=value`, for asserting against.
+fn offered(app: &App) -> Vec<String> {
+    app.facets
+        .iter()
+        .flat_map(|f| {
+            f.values
+                .iter()
+                .map(move |v| format!("{}={}", f.field, v.value))
+        })
+        .collect()
+}
+
+fn count_of(app: &App, field: &str, value: &str) -> usize {
+    app.facets
+        .iter()
+        .find(|f| f.field == field)
+        .and_then(|f| f.values.iter().find(|v| v.value == value))
+        .map(|v| v.count)
+        .expect("a facet value")
+}
+
+/// The filter vocabulary was invisible: you had to know the project's fields
+/// and their values before you could narrow anything. The panel is the answer,
+/// and what it offers comes from the project rather than from harrow.
+#[test]
+fn the_panel_offers_what_the_project_declared() {
+    let mut app = app();
+    app.run(Command::Facets);
+    assert!(app.filtering, "f opens it");
+
+    let offered = offered(&app);
+    for wanted in [
+        "status=backlog",
+        "status=doing",
+        "type=feature",
+        "type=bug",
+        "priority=p1",
+        "area=ui",
+    ] {
+        assert!(
+            offered.iter().any(|o| o == wanted),
+            "the panel should offer {wanted}, offered {offered:?}"
+        );
+    }
+
+    app.run(Command::Back);
+    assert!(!app.filtering, "esc closes it");
+}
+
+/// The panel writes what you could have typed. There is one filter and one
+/// syntax, so the box and the panel cannot drift into two answers.
+#[test]
+fn ticking_writes_the_grammar_the_box_would_have_taken() {
+    let mut app = app();
+    app.run(Command::Facets);
+    let at = app
+        .facets
+        .iter()
+        .position(|f| f.field == "status")
+        .expect("a status facet");
+    assert_eq!(at, 0, "status is the first facet");
+
+    app.facet = 0;
+    app.toggle_facet();
+    let first = app.facets[0].values[0].value.clone();
+    assert_eq!(app.filter, format!("status={first}"));
+
+    // A second value of the same field is cairn's alternation, not a second
+    // clause that could never both be true.
+    app.facet = 1;
+    app.toggle_facet();
+    let second = app.facets[0].values[1].value.clone();
+    assert_eq!(app.filter, format!("status={first}|{second}"));
+
+    app.facet = 0;
+    app.toggle_facet();
+    assert_eq!(app.filter, format!("status={second}"), "and unticks");
+}
+
+/// A filter typed into the box is the same filter, so the panel shows it
+/// ticked rather than disagreeing with the thing it is meant to be editing.
+#[test]
+fn a_filter_typed_into_the_box_shows_as_ticked() {
+    let mut app = app();
+    app.run(Command::Filter);
+    for c in "type=bug".chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+    }
+    app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+
+    let bug = app
+        .facets
+        .iter()
+        .find(|f| f.field == "type")
+        .and_then(|f| f.values.iter().find(|v| v.value == "bug"))
+        .expect("the bug type");
+    assert!(bug.ticked, "the box and the panel are one filter");
+}
+
+/// The count that answers "where do I go next". A facet's own ticks must not
+/// count against its own values, or ticking one status reads nought beside
+/// every other and there is no way back.
+#[test]
+fn a_facet_does_not_count_against_itself() {
+    let mut app = app();
+    app.run(Command::Facets);
+    let others_before = count_of(&app, "status", "doing");
+    let types_before = count_of(&app, "type", "bug");
+
+    // Tick `backlog`.
+    let at = app.facets[0]
+        .values
+        .iter()
+        .position(|v| v.value == "backlog")
+        .expect("a backlog status");
+    app.facet = at;
+    app.toggle_facet();
+
+    assert_eq!(
+        count_of(&app, "status", "doing"),
+        others_before,
+        "another status is still reachable, and says how much of it there is"
+    );
+    assert!(
+        count_of(&app, "type", "bug") <= types_before,
+        "but another facet counts under the filter that is now on"
+    );
+}
+
+/// An absence is an answer. Hiding a value nothing matches means the panel
+/// cannot tell you there are no p0s.
+#[test]
+fn a_value_nothing_matches_is_offered_anyway() {
+    let mut app = app();
+    app.run(Command::Facets);
+    assert!(
+        app.facets
+            .iter()
+            .flat_map(|f| &f.values)
+            .any(|v| v.count == 0),
+        "the fixture has a declared value nothing uses"
+    );
+}
+
 #[test]
 fn history_is_asked_of_cairn_rather_than_of_git() {
     let mut app = app();

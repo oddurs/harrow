@@ -23,4 +23,4 @@
 │                            ││    Paragraph 6 of a proposal nobody will finish reading.                     │
 │                            ││                                                                              │
 ╰────────────────────────────╯╰ ↵ read · K/J scroll · esc closes ────────────────────────────────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help
+ ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab views  ? help

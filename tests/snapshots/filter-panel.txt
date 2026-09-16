@@ -1,0 +1,28 @@
+ harrow  sample    needs  list  board  stats  log    1 needs you                                                                   starting
+ ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭ Filter ────────────────╮╭ Backlog · by milestone ──────────────────────────────────────╮╭ 0003 ──────────────────────────────────────────╮
+│ status                 ││ ▾ v0.1  First usable version             ▰▰▱▱▱▱  25%  3 left ││ ◐ Draw the list                                │
+│  ☐ backlog          3  ││  ○ 0005 The detail pane scrolls past its pane             p1 ││   in progress · feature · v0.1 · @oddur        │
+│  ☐ in progress      1  ││  ⊘ 0004 Draw the board                                    p2 ││                                                │
+│  ☐ done             1  ││  ◐ 0003 Draw the list                        1/2  @oddur  p1 ││   Acceptance ────────────────────────────────  │
+│                        ││ ▾ no milestone                           ▱▱▱▱▱▱   0%  1 left ││     ✓ rows                                     │
+│ type                   ││  ○ 0006 Write the readme                               ?  p3 ││     ☐ groups                                   │
+│  ☐ feature          3  ││                                                              ││   1 of 2 ticked                                │
+│  ☐ bug              1  ││                                                              ││                                                │
+│  ☐ chore            1  ││                                                              ││   Body ──────────────────────────────────────  │
+│  ☐ milestone        0  ││                                                              ││   Problem                                      │
+│                        ││                                                              ││                                                │
+│ priority               ││                                                              ││   A backlog you cannot move through is a file  │
+│  ☐ p0               1  ││                                                              ││   you could have opened.                       │
+│  ☐ p1               2  ││                                                              ││                                                │
+│  ☐ p2               1  ││                                                              ││   Fields ────────────────────────────────────  │
+│  ☐ p3               1  ││                                                              ││   priority p1                                  │
+│                        ││                                                              ││   area     ui                                  │
+│ area                   ││                                                              ││   created  2026-09-02                          │
+│  ☐ ui               3  ││                                                              ││                                                │
+│  ☐ core             1  ││                                                              ││                                                │
+│  ☐ docs             0  ││                                                              ││                                                │
+│                        ││                                                              ││                                                │
+╰ 5 items ───────────────╯╰──────────────────────────────────────────────────────────────╯╰────────────────────────────────────────────────╯
+ ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab views  ? help

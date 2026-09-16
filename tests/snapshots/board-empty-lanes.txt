@@ -9,4 +9,4 @@
 │             ││             ││                                                                              │
 │             ││             ││                                                                              │
 ╰─────────────╯╰─────────────╯╰──────────────────────────────────────────────────────────────────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help
+ ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab views  ? help

@@ -19,4 +19,4 @@
 │                                                            ││   area     ui                                │
 │                                                            ││   created  2026-09-02                        │
 ╰────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help
+ ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab views  ? help

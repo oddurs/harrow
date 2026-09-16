@@ -23,4 +23,4 @@
 │                                                            │
 │   Milestones ────────────────────────────────────────────  │
 ╰ ↑↓ move · ↵ opens ─────────────────────────────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  / filter
+ ↑↓ move  ↵ read  c claim  s status  x close  f filter

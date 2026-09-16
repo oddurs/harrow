@@ -4,12 +4,12 @@
 ╭ Backlog · by milestone ────────────────────────────────────╮╭ 0005 ────────────────────────────────────────╮
 │ ▾ v0.╭ Keys ────────────────────────────────────────────────────────────────────────────────────────╮      │
 │  ○ 00│                                                                                              │      │
-│  ⊘ 00│  ↑/k, ↓/j      move between items              p             set the priority                │      │
-│  ◐ 00│  home/g, end/G jump to the first or last       M             set the milestone               │────  │
-│ ▾ no │  K, J          scroll the detail pane          x             close it, with a confirm        │      │
-│  ○ 00│  ←, →          previous or next group — a co…  u             reopen it                       │      │
-│      │  space         mark it for the next change —…  n             new item                        │y     │
-│      │  tab, backtab  the next lens, or the one bef…  y             copy the item's reference       │      │
+│  ⊘ 00│  ↑/k, ↓/j      move between items              M             set the milestone               │      │
+│  ◐ 00│  home/g, end/G jump to the first or last       x             close it, with a confirm        │────  │
+│ ▾ no │  K, J          scroll the detail pane          u             reopen it                       │      │
+│  ○ 00│  ←, →          previous or next group — a co…  n             new item                        │      │
+│      │  space         mark it for the next change —…  y             copy the item's reference       │y     │
+│      │  tab, backtab  the next lens, or the one bef…  f             open the filter panel           │      │
 │      │  1…5           go straight to the first, sec…  /             filter, in cairn's own grammar  │      │
 │      │  v             group by something else         a             show everything — finished, d…  │────  │
 │      │  ↵/o           read it in the panel, and dri…  esc           back out — one press leaves w…  │      │
@@ -23,10 +23,10 @@
 │      │  C             give it back                    double-click  read the item                   │      │
 │      │  s             set the status                  drag          a card to another column, whi…  │      │
 │      │  h/<, l/>      move it back or forward throu…  scroll        move the pane under the point…  │      │
+│      │  p             set the priority                                                              │      │
 │      │                                                                                              │      │
 │      ╰──────────────────────────────────────────────────────────────────────────────────────────────╯      │
 │                                                            ││                                              │
 │                                                            ││                                              │
-│                                                            ││                                              │
 ╰────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  / filter  tab views  ? help
+ ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab views  ? help

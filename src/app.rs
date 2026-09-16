@@ -111,6 +111,11 @@ pub enum Hit {
     Overlay,
     /// The reader panel, which scrolls on its own beside the lens.
     Reader,
+    /// The filter panel's own frame, so a click in its whitespace focuses it
+    /// rather than reaching the lens behind.
+    Filter,
+    /// One value in the filter panel, by index over values alone.
+    Facet(usize),
     /// A figure on the stats pane, by index into `doors`.
     Figure(usize),
     /// A question on the needs-you lens, by index into `questions`.
@@ -381,6 +386,43 @@ pub enum Focus {
     #[default]
     List,
     Reader,
+    Filter,
+}
+
+/// One thing the backlog can be narrowed by, and what it takes.
+///
+/// Built from the project's own schema rather than from a list here: a project
+/// that tracks `component` and `severity` gets those, and harrow has never
+/// heard of either.
+#[derive(Clone, Debug)]
+pub struct Facet {
+    pub field: String,
+    pub label: String,
+    pub values: Vec<FacetValue>,
+}
+
+/// One value of one facet, and what ticking it would leave you.
+#[derive(Clone, Debug)]
+pub struct FacetValue {
+    pub value: String,
+    pub label: String,
+    /// What you would have if this were ticked, given everything ticked
+    /// elsewhere. Nought is shown rather than hidden: *there are no p0s* is an
+    /// answer, and an absence is not.
+    pub count: usize,
+    pub ticked: bool,
+    /// The role this value paints in, where the theme names one — a status is
+    /// its status colour here as much as anywhere else.
+    pub role: FacetRole,
+}
+
+/// What a value is, so the panel can paint it the way the rest of harrow does.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum FacetRole {
+    Status,
+    Type,
+    Rank,
+    Plain,
 }
 
 /// How far the detail pane is scrolled, and which item that belongs to.
@@ -510,6 +552,14 @@ pub struct App {
 
     pub filter: String,
     pub query: Query,
+    /// Whether the filter panel is open.
+    pub filtering: bool,
+    /// What the project can be narrowed by, rebuilt with the backlog.
+    pub facets: Vec<Facet>,
+    /// Which value the panel's cursor is on, counted over values alone —
+    /// a heading is not somewhere the cursor can be.
+    pub facet: usize,
+    pub facet_scroll: u16,
     pub input: String,
     pub editing: Option<Editing>,
     pub group_by: String,
@@ -695,6 +745,10 @@ impl App {
             pane: Pane::List,
             reading: false,
             focus: Focus::default(),
+            filtering: false,
+            facets: Vec::new(),
+            facet: 0,
+            facet_scroll: 0,
             reader: DetailScroll::default(),
             criterion: 0,
             detail: DetailScroll::default(),
@@ -1071,6 +1125,19 @@ impl App {
         self.belongs(item) || self.leaving.contains_key(&item.id)
     }
 
+    /// How much of the backlog the filter is letting through, and how much
+    /// there is. What the panel puts on its own edge, because a filter with no
+    /// result in sight is a guess.
+    pub fn shown_and_total(&self) -> (usize, usize) {
+        let total = self.items.iter().filter(|i| !i.container).count();
+        let shown = self
+            .items
+            .iter()
+            .filter(|i| !i.container && self.query.matches(i, &self.schema))
+            .count();
+        (shown, total)
+    }
+
     /// Whether an item is dealt onto the board.
     ///
     /// The filter applies — narrowing to one milestone should narrow the board
@@ -1428,6 +1495,155 @@ impl App {
         self.schema.item_type(target).map(|t| t.name.as_str())
     }
 
+    /// What the backlog can be narrowed by, and what each choice would leave.
+    ///
+    /// Everything here comes from the project's schema — its statuses, its
+    /// types, the enum fields it declared — so the panel says `severity` in a
+    /// project that tracks severity and has never heard of `priority`.
+    fn rebuild_facets(&mut self) {
+        let mut facets: Vec<Facet> = Vec::new();
+
+        let mut facet =
+            |field: &str, label: &str, role: FacetRole, values: Vec<(String, String)>| {
+                // A facet's own ticks do not count against its own values, so
+                // ticking one status leaves the others reachable rather than
+                // reading nought beside every one of them.
+                let rest = self.query.without(field);
+                let ticked = self.query.ticked(field);
+                let values = values
+                    .into_iter()
+                    .map(|(value, label)| FacetValue {
+                        count: self
+                            .items
+                            .iter()
+                            .filter(|item| {
+                                !item.container
+                                    && rest.matches(item, &self.schema)
+                                    && crate::filter::Query::parse(
+                                        &format!("{field}={value}"),
+                                        &self.schema,
+                                    )
+                                    .matches(item, &self.schema)
+                            })
+                            .count(),
+                        ticked: ticked.iter().any(|t| t.eq_ignore_ascii_case(&value)),
+                        role,
+                        value,
+                        label,
+                    })
+                    .collect();
+                facets.push(Facet {
+                    field: field.to_string(),
+                    label: label.to_string(),
+                    values,
+                });
+            };
+
+        facet(
+            "status",
+            "status",
+            FacetRole::Status,
+            self.schema
+                .statuses
+                .iter()
+                .filter(|s| self.show_all || s.category != Category::Dropped)
+                .map(|s| (s.name.clone(), s.display().to_string()))
+                .collect(),
+        );
+        facet(
+            "type",
+            "type",
+            FacetRole::Type,
+            self.schema
+                .types
+                .iter()
+                .map(|t| (t.name.clone(), t.display().to_string()))
+                .collect(),
+        );
+        // Only the enums. A free-text field has no list of values to tick, and
+        // a box of every title anybody wrote is not a facet.
+        let enums: Vec<(String, Vec<String>)> = self
+            .schema
+            .fields
+            .iter()
+            .filter(|f| !f.values.is_empty())
+            .map(|f| (f.name.clone(), f.values.clone()))
+            .collect();
+        for (name, values) in enums {
+            let rank = self
+                .schema
+                .fields
+                .iter()
+                .any(|f| f.name == name && f.column);
+            facet(
+                &name,
+                &name.clone(),
+                if rank {
+                    FacetRole::Rank
+                } else {
+                    FacetRole::Plain
+                },
+                values.into_iter().map(|v| (v.clone(), v)).collect(),
+            );
+        }
+
+        // Nothing to tick is not a facet worth a heading.
+        facets.retain(|f| !f.values.is_empty());
+        self.facets = facets;
+        let total = self.facet_count();
+        self.facet = self.facet.min(total.saturating_sub(1));
+    }
+
+    /// How many values the panel's cursor can be on.
+    pub fn facet_count(&self) -> usize {
+        self.facets.iter().map(|f| f.values.len()).sum()
+    }
+
+    /// The facet and value the cursor is on.
+    pub fn facet_at(&self, n: usize) -> Option<(&Facet, &FacetValue)> {
+        let mut seen = 0;
+        for facet in &self.facets {
+            if n < seen + facet.values.len() {
+                return Some((facet, &facet.values[n - seen]));
+            }
+            seen += facet.values.len();
+        }
+        None
+    }
+
+    /// Tick or untick what the cursor is on, and write the result back as the
+    /// expression somebody could have typed.
+    pub fn toggle_facet(&mut self) {
+        let Some((facet, value)) = self.facet_at(self.facet) else {
+            return;
+        };
+        let (field, value) = (facet.field.clone(), value.value.clone());
+        let mut chosen: Vec<String> = self.query.ticked(&field);
+        if let Some(at) = chosen.iter().position(|v| v.eq_ignore_ascii_case(&value)) {
+            chosen.remove(at);
+        } else {
+            chosen.push(value);
+        }
+
+        // Everything the panel does not manage is written back as it was read,
+        // so a range or a free-text word survives a tick.
+        let managed: Vec<String> = self.facets.iter().map(|f| f.field.clone()).collect();
+        let mut clauses = self.query.except(&managed);
+        for f in &self.facets {
+            let values = if f.field == field {
+                chosen.clone()
+            } else {
+                self.query.ticked(&f.field)
+            };
+            if !values.is_empty() {
+                clauses.push(format!("{}={}", f.field, values.join("|")));
+            }
+        }
+        self.filter = clauses.join(",");
+        self.reparse_filter();
+        self.rebuild();
+    }
+
     pub fn rebuild(&mut self) {
         self.age_claims();
         self.resettle();
@@ -1505,6 +1721,8 @@ impl App {
         // against to know what has just left.
         self.shown = indices.iter().map(|i| self.items[*i].id).collect();
         self.clamp();
+        // Last, because a facet counts what the rebuild just settled.
+        self.rebuild_facets();
     }
 
     /// What is under a heading, counting what the filter is hiding.
@@ -2915,6 +3133,49 @@ impl App {
         // While the reader has the keys, the movement commands move the text
         // rather than the cursor. Everything else still acts on the selected
         // item, because the panel is beside the backlog rather than over it.
+        // The panel takes the keys that move a cursor while it holds focus,
+        // the way the reader does. Everything else still reaches the backlog.
+        if self.focus == Focus::Filter && self.filtering {
+            let last = self.facet_count().saturating_sub(1);
+            match command {
+                Command::Down => {
+                    self.facet = (self.facet + 1).min(last);
+                    return Action::None;
+                }
+                Command::Up => {
+                    self.facet = self.facet.saturating_sub(1);
+                    return Action::None;
+                }
+                Command::PageDown => {
+                    self.facet = (self.facet + 10).min(last);
+                    return Action::None;
+                }
+                Command::PageUp => {
+                    self.facet = self.facet.saturating_sub(10);
+                    return Action::None;
+                }
+                Command::First => {
+                    self.facet = 0;
+                    return Action::None;
+                }
+                Command::Last => {
+                    self.facet = last;
+                    return Action::None;
+                }
+                // `space` is the tick here, which is what it is in the list
+                // for a mark: the same gesture for the same kind of choice.
+                Command::ToggleGroup => {
+                    self.toggle_facet();
+                    return Action::None;
+                }
+                Command::Back => {
+                    self.filtering = false;
+                    self.focus = Focus::List;
+                    return Action::None;
+                }
+                _ => {}
+            }
+        }
         if self.focus == Focus::Reader
             && self.reading
             && let Some(id) = self.selected_item().map(|i| i.id)
@@ -3238,6 +3499,16 @@ impl App {
                 };
                 return Action::Copy(self.schema.format_id(item.id));
             }
+            // The panel, which is the discoverable way in. The box behind
+            // `/` still takes an expression no checkbox can express.
+            Command::Facets => {
+                self.filtering = !self.filtering;
+                self.focus = if self.filtering {
+                    Focus::Filter
+                } else {
+                    Focus::List
+                };
+            }
             Command::Filter => {
                 self.editing = Some(Editing::Filter);
                 self.input = self.filter.clone();
@@ -3534,6 +3805,14 @@ impl App {
             // Clicking a pane is how a pointer says which one it means, and it
             // is the same statement `↵` makes with a key.
             Hit::Reader => self.focus = Focus::Reader,
+            // Clicking into a panel focuses it, which is what sends the keys
+            // that move a cursor to the thing you are looking at.
+            Hit::Filter => self.focus = Focus::Filter,
+            Hit::Facet(n) => {
+                self.focus = Focus::Filter;
+                self.facet = n.min(self.facet_count().saturating_sub(1));
+                self.toggle_facet();
+            }
             Hit::Detail | Hit::Overlay => {}
             Hit::Figure(n) => return self.open_door(n),
             // Selecting it, not answering it: the answers are keys, and a

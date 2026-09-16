@@ -154,6 +154,29 @@ fn the_wheel_scrolls_the_panel_or_the_list_by_where_it_is() {
     );
 }
 
+/// Every row in the panel is a checkbox, and clicking one is the whole
+/// gesture — the vocabulary was the hard part, not the typing.
+#[test]
+fn clicking_a_value_in_the_filter_panel_ticks_it() {
+    let mut app = testkit::app();
+    app.filtering = true;
+    app.rebuild();
+    let _ = ui::render_frame(&mut app, 140, 28, 0);
+    assert!(app.filter.is_empty(), "nothing filtered to begin with");
+
+    let (x, y) = find(&app, &Hit::Facet(0));
+    click(&mut app, x, y);
+    assert!(
+        !app.filter.is_empty(),
+        "a click on a value is a filter, without typing any of it"
+    );
+
+    let _ = ui::render_frame(&mut app, 140, 28, 0);
+    let (x, y) = find(&app, &Hit::Facet(0));
+    click(&mut app, x, y);
+    assert!(app.filter.is_empty(), "and clicking it again puts it back");
+}
+
 /// The history overlay is the same surface and gets the same answer.
 #[test]
 fn a_click_outside_the_history_closes_it() {
