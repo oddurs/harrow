@@ -25,7 +25,7 @@ Enough to dogfood in a real project.
 
 ## v0.2 — Triage that scales past one item at a time
 
-`##########` 100% · 13 of 13 done · due 2027-01-15
+`##########` 100% · 14 of 14 done · due 2027-01-15
 
 Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
@@ -44,6 +44,7 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 - [x] `0075` An overlay cannot be scrolled past its end, and answers the mouse <sup>bug · p1 · chrome</sup>
 - [x] `0076` Read a ticket in a panel, not over the backlog <sup>feature · p1 · chrome</sup>
 - [x] `0078` A filter you can see, instead of a grammar you have to know <sup>feature · p1 · chrome</sup>
+- [x] `0079` A project with no name of its own is the repository, not the folder <sup>bug · p2 · config</sup>
 
 ## v0.3 — Read everything cairn writes, and nothing it does not
 
