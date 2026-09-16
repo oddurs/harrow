@@ -406,8 +406,42 @@ fn screenshot(spec: &str, startup: Startup, args: &[String]) -> Result<()> {
     let mut app = prepare(&startup, args);
     app.ingest(report);
     app.loading = false;
+    // A screenshot has no event loop, so what the interface still needs is
+    // asked for here. Without it the log lens renders the placeholder it shows
+    // before the repository has answered — a frame that is a screenshot of a
+    // question rather than of the program.
+    if let Some(Action::Activity) = app.pending() {
+        let result = activity(&app, startup.config.write_timeout());
+        app.show_activity(result);
+    }
     println!("{}", ui::render_to_string(&mut app, w, h, 0));
     Ok(())
+}
+
+/// What the repository says happened, as the log lens reads it.
+///
+/// git, directly. Reading history is a read, and harrow already reads this
+/// repository's files rather than asking for them — cairn does the same for
+/// one item's history.
+fn activity(app: &App, timeout: Duration) -> Result<String, String> {
+    let dir = app.schema.items_dir();
+    harrow::exec::run(
+        "git",
+        &[
+            "-C",
+            &app.schema.root.display().to_string(),
+            "log",
+            "-n",
+            "300",
+            "--no-merges",
+            "--name-only",
+            "--pretty=format:%h\x1f%an\x1f%aI\x1f%s",
+            "--",
+            &dir.display().to_string(),
+        ],
+        timeout,
+    )
+    .map_err(|_| "not a git repository, so there is no history to read".to_string())
 }
 
 fn flag_value(args: &[String], name: &str) -> Option<String> {
@@ -528,6 +562,15 @@ fn event_loop(
         let had_toast = app.toast.is_some();
         app.tick_clock();
         app.expire_toast();
+        // Anything the interface needs before it can draw something true. The
+        // log throws away what the repository said whenever the backlog is
+        // re-read, and this is what asks again.
+        if let Some(action) = app.pending() {
+            dirty = true;
+            if dispatch(action, app, handle, guard, terminal, startup, args)? {
+                return Ok(());
+            }
+        }
         // A row on its way out leaves when its moment is up, rather than
         // waiting for the next keystroke to notice.
         if app.settle() {
@@ -655,27 +698,7 @@ fn dispatch(
             app.show_history(id, result);
         }
         Action::Activity => {
-            // git, directly. Reading history is a read, and harrow already
-            // reads this repository's files rather than asking for them —
-            // cairn does the same for one item's history.
-            let dir = app.schema.items_dir();
-            let result = harrow::exec::run(
-                "git",
-                &[
-                    "-C",
-                    &app.schema.root.display().to_string(),
-                    "log",
-                    "-n",
-                    "300",
-                    "--no-merges",
-                    "--name-only",
-                    "--pretty=format:%h\x1f%an\x1f%aI\x1f%s",
-                    "--",
-                    &dir.display().to_string(),
-                ],
-                startup.config.write_timeout(),
-            )
-            .map_err(|_| "not a git repository, so there is no history to read".to_string());
+            let result = activity(app, startup.config.write_timeout());
             app.show_activity(result);
         }
         Action::Check => {

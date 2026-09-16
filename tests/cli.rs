@@ -224,3 +224,37 @@ fn the_homebrew_formula_is_generated_from_the_checksums() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+/// A screenshot has no event loop, so whatever the interface still needs has to
+/// be asked for before the frame is drawn. Otherwise the log lens renders the
+/// question it asks before the repository has answered.
+#[test]
+fn a_screenshot_of_the_log_shows_the_history_rather_than_the_asking() {
+    let dir = testkit::project();
+    let config = dir.path().join("harrow.toml");
+    std::fs::write(&config, "pane = \"log\"\n").expect("write a config");
+
+    let (out, _, code) = run(&[
+        "-C",
+        &dir.path().display().to_string(),
+        "--config",
+        &config.display().to_string(),
+        "--screenshot",
+        "100x20",
+    ]);
+    assert_eq!(code, 0);
+    assert!(
+        out.contains("What happened"),
+        "the log lens is drawn:\n{out}"
+    );
+    assert!(
+        !out.contains("Asking the repository"),
+        "and it has been answered:\n{out}"
+    );
+    // The fixture is a temp directory rather than a repository, so the honest
+    // answer is that there is no history to read — not a question left hanging.
+    assert!(
+        out.contains("no history") || out.contains("not a git repository"),
+        "{out}"
+    );
+}

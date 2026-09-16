@@ -1034,3 +1034,40 @@ fn an_item_with_no_criteria_says_so() {
     assert_eq!(press(&mut app, 't'), Action::None);
     assert!(app.picker.is_none());
 }
+
+/// The log keeps what the repository said until the backlog changes, and then
+/// asks again — from wherever it happens to be, rather than only on the way in.
+#[test]
+fn the_log_asks_again_after_a_re_read_rather_than_waiting_to_be_re_entered() {
+    let mut app = testkit::app();
+    app.pane = harrow::app::Pane::Log;
+
+    // Sitting on it with nothing to show is a question, asked once.
+    assert_eq!(app.pending(), Some(Action::Activity));
+    assert_eq!(app.pending(), None, "and not asked again while it is out");
+
+    app.show_activity(Ok(String::new()));
+    assert_eq!(app.pending(), None, "answered, so nothing to ask");
+
+    // A re-read throws away what the repository said — the watcher makes that
+    // happen whenever anybody touches the backlog — and the pane must not sit
+    // there saying "asking" at nobody.
+    app.ingest(testkit::report());
+    assert_eq!(
+        app.pending(),
+        Some(Action::Activity),
+        "the log has to ask again on its own"
+    );
+}
+
+#[test]
+fn no_other_lens_asks_the_repository_for_anything() {
+    for pane in harrow::app::Pane::ALL {
+        if pane == harrow::app::Pane::Log {
+            continue;
+        }
+        let mut app = testkit::app();
+        app.pane = pane;
+        assert_eq!(app.pending(), None, "{pane:?} asked for something");
+    }
+}
