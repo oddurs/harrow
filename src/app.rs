@@ -370,6 +370,19 @@ pub struct Confirm {
     pub change: Change,
 }
 
+/// Which pane the keyboard is driving.
+///
+/// The reader is a panel rather than a popover, so it is not modal and never
+/// takes the keys by existing. It takes them by being focused, which `↵` does
+/// and `esc` undoes — and the panel stays open across that, so moving through
+/// the backlog with it open is still a matter of `esc j j ↵`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum Focus {
+    #[default]
+    List,
+    Reader,
+}
+
 /// How far the detail pane is scrolled, and which item that belongs to.
 ///
 /// The offset belongs to the item rather than to the pane: selecting something
@@ -387,6 +400,13 @@ pub struct DetailScroll {
 impl DetailScroll {
     pub fn at(self, item: u32) -> u16 {
         if self.of == Some(item) { self.at } else { 0 }
+    }
+
+    /// Straight to an offset. `u16::MAX` means the bottom: the draw is the
+    /// only place that knows how tall the content came out, and it clamps.
+    pub fn to(&mut self, item: u32, at: u16) {
+        self.of = Some(item);
+        self.at = at;
     }
 
     pub fn by(&mut self, item: u32, delta: isize) {
@@ -515,6 +535,8 @@ pub struct App {
     /// item starts at the top of it, and stepping back returns you to where
     /// you had got to.
     pub reader: DetailScroll,
+    /// Which pane the keyboard is driving.
+    pub focus: Focus,
     /// Which acceptance criterion the detail pane is pointing at.
     ///
     /// Ticking one is the single judgement in cairn's agent loop that is
@@ -669,6 +691,7 @@ impl App {
             show_all: false,
             pane: Pane::List,
             reading: false,
+            focus: Focus::default(),
             reader: DetailScroll::default(),
             criterion: 0,
             detail: DetailScroll::default(),
@@ -2867,14 +2890,56 @@ impl App {
             return Action::None;
         }
 
+        // While the reader has the keys, the movement commands move the text
+        // rather than the cursor. Everything else still acts on the selected
+        // item, because the panel is beside the backlog rather than over it.
+        if self.focus == Focus::Reader
+            && self.reading
+            && let Some(id) = self.selected_item().map(|i| i.id)
+        {
+            match command {
+                Command::Down => {
+                    self.reader.by(id, 1);
+                    return Action::None;
+                }
+                Command::Up => {
+                    self.reader.by(id, -1);
+                    return Action::None;
+                }
+                Command::PageDown => {
+                    self.reader.by(id, 10);
+                    return Action::None;
+                }
+                Command::PageUp => {
+                    self.reader.by(id, -10);
+                    return Action::None;
+                }
+                Command::First => {
+                    self.reader.to(id, 0);
+                    return Action::None;
+                }
+                Command::Last => {
+                    self.reader.to(id, u16::MAX);
+                    return Action::None;
+                }
+                _ => {}
+            }
+        }
+
         match command {
             Command::Quit => return Action::Quit,
             Command::Back => {
                 // Backing out closes what is open; with nothing open it does
                 // nothing, rather than quitting out from under you. Marks go
                 // first: they are the most recent thing you did.
-                if self.reading {
+                // Focus first, then the panel. Stepping out of the reader
+                // without closing it is what makes `esc j j ↵` a way to read
+                // three items rather than three openings and three closings.
+                if self.focus == Focus::Reader {
+                    self.focus = Focus::List;
+                } else if self.reading {
                     self.reading = false;
+                    self.focus = Focus::List;
                 } else if !self.marked.is_empty() {
                     let n = self.marked.len();
                     self.marked.clear();
@@ -2977,9 +3042,12 @@ impl App {
                 };
                 return Action::History(item.id);
             }
+            // Opening it and focusing it are one gesture: a panel you have to
+            // open and then reach for is two.
             Command::Read => {
                 if self.selected_item().is_some() {
                     self.reading = true;
+                    self.focus = Focus::Reader;
                 }
             }
             // A proposal is somebody asking; accepting is cairn's own command,
@@ -3414,10 +3482,12 @@ impl App {
             }
             Hit::Row(idx) => match self.rows.get(idx) {
                 Some(Row::Group(_)) => {
+                    self.focus = Focus::List;
                     self.selected = idx;
                     self.toggle_group();
                 }
                 Some(Row::Item(_)) => {
+                    self.focus = Focus::List;
                     self.selected = idx;
                     if double {
                         self.reading = true;
@@ -3447,7 +3517,10 @@ impl App {
             }
             Hit::Answer(yes) => return self.resolve_confirm(yes),
             Hit::Run(command) => return self.run(command),
-            Hit::Detail | Hit::Overlay | Hit::Reader => {}
+            // Clicking a pane is how a pointer says which one it means, and it
+            // is the same statement `↵` makes with a key.
+            Hit::Reader => self.focus = Focus::Reader,
+            Hit::Detail | Hit::Overlay => {}
             Hit::Figure(n) => return self.open_door(n),
             // Selecting it, not answering it: the answers are keys, and a
             // click that closed an item would be a click nobody meant.

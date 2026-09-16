@@ -416,12 +416,16 @@ fn draw_list(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     } else {
         format!(" Backlog · by {} ", app.group_by)
     };
+    // The focused pane is the one the keys are driving, and the border is where
+    // that gets said. Without it, `↵` moves the keyboard somewhere the screen
+    // does not admit to.
+    let focused = app.focus == crate::app::Focus::List;
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(t.border))
+        .border_style(Style::default().fg(if focused { t.border_focus } else { t.border }))
         .title(Line::from(Span::styled(
             title,
-            Style::default().fg(t.muted),
+            Style::default().fg(if focused { t.text } else { t.muted }),
         )));
 
     if app.rows.is_empty() {
@@ -2885,13 +2889,14 @@ fn draw_reader(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         return;
     };
     let id = item.id;
+    let focused = app.focus == crate::app::Focus::Reader;
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(t.border_focus))
+        .border_style(Style::default().fg(if focused { t.border_focus } else { t.border }))
         .padding(Padding::horizontal(2))
         .title(Span::styled(
             format!(" {} ", app.schema.format_id(id)),
-            Style::default().fg(t.muted),
+            Style::default().fg(if focused { t.text } else { t.muted }),
         ));
     let inner = block.inner(area);
     // Held to a measure. Everything past it is margin, so the panel can be as
@@ -2913,16 +2918,22 @@ fn draw_reader(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     app.reader.clamp(over as u16);
     let scroll = app.reader.at(id);
 
-    let hint = app
-        .keymap
-        .scroll_hint(Command::DetailUp, Command::DetailDown);
-    let block = match (over > 0, hint) {
-        (true, Some(keys)) => block.title_bottom(Span::styled(
-            format!(" {keys} scroll · esc closes "),
-            Style::default().fg(t.faint),
-        )),
-        _ => block.title_bottom(Span::styled(" esc closes ", Style::default().fg(t.faint))),
+    // What esc does depends on where the keys are: it hands them back before it
+    // closes anything, so a panel that said "esc closes" while focused would be
+    // telling you the second half of the answer.
+    let hint = if focused {
+        let scroll = if over > 0 { "↑↓ scroll · " } else { "" };
+        format!(" {scroll}esc back to the list ")
+    } else {
+        let keys = app
+            .keymap
+            .scroll_hint(Command::DetailUp, Command::DetailDown);
+        match (over > 0, keys) {
+            (true, Some(keys)) => format!(" ↵ read · {keys} scroll · esc closes "),
+            _ => " ↵ read · esc closes ".to_string(),
+        }
     };
+    let block = block.title_bottom(Span::styled(hint, Style::default().fg(t.faint)));
 
     f.render_widget(Clear, area);
     f.render_widget(Paragraph::new(lines).scroll((scroll, 0)).block(block), area);
@@ -3384,7 +3395,7 @@ fn draw_confirm(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 // ── The footer ───────────────────────────────────────────────────────────────
 
 fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
-    use crate::app::Editing;
+    use crate::app::{Editing, Focus};
     if let Some(editing) = &app.editing {
         let (label, hint) = match editing {
             Editing::Filter => (" filter ", "   enter to keep · esc to clear"),
@@ -3411,6 +3422,26 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             spans.push(Span::styled(hint, Style::default().fg(t.faint)));
         }
         f.render_widget(Line::from(spans), area);
+        return;
+    }
+
+    // What the keys do right now, which is not what the ordinary hints say.
+    if app.focus == Focus::Reader && app.toast.is_none() {
+        f.render_widget(
+            Line::from(vec![
+                Span::styled(
+                    " reading ",
+                    Style::default().bg(t.accent).fg(t.background).bold(),
+                ),
+                Span::styled("  ↑↓", Style::default().fg(t.accent).bold()),
+                Span::styled(" scroll  ", Style::default().fg(t.faint)),
+                Span::styled("esc", Style::default().fg(t.accent).bold()),
+                Span::styled(" back to the list  ", Style::default().fg(t.faint)),
+                Span::styled("e", Style::default().fg(t.accent).bold()),
+                Span::styled(" edit", Style::default().fg(t.faint)),
+            ]),
+            area,
+        );
         return;
     }
 
