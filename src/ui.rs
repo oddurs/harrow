@@ -498,7 +498,7 @@ fn empty_message(app: &App, t: &Theme) -> Vec<Line<'static>> {
     // A filter that did not parse is not an empty set, and saying "No
     // matches" for one is the difference between a true answer and a
     // silence that looks like one.
-    let (headline, hint) = if let Some(why) = app.filter_problem() {
+    if let Some(why) = app.filter_problem() {
         return vec![
             Line::from(""),
             Line::from(Span::styled(why, Style::default().fg(t.warn))),
@@ -507,19 +507,64 @@ fn empty_message(app: &App, t: &Theme) -> Vec<Line<'static>> {
                 Style::default().fg(t.faint),
             )),
         ];
-    } else if app.items.is_empty() {
+    }
+
+    // The same distinction, one step further in. An empty list is not the
+    // same claim as an empty backlog, and for a project whose work is
+    // finished it was the wrong one: seven milestones were open, the strip
+    // was counting them, and the list said there was nothing here. Saying
+    // *what is being left out* is the only version a reader can act on —
+    // and it is what sends them to `a` rather than to rewriting a filter
+    // that was never the problem.
+    let hidden = app.hidden();
+    let show_all = app
+        .keymap
+        .keys_for(Command::ToggleAll)
+        .into_iter()
+        .next()
+        .map(|key| format!("{key} shows them."));
+
+    let (headline, hint) = if app.items.is_empty() {
         (
-            "Nothing in the backlog yet.",
-            "Press n to write the first item.",
+            "Nothing in the backlog yet.".to_string(),
+            "Press n to write the first item.".to_string(),
         )
-    } else if !app.filter.is_empty() || app.view.is_some() {
-        ("No matches.", "esc clears the filter.")
+    } else if !hidden.any() {
+        // Nothing is being withheld, so the filter really is the answer.
+        if !app.filter.is_empty() || app.view.is_some() {
+            (
+                "No matches.".to_string(),
+                "esc clears the filter.".to_string(),
+            )
+        } else {
+            (
+                "Nothing here at all.".to_string(),
+                "Press n to write an item.".to_string(),
+            )
+        }
     } else {
-        (
-            "Nothing open here.",
-            "Press a to show finished work and milestones.",
-        )
+        let headline = match (hidden.closed > 0, hidden.containers > 0) {
+            // The case this was written for.
+            (true, true) => "Every piece of work here is finished.".to_string(),
+            (false, true) => format!("Nothing open but {}.", hidden.containers_said()),
+            _ => "Nothing open here.".to_string(),
+        };
+        let what = match (hidden.closed > 0, hidden.containers > 0) {
+            (true, true) => format!(
+                "{} still open, and {} finished.",
+                hidden.containers_said(),
+                hidden.closed
+            ),
+            (false, true) => format!("{} still open.", hidden.containers_said()),
+            _ => format!("{} finished.", hidden.closed),
+        };
+        let hint = match &show_all {
+            Some(key) => format!("{what} {key}"),
+            None => what,
+        };
+        (headline, hint)
     };
+
     vec![
         Line::from(""),
         Line::from(Span::styled(headline, Style::default().fg(t.muted))),
@@ -2387,6 +2432,7 @@ fn draw_needs(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
                 crate::app::Asking::Proposal { .. } => t.accent,
                 crate::app::Asking::ColdClaim { .. } => t.warn,
                 crate::app::Asking::Finished => t.done,
+                crate::app::Asking::NothingUnfinished => t.done,
                 crate::app::Asking::Unowned { .. } => t.faint,
             };
             let question = q.asking.question(&reference);

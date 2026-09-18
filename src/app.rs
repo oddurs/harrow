@@ -127,6 +127,34 @@ pub enum Hit {
     Link(usize),
 }
 
+/// What an ordinary listing is leaving out. See [`App::hidden`].
+#[derive(Default, Clone, PartialEq, Eq, Debug)]
+pub struct Hidden {
+    /// Finished work, hidden until it is asked for.
+    pub closed: usize,
+    /// Open containers, hidden until they are asked for.
+    pub containers: usize,
+    /// What the project calls them, where they are all of one type.
+    pub kind: Option<String>,
+}
+
+impl Hidden {
+    pub fn any(&self) -> bool {
+        self.closed > 0 || self.containers > 0
+    }
+
+    /// `7 milestones`, or `7 of them` where the project has more than one
+    /// kind of container open.
+    pub fn containers_said(&self) -> String {
+        let n = self.containers;
+        match &self.kind {
+            Some(kind) if n == 1 => format!("1 {kind}"),
+            Some(kind) => format!("{n} {kind}s"),
+            None => format!("{n} of them"),
+        }
+    }
+}
+
 /// Where the work beneath a container stands. `blocked` overlaps the others:
 /// a blocked item is still open or active, and saying so twice is the point —
 /// it is both a thing not done and a thing nobody can do.
@@ -166,6 +194,15 @@ pub enum Asking {
     ColdClaim { who: String, days: u64 },
     /// Every acceptance criterion is ticked and it is still open.
     Finished,
+    /// A container with nothing unfinished under it, still open.
+    ///
+    /// Reported, never acted on — which is cairn's position and the right
+    /// one: closing it automatically would be deciding that finished work
+    /// means a shipped release, and those are different claims. A `later` or
+    /// `Someday` milestone can have every item under it done and be meant to
+    /// stay open for good. The judgement lives with the person, so this says
+    /// what it can see and leaves the key to them.
+    NothingUnfinished,
     /// Something filed it and nobody is answerable for it.
     Unowned { by: String },
 }
@@ -177,7 +214,8 @@ impl Asking {
             Asking::Proposal { .. } => 0,
             Asking::ColdClaim { .. } => 1,
             Asking::Finished => 2,
-            Asking::Unowned { .. } => 3,
+            Asking::NothingUnfinished => 3,
+            Asking::Unowned { .. } => 4,
         }
     }
 
@@ -191,6 +229,10 @@ impl Asking {
                 format!("{who} has held {reference} for {days} days")
             }
             Asking::Finished => format!("{reference} is all ticked and still open"),
+            // cairn's own phrase for it. How much is under there is the
+            // detail pane's rollup to say; this is the queue, and a queue
+            // says what is waiting rather than how much of it there was.
+            Asking::NothingUnfinished => format!("{reference} has nothing unfinished"),
             Asking::Unowned { by } => format!("{by} filed {reference} and nobody owns it"),
         }
     }
@@ -201,6 +243,7 @@ impl Asking {
             Asking::Proposal { .. } => "A accepts",
             Asking::ColdClaim { .. } => "C hands it back",
             Asking::Finished => "x closes it",
+            Asking::NothingUnfinished => "x when it has shipped",
             Asking::Unowned { .. } => "c takes it",
         }
     }
@@ -1004,6 +1047,51 @@ impl App {
         counts
     }
 
+    /// What an ordinary listing is leaving out, of the things that match.
+    ///
+    /// Only what the filter in force would otherwise have shown: the empty
+    /// state has to say why *this* list is empty, not what else is in the
+    /// project. Both numbers are about the rule in `belongs` — the two sets
+    /// an ordinary listing hides until you ask for them.
+    pub fn hidden(&self) -> Hidden {
+        let mut out = Hidden::default();
+        if self.show_all {
+            return out;
+        }
+        let mut kinds: Vec<&str> = Vec::new();
+        for item in self.items.iter() {
+            if !self.query.matches(item, &self.schema) {
+                continue;
+            }
+            if item.container {
+                // A closed milestone is hidden for being closed, and is not
+                // something still waiting to be closed.
+                if !item.category.is_closed() && !self.query.names("type", &item.kind) {
+                    out.containers += 1;
+                    if !kinds.contains(&item.kind.as_str()) {
+                        kinds.push(&item.kind);
+                    }
+                }
+            } else if item.category.is_closed()
+                && !self.query.names("status", &item.status)
+                && !self.query.names("category", item.category.name())
+            {
+                out.closed += 1;
+            }
+        }
+        // Named only where there is one name to use. A project with releases
+        // and epics both open gets the count without a noun rather than a
+        // noun that is wrong for half of them.
+        if let [only] = kinds[..] {
+            out.kind = self
+                .schema
+                .item_type(only)
+                .map(|t| t.display().to_string())
+                .or_else(|| Some(only.to_string()));
+        }
+        out
+    }
+
     /// What is wrong with the filter in force, if anything.
     ///
     /// A field nothing declares matches nothing, which is indistinguishable
@@ -1150,14 +1238,23 @@ impl App {
     /// Whether an item is part of what is being shown, on its own merits.
     fn belongs(&self, item: &Item) -> bool {
         if !self.show_all {
-            if item.category.is_closed() {
+            // Two things an ordinary listing leaves out, under one rule:
+            // absent unless you ask for them by name. That is cairn's rule,
+            // and harrow reading it differently is how `status=done` came to
+            // list nothing in a project with seventy finished items — an
+            // answer a reader has no way to tell from an empty backlog.
+            //
+            // Finished work, asked for by its status or its category.
+            if item.category.is_closed()
+                && !self.query.names("status", &item.status)
+                && !self.query.names("category", item.category.name())
+            {
                 return false;
             }
-            // A milestone is a thing work belongs to rather than a piece of
-            // work, and listing it beside the work it contains reads as a
-            // duplicate. cairn keeps containers out of an ordinary listing for
-            // the same reason; asking for the type by name brings them back.
-            if item.container && !self.query.names_type(&item.kind) {
+            // And a milestone, asked for by type. It is a thing work belongs
+            // to rather than a piece of work, and listing it beside the work
+            // it contains reads as a duplicate.
+            if item.container && !self.query.names("type", &item.kind) {
                 return false;
             }
         }
@@ -1295,6 +1392,26 @@ impl App {
                 out.push(Question {
                     id: item.id,
                     asking: Asking::Unowned { by: by.clone() },
+                });
+            }
+        }
+
+        // A container raises no question about ownership or a stale claim, so
+        // it is not in the loop above. It raises exactly one: everything
+        // filed under it is finished and it is still open. In poptop that was
+        // all seven milestones at once, and nothing anywhere said so.
+        for item in self.items.iter().filter(|i| i.container) {
+            if item.category.is_closed() || !self.query.matches(item, &self.schema) {
+                continue;
+            }
+            let under = self.rollup(item);
+            // Nothing filed is vacuously complete, and every empty milestone
+            // in a young project would otherwise be told it had finished the
+            // day it was written.
+            if under.done > 0 && under.active == 0 && under.open == 0 {
+                out.push(Question {
+                    id: item.id,
+                    asking: Asking::NothingUnfinished,
                 });
             }
         }
@@ -1661,7 +1778,7 @@ impl App {
 
         let mut indices: Vec<usize> = (0..self.items.len())
             .filter(|i| self.visible(&self.items[*i]))
-            .filter(|i| heading_type.as_deref() != Some(self.items[*i].kind.as_str()))
+            .filter(|i| self.is_row(&self.items[*i], heading_type.as_deref()))
             .collect();
         indices.sort_by(order);
 
@@ -1726,6 +1843,24 @@ impl App {
     }
 
     /// What is under a heading, counting what the filter is hiding.
+    /// Whether an item is a row in the list, or the heading over one.
+    ///
+    /// An item of the type being grouped by is drawn as the heading rather
+    /// than as a row under it, or it would be on screen twice.
+    ///
+    /// Unless the reader asked for it. `a` promises "finished work and
+    /// milestones" and `type=milestone` asks in so many words, and under this
+    /// grouping — the default, where the heading type *is* the milestone —
+    /// both answered with nothing at all, while every other grouping answered
+    /// with all seven. A rule that depends on how the list happens to be
+    /// arranged is a rule the reader cannot see. cairn returns them for
+    /// either question, and so does this now.
+    fn is_row(&self, item: &Item, heading_type: Option<&str>) -> bool {
+        heading_type != Some(item.kind.as_str())
+            || self.show_all
+            || self.query.names("type", &item.kind)
+    }
+
     fn tally(&self, key: &str, heading_type: Option<&str>) -> (usize, usize, usize) {
         let mut count = 0;
         let mut done = 0;
@@ -3967,7 +4102,7 @@ impl App {
             .items
             .iter()
             .filter(|i| self.visible(i))
-            .filter(|i| heading_type.as_deref() != Some(i.kind.as_str()))
+            .filter(|i| self.is_row(i, heading_type.as_deref()))
             .count();
         if !matches!(self.group_by.as_str(), "none" | "") {
             let counted: usize = self.groups.iter().map(|g| g.shown).sum();

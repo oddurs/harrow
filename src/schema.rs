@@ -562,14 +562,25 @@ impl Schema {
     /// piece of work, and listing it beside the work it contains reads as a
     /// duplicate. They come back with `--all`, or when asked for by type.
     pub fn is_container(&self, kind: &str) -> bool {
-        // Declared, since format 3.
-        if let Some(kind) = self.item_type(kind) {
-            return kind.groups.is_some();
-        }
-        // Derived, for a project still written in format 2 — the old rule,
-        // read from the wrong end but still the answer there.
-        self.format < 3
-            && self.fields.iter().any(|f| {
+        // Cairn's rule, and deliberately the same shape: *either* the type
+        // declares `groups`, *or* some field names it as a specific `target`.
+        // Not one or the other by format — both, always. A project part-way
+        // through `cairn migrate` satisfies one and not the other, and either
+        // answer alone is wrong for somebody.
+        //
+        // Asking the type first and *returning* what it said is what broke:
+        // every type an item can have is declared, so `groups.is_some()` —
+        // false — was the answer for every format 2 project and the second
+        // rule was never reached. Most projects on disk are still format 2,
+        // and in all of them `milestone` quietly stopped being a container:
+        // counted as work in the strip, dealt onto the board as a card,
+        // tallied by type in the statistics, while the list went on leaving
+        // it out. Two true-looking numbers that cannot both be right.
+        //
+        // `target = "*"` does not make everything a container, which is what
+        // stops `depends_on` emptying the backlog.
+        self.item_type(kind).is_some_and(|t| t.groups.is_some())
+            || self.fields.iter().any(|f| {
                 matches!(f.kind, FieldKind::Ref)
                     && f.target.as_deref().is_some_and(|t| t != "*" && t == kind)
             })

@@ -117,17 +117,28 @@ impl Query {
         self.clauses.is_empty()
     }
 
-    /// Whether the expression asks for this type by name. cairn's rule for
-    /// containers: absent from an ordinary listing, present when asked for.
-    pub fn names_type(&self, kind: &str) -> bool {
+    /// Whether the expression asks for this value of this field by name.
+    ///
+    /// cairn's rule for what an ordinary listing leaves out, and it is one
+    /// rule rather than two: *"`--all` means all: closed work and containers
+    /// alike. Without it, naming a type is how you ask for them, which is the
+    /// same rule closed items follow for status."* So `type=milestone` brings
+    /// milestones back and `status=done` brings finished work back, and
+    /// neither needs `a` first.
+    pub fn names(&self, field: &str, value: &str) -> bool {
+        let wanted = crate::filter::canonical(field);
         self.clauses.iter().any(|clause| match clause {
-            Clause::Compare { field, op, values } if field == "type" => {
+            Clause::Compare {
+                field,
+                op,
+                values: named,
+            } if canonical(field) == wanted => {
                 matches!(op, Op::Eq | Op::Contains)
-                    && values.iter().any(|v| {
+                    && named.iter().any(|v| {
                         !v.is_empty()
-                            && (v.eq_ignore_ascii_case(kind)
+                            && (v.eq_ignore_ascii_case(value)
                                 || (*op == Op::Contains
-                                    && kind.to_lowercase().contains(&v.to_lowercase())))
+                                    && value.to_lowercase().contains(&v.to_lowercase())))
                     })
             }
             _ => false,

@@ -183,6 +183,104 @@ pub fn report() -> Report {
     source.load().expect("the fixture loads")
 }
 
+/// A project written in cairn format 2, where nothing is left but milestones.
+///
+/// Two things at once, because they were one bug. Format 2 has no `groups` on
+/// a type, so what a milestone *is* has to be derived from the field that
+/// targets it — and every work item here is closed, so the only thing left
+/// open is the milestones, which is where the strip and the list were caught
+/// disagreeing about what counts.
+pub const FORMAT_2_TOML: &str = r#"
+format = 2
+
+[project]
+name = "finished"
+dir = "items"
+id_width = 4
+default_type = "feature"
+default_status = "backlog"
+
+[[type]]
+name = "feature"
+icon = "+"
+
+# No `groups`: there is no such key in format 2. The `milestone` field below
+# is the only thing that says this type is a container.
+[[type]]
+name = "milestone"
+
+[[status]]
+name = "backlog"
+category = "open"
+
+[[status]]
+name = "doing"
+label = "in progress"
+category = "active"
+
+[[status]]
+name = "done"
+category = "done"
+
+[[field]]
+name = "milestone"
+kind = "ref"
+target = "milestone"
+by = "key"
+rollup = true
+inverse = "scheduled"
+
+[[field]]
+name = "priority"
+kind = "enum"
+values = ["p0", "p1", "p2"]
+default = "p2"
+"#;
+
+pub const FORMAT_2_ITEMS: &[(&str, &str)] = &[
+    (
+        "0001-the-first-release.md",
+        "---\nid: 1\nkey: v0.1\ntitle: The first release\ntype: milestone\nstatus: backlog\ncreated: 2026-09-01\n---\n\nShipped, but nobody closed it.\n",
+    ),
+    (
+        "0002-the-second-release.md",
+        "---\nid: 2\nkey: v0.2\ntitle: The second release\ntype: milestone\nstatus: backlog\ncreated: 2026-09-01\n---\n\nAlso shipped.\n",
+    ),
+    (
+        "0003-read-the-files.md",
+        "---\nid: 3\ntitle: Read the files\ntype: feature\nstatus: done\nmilestone: v0.1\ncreated: 2026-09-01\npriority: p0\n---\n\nDone.\n",
+    ),
+    (
+        "0004-draw-the-list.md",
+        "---\nid: 4\ntitle: Draw the list\ntype: feature\nstatus: done\nmilestone: v0.1\ncreated: 2026-09-02\npriority: p1\n---\n\nDone.\n",
+    ),
+    (
+        "0005-draw-the-board.md",
+        "---\nid: 5\ntitle: Draw the board\ntype: feature\nstatus: done\nmilestone: v0.2\ncreated: 2026-09-03\npriority: p1\n---\n\nDone.\n",
+    ),
+];
+
+/// That project, loaded and derived.
+pub fn finished_report() -> Report {
+    let schema =
+        Schema::parse(FORMAT_2_TOML, PathBuf::from("/tmp/finished")).expect("the fixture parses");
+    let items = FORMAT_2_ITEMS
+        .iter()
+        .map(|(name, body)| {
+            crate::item::parse(body, &PathBuf::from("items").join(name)).expect("a fixture parses")
+        })
+        .collect();
+    let mut source = crate::engine::Static { schema, items };
+    source.load().expect("the fixture loads")
+}
+
+/// An app holding it.
+pub fn finished() -> crate::app::App {
+    let mut app = crate::app::App::new();
+    app.ingest(finished_report());
+    app
+}
+
 /// One item, for the tests that need a shape rather than a story.
 pub fn item(id: u32, title: &str, status: &str) -> Item {
     Item {
