@@ -930,6 +930,7 @@ fn the_queue_collects_every_question_addressed_to_a_person() {
                     Asking::Proposal { .. } => "proposal",
                     Asking::ColdClaim { .. } => "cold",
                     Asking::Finished => "finished",
+                    Asking::NothingUnfinished => "nothing unfinished",
                     Asking::Unowned { .. } => "unowned",
                 },
             )

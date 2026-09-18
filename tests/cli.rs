@@ -77,8 +77,20 @@ fn plain_takes_the_same_filters_the_interface_does() {
     let (out, _, _) = run(&["-C", &path, "--plain", "-f", "priority=p1"]);
     assert_eq!(out.lines().count(), 2, "{out}");
 
+    // All of it: the finished item and the milestone. `--all` said
+    // "finished, dropped, milestones" and returned no milestone, because the
+    // default grouping draws them as headings and left them out of the rows
+    // whether or not anybody had asked for them.
     let (out, _, _) = run(&["-C", &path, "--plain", "--all"]);
-    assert_eq!(out.lines().count(), 5, "--all includes what is finished");
+    assert_eq!(out.lines().count(), 6, "--all means all: {out}");
+    assert!(
+        out.contains("\tmilestone\t"),
+        "no milestone in --all: {out}"
+    );
+
+    // And asking for the type by name, which is cairn's other way in.
+    let (out, _, _) = run(&["-C", &path, "--plain", "-f", "type=milestone"]);
+    assert_eq!(out.lines().count(), 1, "{out}");
 }
 
 #[test]
