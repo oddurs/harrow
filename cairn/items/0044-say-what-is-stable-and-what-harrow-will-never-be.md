@@ -4,8 +4,10 @@ title: Say what is stable, and what harrow will never be
 type: docs
 status: backlog
 milestone: v1.0
+depends_on:
+- 86
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-18
 priority: p1
 area: docs
 ---

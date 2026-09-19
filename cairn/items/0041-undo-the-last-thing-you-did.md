@@ -5,7 +5,7 @@ type: feature
 status: backlog
 milestone: v1.0
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-18
 priority: p1
 area: write
 ---
@@ -66,3 +66,11 @@ should be asserted in the write tests beside the change itself.
 - [ ] It expires rather than sitting there indefinitely
 - [ ] A bulk change undoes as one
 - [ ] Every change that carries an undo has that undo asserted in a test
+
+## 2026-09-18
+
+Two design points from the interaction-model work in v0.6 (0081), recorded here because this is where undo lives.
+
+**Undo is a new change, not an erasure.** It goes through cairn like the write it reverses, so cairn's history records both moves. A backlog under version control should never quietly lose a step, and the toast should say which way round it is: `0042 back to doing — undoing 'done'`. That also settles how deep it goes. One step is honest and cheap; a stack invites the expectation that harrow knows the whole history, which cairn owns and harrow only reads.
+
+**What has no inverse says so.** A note and a new item are not undoable. The key should refuse them out loud rather than silently doing nothing, which is the same rule 0080 landed on for empty listings.
