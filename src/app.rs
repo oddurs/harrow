@@ -855,6 +855,13 @@ pub struct App {
     /// The whole screen, as this frame was given it. Recorded at the top of
     /// the draw so that everything the draw records can be held to it.
     pub screen: Rect,
+    /// The frame counter, so a lens can animate. Set by the renderer at the
+    /// top of a frame rather than read from a clock, which is what keeps a
+    /// recorded screen reproducible — a snapshot is taken at tick 0.
+    pub tick: usize,
+    /// Group keys whose container is still open with no open work left under
+    /// it. Recomputed each rebuild; see [`App::finished_groups`].
+    pub finished: HashSet<String>,
     pub list_area: Rect,
     pub board_area: Rect,
     pub should_quit: bool,
@@ -943,6 +950,8 @@ impl App {
             dragging: None,
             wrote: None,
             screen: Rect::default(),
+            tick: 0,
+            finished: HashSet::new(),
             list_area: Rect::default(),
             board_area: Rect::default(),
             should_quit: false,
@@ -1239,16 +1248,13 @@ impl App {
             if item.container {
                 // A closed milestone is hidden for being closed, and is not
                 // something still waiting to be closed.
-                if !item.category.is_closed() && !self.query.names("type", &item.kind) {
+                if !item.category.is_closed() && self.withheld(item) {
                     out.containers += 1;
                     if !kinds.contains(&item.kind.as_str()) {
                         kinds.push(&item.kind);
                     }
                 }
-            } else if item.category.is_closed()
-                && !self.query.names("status", &item.status)
-                && !self.query.names("category", item.category.name())
-            {
+            } else if self.withheld(item) {
                 out.closed += 1;
             }
         }
@@ -1409,6 +1415,55 @@ impl App {
     }
 
     /// Whether an item is part of what is being shown, on its own merits.
+    /// Whether an ordinary listing withholds this item.
+    ///
+    /// One rule, read by the list and by the empty state, so the screen and
+    /// its explanation of itself cannot disagree.
+    fn withheld(&self, item: &Item) -> bool {
+        if self.show_all {
+            return false;
+        }
+        if item.container {
+            return !self.query.names("type", &item.kind);
+        }
+        item.category.is_closed()
+            && !self.query.names("status", &item.status)
+            && !self.query.names("category", item.category.name())
+            // A group with no open work left has nothing but this to show.
+            // Hiding it leaves a heading claiming a hundred per cent with
+            // nothing under it — the claim the rows are not allowed to
+            // support. 0080 found the same hole from the other side.
+            && !self.finished.contains(&self.group_key(item))
+    }
+
+    /// Groups whose container is still open and has nothing unfinished under
+    /// it — the same condition the needs queue asks about, so the two agree
+    /// about what *finished* means.
+    ///
+    /// Only where the grouping is the container itself. Grouped by status, a
+    /// "finished group" is not a thing there is.
+    fn finished_groups(&self) -> HashSet<String> {
+        if self.heading_type().is_none() {
+            return HashSet::new();
+        }
+        let mut open_work: HashMap<String, bool> = HashMap::new();
+        for item in self.items.iter().filter(|i| !i.container) {
+            let key = self.group_key(item);
+            let entry = open_work.entry(key).or_insert(false);
+            *entry |= !item.category.is_closed();
+        }
+        open_work
+            .into_iter()
+            .filter(|(key, has_open)| {
+                !has_open
+                    && self
+                        .item_named(key)
+                        .is_some_and(|c| !c.category.is_closed())
+            })
+            .map(|(key, _)| key)
+            .collect()
+    }
+
     fn belongs(&self, item: &Item) -> bool {
         if !self.show_all {
             // Two things an ordinary listing leaves out, under one rule:
@@ -1417,17 +1472,7 @@ impl App {
             // list nothing in a project with seventy finished items — an
             // answer a reader has no way to tell from an empty backlog.
             //
-            // Finished work, asked for by its status or its category.
-            if item.category.is_closed()
-                && !self.query.names("status", &item.status)
-                && !self.query.names("category", item.category.name())
-            {
-                return false;
-            }
-            // And a milestone, asked for by type. It is a thing work belongs
-            // to rather than a piece of work, and listing it beside the work
-            // it contains reads as a duplicate.
-            if item.container && !self.query.names("type", &item.kind) {
+            if self.withheld(item) {
                 return false;
             }
         }
@@ -1949,6 +1994,8 @@ impl App {
 
     pub fn rebuild(&mut self) {
         self.age_claims();
+        // Before anything asks what is visible, because that is what asks.
+        self.finished = self.finished_groups();
         self.resettle();
         let heading_type = self.heading_type().map(str::to_string);
         let keys: Vec<String> = self.items.iter().map(|i| self.group_key(i)).collect();
