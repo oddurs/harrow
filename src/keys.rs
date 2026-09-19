@@ -54,6 +54,7 @@ pub enum Command {
     Palette,
     Filter,
     Sort,
+    Views,
     Facets,
     Back,
     ToggleAll,
@@ -67,7 +68,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 51] = [
+    pub const ALL: [Command; 52] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -109,6 +110,7 @@ impl Command {
         Command::Palette,
         Command::Filter,
         Command::Sort,
+        Command::Views,
         Command::Facets,
         Command::Back,
         Command::ToggleAll,
@@ -166,6 +168,7 @@ impl Command {
             Command::Palette => "palette",
             Command::Filter => "filter",
             Command::Sort => "sort",
+            Command::Views => "views",
             Command::Facets => "facets",
             Command::Back => "back",
             Command::ToggleAll => "toggle-all",
@@ -223,6 +226,7 @@ impl Command {
             Command::Palette => "every command, by name",
             Command::Filter => "filter, in cairn's own grammar",
             Command::Sort => "order it by something else",
+            Command::Views => "look at it the way the project does",
             Command::Facets => "open the filter panel",
             Command::Back => "back out — one press leaves whatever is open",
             Command::ToggleAll => "show everything — finished, dropped, and milestones",
@@ -237,7 +241,7 @@ impl Command {
     }
 
     /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 37] {
+    pub fn help_order() -> [Command; 38] {
         [
             Command::Down,
             Command::First,
@@ -268,6 +272,7 @@ impl Command {
             Command::Facets,
             Command::Filter,
             Command::Sort,
+            Command::Views,
             Command::CopyView,
             Command::ToggleAll,
             Command::Back,
@@ -325,6 +330,7 @@ impl Default for Keymap {
                 (K::Char('4'), n, C::ViewLens(4)),
                 (K::Char('5'), n, C::ViewLens(5)),
                 (K::Char('v'), n, C::GroupBy),
+                (K::Char('V'), n, C::Views),
                 (K::Enter, n, C::Read),
                 (K::Char('o'), n, C::Read),
                 (K::Char('e'), n, C::Edit),

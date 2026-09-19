@@ -3562,13 +3562,22 @@ fn draw_picker(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 
     // Numbered rather than lettered: three of a project's statuses can begin
     // with the same letter, and a shortcut that is ambiguous is not a shortcut.
+    // The note is right-aligned against the edge, which is what makes a
+    // column of categories read as a column. It only gives ground when the
+    // label would starve: a project's own description of a saved view is a
+    // sentence, and it used to truncate every name to an ellipsis, leaving a
+    // list of things you could not tell apart.
+    const LABEL_MIN: usize = 18;
+    let room = (width as usize).saturating_sub(7);
     let note_col = picker
         .options
         .iter()
         .map(|(_, _, n)| n.chars().count())
         .max()
-        .unwrap_or(0);
-    let label_col = (width as usize).saturating_sub(note_col + 7);
+        .unwrap_or(0)
+        .min(room.saturating_sub(LABEL_MIN.min(room)));
+    let label_col = room.saturating_sub(note_col);
+
     let items: Vec<ListItem> = picker
         .options
         .iter()
@@ -3581,7 +3590,10 @@ fn draw_picker(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
                 Span::styled(format!(" {key} "), Style::default().fg(t.accent).bold()),
                 Span::styled(label, Style::default().fg(t.text)),
                 Span::raw(" ".repeat(pad)),
-                Span::styled(format!("{note} "), Style::default().fg(t.faint)),
+                Span::styled(
+                    format!("{} ", truncate(note, note_col)),
+                    Style::default().fg(t.faint),
+                ),
             ]))
         })
         .collect();
@@ -3614,7 +3626,11 @@ fn draw_picker(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
                     .right_aligned(),
                 )
                 .title_bottom(Span::styled(
-                    if picker.propose {
+                    if picker.views {
+                        // Nothing is being written, so nothing can be
+                        // proposed: this changes what you are looking at.
+                        " ↵ look · esc cancel "
+                    } else if picker.propose {
                         " ↵ propose · ctrl-p to set instead · esc cancel "
                     } else {
                         " ↵ set · ctrl-p to propose · esc cancel "
