@@ -75,7 +75,15 @@ fn every_number_in_the_strip_is_what_clicking_it_gives_you() {
 #[test]
 fn a_project_whose_work_is_finished_says_so_in_both_places() {
     let app = testkit::finished();
-    assert_eq!(listed(&app), 0, "the work is all closed");
+    // Every row is finished work, revealed because its milestone has nothing
+    // left (0088). What matters here is that none of it is *open*, and that
+    // the strip says the same.
+    for row in &app.rows {
+        if let Row::Item(i) = row {
+            let item = &app.items[*i];
+            assert!(item.category.is_closed(), "{} is open", item.id);
+        }
+    }
     let open: usize = app
         .status_counts()
         .into_iter()
@@ -139,6 +147,11 @@ fn a_format_2_project_still_knows_what_a_container_is() {
 #[test]
 fn the_empty_state_says_what_is_being_left_out() {
     let mut app = testkit::finished();
+    // Grouped by status rather than by milestone: a status group is not a
+    // container, so the reveal in 0088 does not apply and the finished work
+    // stays withheld — which is the case this message exists for.
+    app.group_by = "status".into();
+    app.rebuild();
     let hidden = app.hidden();
     assert_eq!(hidden.containers, 2);
     assert_eq!(hidden.closed, 3);
@@ -214,5 +227,8 @@ fn asking_for_something_by_name_brings_it_back() {
         "asked for by category"
     );
     assert_eq!(closed(&mut app, "type=milestone"), 2, "asked for by type");
-    assert_eq!(closed(&mut app, ""), 0, "and not otherwise");
+    // Not zero: both milestones here have nothing left, so their finished
+    // work is revealed under them (0088). What is withheld is work in a
+    // group that still has something open, and there is none of that here.
+    assert_eq!(closed(&mut app, ""), 3, "the finished milestones' work");
 }

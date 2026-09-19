@@ -2,7 +2,7 @@
 id: 88
 title: A milestone with nothing left shows the work that finished it
 type: feature
-status: backlog
+status: done
 milestone: v0.6
 depends_on:
 - 82
@@ -69,9 +69,19 @@ backlog where thirty are has a problem the screen is right to be loud about.
 
 ## Acceptance criteria
 
-- [ ] A milestone with no open work left lists the work that closed it
-- [ ] Closed work stays hidden in every group that still has open work
-- [ ] The condition is the same one the needs queue uses for a finished container
-- [ ] In-progress items turn, on the tick the spinner already runs on
-- [ ] Waiting and done are told apart from each other, and from in progress, with the colour taken away
-- [ ] A recorded screen is still reproducible
+- [x] A milestone with no open work left lists the work that closed it
+- [x] Closed work stays hidden in every group that still has open work
+- [x] The condition is the same one the needs queue uses for a finished container
+- [x] In-progress items turn, on the tick the spinner already runs on
+- [x] Waiting and done are told apart from each other, and from in progress, with the colour taken away
+- [x] A recorded screen is still reproducible
+
+## 2026-09-18
+
+The reveal is one predicate, `withheld`, read by the rows and by the empty state — so the screen and its explanation of itself cannot disagree. That was the shape of 0080, and it is the second time the two have had to be made to read the same rule.
+
+It only applies where the grouping *is* the container. Grouped by status there is no such thing as a group with nothing left, and the empty state is still reachable there — which is where its test now lives.
+
+Blinking, as asked, but not the terminal's blink attribute: half the terminals harrow runs in ignore `SLOW_BLINK` and the ones that honour it blink the whole cell. The glyph turns instead, a quarter per two frames on the tick the spinner already uses. That animates everywhere, and a recorded screen is taken at tick 0 where it is `◐` — so it still snapshots.
+
+Three tests in counting.rs asserted the old behaviour of exactly this fixture. Updated rather than deleted: the point each was making still holds, and what changed is which rows are under a milestone with nothing left.

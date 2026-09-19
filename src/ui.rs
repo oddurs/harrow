@@ -79,6 +79,23 @@ pub fn glyph(item: &Item) -> &'static str {
     category_glyph(item.category)
 }
 
+/// The same, turning where the work is under way.
+///
+/// Work being done is the only thing on a backlog that is *happening*, and it
+/// should be the only thing moving. A quarter turn per frame, on the tick the
+/// spinner already runs on, so it animates in every terminal and still
+/// snapshots — a recorded screen is taken at tick 0, where this is `◐`.
+///
+/// Not the terminal's blink attribute: half the terminals harrow runs in
+/// ignore it, and the ones that honour it blink the whole cell.
+pub fn turning(item: &Item, tick: usize) -> &'static str {
+    const TURN: [&str; 4] = ["◐", "◓", "◑", "◒"];
+    if item.category == Category::Active && !item.blocked {
+        return TURN[(tick / 2) % TURN.len()];
+    }
+    glyph(item)
+}
+
 pub fn category_glyph(category: Category) -> &'static str {
     match category {
         Category::Open => "○",
@@ -140,6 +157,7 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     // can never disagree about what is where.
     app.hits.clear();
     app.screen = area;
+    app.tick = tick;
     let strip = u16::from(area.height >= 12 && !app.status_counts().is_empty());
     // Dropped on a short terminal for the same reason the strip is, and one
     // row sooner: a backlog you cannot see is worse than a view you cannot
@@ -861,9 +879,19 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
     let title = truncate(&item.title, title_width);
     let pad = title_width.saturating_sub(title.chars().count());
 
+    // Three states of a piece of work, told apart by weight as well as by
+    // hue — so they survive `mono`, a colourblind reader, and not yet knowing
+    // the glyphs. In progress turns; waiting is dimmed, because it is not
+    // work you can pick up; finished is struck through, because it is not
+    // work at all any more.
     let closed = item.category.is_closed();
+    let waiting = item.blocked && !closed;
     let title_style = if closed {
-        Style::default().fg(t.faint)
+        Style::default()
+            .fg(t.faint)
+            .add_modifier(Modifier::CROSSED_OUT)
+    } else if waiting {
+        Style::default().fg(t.muted).add_modifier(Modifier::DIM)
     } else {
         Style::default().fg(t.text)
     };
@@ -882,7 +910,7 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
             Style::default().fg(t.accent).bold(),
         ),
         Span::styled(
-            glyph(item),
+            turning(item, app.tick),
             Style::default().fg(state_color(item, t, schema)),
         ),
         Span::raw(" "),
@@ -1144,7 +1172,7 @@ fn card_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
             Style::default().fg(t.accent).bold(),
         ),
         Span::styled(
-            glyph(item),
+            turning(item, app.tick),
             Style::default().fg(state_color(item, t, schema)),
         ),
         Span::raw(" "),
@@ -1483,7 +1511,7 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
         lines.push(Line::from(vec![
             if n == 0 {
                 Span::styled(
-                    format!("{} ", glyph(item)),
+                    format!("{} ", turning(item, app.tick)),
                     Style::default().fg(state_color(item, t, schema)),
                 )
             } else {
@@ -3192,7 +3220,7 @@ fn reader_masthead(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<
         lines.push(Line::from(vec![
             if n == 0 {
                 Span::styled(
-                    format!("{} ", glyph(item)),
+                    format!("{} ", turning(item, app.tick)),
                     Style::default().fg(state_color(item, t, schema)),
                 )
             } else {
