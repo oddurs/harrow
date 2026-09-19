@@ -2,7 +2,7 @@
 id: 85
 title: Every command has a name before it has a key
 type: feature
-status: backlog
+status: done
 milestone: v0.6
 created: 2026-09-18
 updated: 2026-09-18
@@ -73,8 +73,16 @@ than written, so it cannot go stale.
 
 ## Acceptance criteria
 
-- [ ] Every command in `Command::ALL` is reachable by name
-- [ ] Each row shows the key that does the same thing without the palette
-- [ ] A command with no key is shown as having none, rather than omitted
-- [ ] The palette is built from the command table, so a new command appears without being added here
-- [ ] Running one returns an `Action`, like any other key
+- [x] Every command in `Command::ALL` is reachable by name
+- [x] Each row shows the key that does the same thing without the palette
+- [x] A command with no key is shown as having none, rather than omitted
+- [x] The palette is built from the command table, so a new command appears without being added here
+- [x] Running one returns an `Action`, like any other key
+
+## 2026-09-18
+
+Ranked in three bands rather than scored: a command whose stable name starts with what you typed, then one whose name contains it as a subsequence, then one whose sentence contains it. Within a band, declaration order — which is the order the help overlay already uses, so the two agree without being told to.
+
+Both the name and the sentence are searchable. The name is what a `[keys]` table binds and so has to be exact; the sentence is how anybody actually remembers a command. `confirm` finds `close`, which is described as "close it, with a confirm" and whose name says nothing about confirming.
+
+`↵` and a click are the same gesture, so both close the palette before running. Typing goes to the palette and nowhere else — `x` while typing must not close an item, and there is a test for exactly that.

@@ -228,6 +228,9 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     if app.diagnostics {
         draw_diagnostics(f, app, &t, area);
     }
+    if app.palette.is_some() {
+        draw_palette(f, app, &t, area);
+    }
     if app.picker.is_some() {
         draw_picker(f, app, &t, area);
     }
@@ -3421,6 +3424,134 @@ fn draw_history(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         popup,
     );
     app.hit(popup, Hit::Overlay);
+}
+
+/// Every command, by name, filtered as you type.
+///
+/// The key sits on the right of every row, so this teaches the keymap rather
+/// than replacing it — and a command with no key shows a dash, which is the
+/// honest way to say *this one lives here now*.
+fn draw_palette(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
+    let Some(palette) = &app.palette else { return };
+    let width = 64u16.min(area.width.saturating_sub(4));
+    let rows = palette.matches.len().min(10) as u16;
+    let height = (rows + 2).min(area.height.saturating_sub(2));
+    let popup = centered(area, width, height);
+
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(t.border_focus))
+        .style(Style::default().bg(t.overlay))
+        .padding(Padding::horizontal(1))
+        .title(Line::from(vec![
+            Span::styled(" : ", Style::default().fg(t.accent).bold()),
+            Span::styled(palette.typed.clone(), Style::default().fg(t.text)),
+            Span::styled("▏", Style::default().fg(t.accent)),
+        ]))
+        .title_bottom(Span::styled(
+            if palette.matches.is_empty() {
+                " nothing by that name ".to_string()
+            } else {
+                " ↵ run · the key on the right does it without this ".to_string()
+            },
+            Style::default().fg(t.faint),
+        ));
+
+    let inner = block.inner(popup);
+    let key_col = 4usize;
+    let room = (inner.width as usize).saturating_sub(key_col + 2);
+    // Two columns of text: the stable name a config file would bind, and the
+    // sentence the help overlay shows. Same source as the help overlay,
+    // because a palette that could go stale would be worse than none.
+    let name_col = room.min(26);
+
+    // The window follows the cursor, so a match far down the list is reachable.
+    let shown = rows as usize;
+    let first = palette.selected.saturating_sub(shown.saturating_sub(1));
+    let lines: Vec<Line> = palette
+        .matches
+        .iter()
+        .enumerate()
+        .skip(first)
+        .take(shown)
+        .map(|(n, (command, _))| {
+            let here = n == palette.selected;
+            let name = format!("{:<name_col$}", truncate(command.name(), name_col));
+            let said = truncate(command.describe(), room.saturating_sub(name_col + 1));
+            Line::from(vec![
+                Span::styled(
+                    if here { "▸ " } else { "  " },
+                    Style::default().fg(t.accent),
+                ),
+                Span::styled(
+                    name,
+                    if here {
+                        Style::default().fg(t.heading).bold()
+                    } else {
+                        Style::default().fg(t.text)
+                    },
+                ),
+                Span::styled(format!(" {said}"), Style::default().fg(t.muted)),
+            ])
+            .style(if here {
+                Style::default().bg(t.selection)
+            } else {
+                Style::default()
+            })
+        })
+        .collect();
+
+    f.render_widget(Clear, popup);
+    f.render_widget(Paragraph::new(lines).block(block), popup);
+
+    // The keys, right-aligned, drawn over the rows they belong to.
+    for (row, (_, key)) in palette
+        .matches
+        .iter()
+        .enumerate()
+        .skip(first)
+        .take(shown)
+        .enumerate()
+        .map(|(row, (_, m))| (row, m))
+    {
+        let said = key.clone().unwrap_or_else(|| "—".to_string());
+        let cell = Rect {
+            x: inner.x + inner.width.saturating_sub(said.chars().count() as u16),
+            y: inner.y + row as u16,
+            width: said.chars().count() as u16,
+            height: 1,
+        };
+        if cell.y < inner.y + inner.height {
+            f.render_widget(
+                Line::from(Span::styled(
+                    said,
+                    Style::default().fg(if key.is_some() { t.label } else { t.faint }),
+                )),
+                cell,
+            );
+        }
+    }
+
+    // Clickable, like the picker is. Collected first, because registering a
+    // hit borrows the app the palette was read out of.
+    let rows: Vec<Command> = palette
+        .matches
+        .iter()
+        .skip(first)
+        .take(shown)
+        .map(|(command, _)| *command)
+        .collect();
+    for (row, command) in rows.into_iter().enumerate() {
+        app.hit(
+            Rect {
+                x: inner.x,
+                y: inner.y + row as u16,
+                width: inner.width,
+                height: 1,
+            },
+            Hit::Run(command),
+        );
+    }
 }
 
 fn draw_picker(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {

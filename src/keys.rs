@@ -51,6 +51,7 @@ pub enum Command {
     Retreat,
     Copy,
     CopyView,
+    Palette,
     Filter,
     Facets,
     Back,
@@ -65,7 +66,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 49] = [
+    pub const ALL: [Command; 50] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -104,6 +105,7 @@ impl Command {
         Command::Retreat,
         Command::Copy,
         Command::CopyView,
+        Command::Palette,
         Command::Filter,
         Command::Facets,
         Command::Back,
@@ -159,6 +161,7 @@ impl Command {
             Command::Retreat => "retreat",
             Command::Copy => "copy",
             Command::CopyView => "copy-view",
+            Command::Palette => "palette",
             Command::Filter => "filter",
             Command::Facets => "facets",
             Command::Back => "back",
@@ -214,6 +217,7 @@ impl Command {
             Command::Retreat => "move it one status back",
             Command::Copy => "copy the item's reference",
             Command::CopyView => "copy this view as a command line",
+            Command::Palette => "every command, by name",
             Command::Filter => "filter, in cairn's own grammar",
             Command::Facets => "open the filter panel",
             Command::Back => "back out — one press leaves whatever is open",
@@ -229,7 +233,7 @@ impl Command {
     }
 
     /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 35] {
+    pub fn help_order() -> [Command; 36] {
         [
             Command::Down,
             Command::First,
@@ -256,6 +260,7 @@ impl Command {
             Command::Reopen,
             Command::New,
             Command::Copy,
+            Command::Palette,
             Command::Facets,
             Command::Filter,
             Command::CopyView,
@@ -335,6 +340,7 @@ impl Default for Keymap {
                 (K::Char('<'), n, C::Retreat),
                 (K::Char('y'), n, C::Copy),
                 (K::Char('Y'), n, C::CopyView),
+                (K::Char(':'), n, C::Palette),
                 (K::Char('/'), n, C::Filter),
                 (K::Esc, n, C::Back),
                 (K::Char('a'), n, C::ToggleAll),
