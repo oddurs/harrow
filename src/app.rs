@@ -3431,7 +3431,7 @@ impl App {
         // segment — so that is the word its list belongs under. It has no
         // segment of its own for the same reason.
         let want = match command {
-            Command::Views => Command::Filter,
+            Command::Views => Command::Facets,
             other => other,
         };
         self.hits

@@ -468,35 +468,48 @@ fn draw_toolbar(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let mut used = 1usize;
     let mut cells: Vec<(Rect, Command)> = Vec::new();
 
+    // Which list is open, so the segment it came from can say so.
+    let open = app.dropdown.as_ref().map(|d| d.of);
+
     let segment = |spans: &mut Vec<Span<'static>>,
                    used: &mut usize,
                    command: Command,
-                   glyph: &str,
                    text: &str,
                    chosen: bool,
                    colour: Color,
+                   opens: bool,
                    cells: &mut Vec<(Rect, Command)>| {
         let key = keys.keys_for(command).into_iter().next();
-        // The key and the value both, because the value alone teaches
-        // nothing and the key alone says nothing. The key is what goes first
-        // when the room runs out — it is the half you only need once.
-        let full = match &key {
-            Some(k) => format!("{k} {glyph}{text}"),
-            None => format!("{glyph}{text}"),
+        // The key is ASCII and says which control this is, which is what the
+        // decorative marks were supposed to do and could not — a glyph the
+        // font has not got says nothing at all.
+        let lead = match &key {
+            Some(k) => format!("{k} "),
+            None => String::new(),
         };
-        let bare = format!("{glyph}{text}");
-        let gap = usize::from(*used > 1) * 3;
-        let fits = |body: &str| *used + gap + body.chars().count() + right_width + 3 <= room;
-        let body = if fits(&full) {
-            full
-        } else if fits(&bare) {
-            bare
+        // `▾` is the affordance: every interface that has ever had a dropdown
+        // marks it this way, and harrow has drawn this glyph in its group
+        // headings since the beginning. It turns while the list is open, so
+        // the list and the word it came from are visibly one control.
+        let here = open == Some(command);
+        let tail = match (opens, here) {
+            (true, true) => " ▴",
+            (true, false) => " ▾",
+            (false, _) => "",
+        };
+        let width = lead.chars().count() + text.chars().count() + tail.chars().count();
+        let bare = text.chars().count() + tail.chars().count();
+        let gap = usize::from(*used > 1) * 2;
+        let fits = |w: usize| *used + gap + w + right_width + 3 <= room;
+        let (lead, width) = if fits(width) {
+            (lead, width)
+        } else if fits(bare) {
+            (String::new(), bare)
         } else {
             return;
         };
-        let width = body.chars().count();
         if gap > 0 {
-            spans.push(Span::raw("   "));
+            spans.push(Span::raw("  "));
             *used += gap;
         }
         cells.push((
@@ -508,14 +521,28 @@ fn draw_toolbar(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             },
             command,
         ));
+        // A shade above the page, so the row reads as a row of things you can
+        // press rather than a sentence. Nothing under `auto`, where surface
+        // and background are the same — which is why the caret has to carry
+        // the affordance on its own.
+        let ground = if here { t.selection } else { t.surface };
+        if !lead.is_empty() {
+            spans.push(Span::styled(lead, Style::default().bg(ground).fg(t.faint)));
+        }
         spans.push(Span::styled(
-            body,
-            if chosen {
-                Style::default().fg(colour)
-            } else {
-                Style::default().fg(t.faint)
-            },
+            text.to_string(),
+            Style::default()
+                .bg(ground)
+                .fg(if chosen { colour } else { t.muted }),
         ));
+        if !tail.is_empty() {
+            spans.push(Span::styled(
+                tail.to_string(),
+                Style::default()
+                    .bg(ground)
+                    .fg(if here { t.accent } else { t.faint }),
+            ));
+        }
         *used += width;
     };
 
@@ -531,24 +558,25 @@ fn draw_toolbar(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     segment(
         &mut spans,
         &mut used,
-        Command::Filter,
-        // No glyph on the prompt: `/ filter` says it, and `/ ⊙ filter` is a
-        // mark and a word for the same nothing.
-        if filtered { "⊙ " } else { "" },
+        // Keyed to the panel rather than the box: the caret promises a
+        // chooser, and the panel is the chooser. `/` still types one.
+        Command::Facets,
         &truncate(&filter, room / 3),
         filtered,
         t.accent,
+        true,
         &mut cells,
     );
     if app.show_all {
         segment(
             &mut spans,
             &mut used,
+            // A toggle, not a chooser, so no caret to promise one.
             Command::ToggleAll,
-            "+ ",
-            "finished",
+            "+finished",
             true,
             t.done,
+            false,
             &mut cells,
         );
     }
@@ -556,23 +584,23 @@ fn draw_toolbar(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         &mut spans,
         &mut used,
         Command::Sort,
-        "↓ ",
         &view.sort.replace(',', " "),
         !view.sort_is_default,
         t.label,
+        true,
         &mut cells,
     );
     segment(
         &mut spans,
         &mut used,
         Command::GroupBy,
-        "⊞ ",
         match view.group_by.as_str() {
             "none" | "" => "flat",
             other => other,
         },
         true,
         t.milestone,
+        true,
         &mut cells,
     );
 

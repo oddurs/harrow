@@ -170,7 +170,7 @@ fn views_open_under_the_filter_they_replace() {
     let filter = app
         .hits
         .iter()
-        .find(|(_, hit)| matches!(hit, Hit::Run(Command::Filter)))
+        .find(|(_, hit)| matches!(hit, Hit::Run(Command::Facets)))
         .map(|(rect, _)| *rect)
         .expect("a filter segment");
     app.handle_key(KeyCode::Char('V'), KeyModifiers::NONE);
