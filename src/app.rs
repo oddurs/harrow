@@ -116,6 +116,8 @@ pub enum Hit {
     Filter,
     /// One value in the filter panel, by index over values alone.
     Facet(usize),
+    /// A row of an open dropdown.
+    Choose(usize),
     /// A figure on the stats pane, by index into `doors`.
     Figure(usize),
     /// A question on the needs-you lens, by index into `questions`.
@@ -570,9 +572,6 @@ pub struct Picker {
     pub propose: bool,
     /// Whether the options are acceptance criteria, chosen to be ticked.
     pub tick: bool,
-    /// Whether the options are the project's saved views. Not a write at all:
-    /// choosing one changes what you are looking at, not the backlog.
-    pub views: bool,
 }
 
 /// Every command, by name, filtered as you type.
@@ -645,6 +644,59 @@ fn subsequence(needle: &str, haystack: &str) -> bool {
     needle
         .chars()
         .all(|want| chars.any(|c| c.eq_ignore_ascii_case(&want)))
+}
+
+/// A list under the word it changes.
+///
+/// The toolbar had four controls and four ways of working: two text boxes, a
+/// side panel, a blind cycle, and a picker over the middle of the screen. They
+/// sit next to each other and answer the same kind of question, and a menu
+/// that opens in the middle to change a thing at the top left has lost its
+/// anchor — nothing on screen connects the list to the word it is about.
+pub struct Dropdown {
+    /// What it changes. Also what it is drawn under.
+    pub of: Command,
+    /// Where the segment was drawn, recorded as it was drawn so the two
+    /// cannot disagree.
+    pub anchor: Rect,
+    pub typed: String,
+    pub selected: usize,
+    /// `(value, label, note)` — the note being the direction of a sort key,
+    /// or what a project said one of its views is for.
+    pub options: Vec<(String, String, String)>,
+    all: Vec<(String, String, String)>,
+}
+
+impl Dropdown {
+    fn new(of: Command, anchor: Rect, all: Vec<(String, String, String)>, at: usize) -> Dropdown {
+        Dropdown {
+            of,
+            anchor,
+            typed: String::new(),
+            selected: at,
+            options: all.clone(),
+            all,
+        }
+    }
+
+    fn refilter(&mut self) {
+        let needle = self.typed.to_lowercase();
+        self.options = self
+            .all
+            .iter()
+            .filter(|(value, label, _)| {
+                needle.is_empty()
+                    || value.to_lowercase().contains(&needle)
+                    || label.to_lowercase().contains(&needle)
+            })
+            .cloned()
+            .collect();
+        self.selected = self.selected.min(self.options.len().saturating_sub(1));
+    }
+
+    pub fn chosen(&self) -> Option<&str> {
+        self.options.get(self.selected).map(|(v, _, _)| v.as_str())
+    }
 }
 
 /// A line of text being typed: the filter box, or a new item's title.
@@ -757,6 +809,8 @@ pub struct App {
     pub picker: Option<Picker>,
     /// Every command by name, when it is open.
     pub palette: Option<Palette>,
+    /// A list under the toolbar segment it changes.
+    pub dropdown: Option<Dropdown>,
     pub confirm: Option<Confirm>,
     pub help: bool,
     pub diagnostics: bool,
@@ -917,6 +971,7 @@ impl App {
             history: None,
             picker: None,
             palette: None,
+            dropdown: None,
             confirm: None,
             help: false,
             diagnostics: false,
@@ -2529,10 +2584,22 @@ impl App {
             }
             next = (next + 1) % axes.len();
         }
+        let axis = axes[next].clone();
+        self.set_grouping(&axis);
+    }
+
+    /// Arrange by a named axis, on whichever lens is in front of you.
+    pub fn set_grouping(&mut self, axis: &str) {
         if self.pane == Pane::Board {
-            self.board_by = axes[next].clone();
+            // `none` is a list with the grouping off, which is a thing to
+            // want and not a thing a board can be.
+            if matches!(axis, "none" | "") {
+                self.toast("a board is its columns; it cannot be flat", ToastKind::Info);
+                return;
+            }
+            self.board_by = axis.to_string();
         } else {
-            self.group_by = axes[next].clone();
+            self.group_by = axis.to_string();
         }
         // Choosing an axis by hand inside a view is a choice, not a drift: it
         // keeps the view and keeps the grouping, and leaving the view now
@@ -2954,7 +3021,6 @@ impl App {
             // not a restriction — the toggle is right there.
             propose: self.permission_for(field) == crate::schema::Agent::Propose,
             tick: false,
-            views: false,
         });
     }
 
@@ -3088,12 +3154,6 @@ impl App {
         let Some((value, _, _)) = picker.options.get(picker.selected).cloned() else {
             return Action::None;
         };
-        // A view changes what you are looking at, not the backlog, so it
-        // resolves before anything that would select an item or write.
-        if picker.views {
-            self.adopt_view(&value);
-            return Action::None;
-        }
         self.select_id(picker.id);
         if picker.tick {
             let reference = self.schema.format_id(picker.id);
@@ -3364,6 +3424,171 @@ impl App {
         self.toast = Some((msg.into(), kind, Instant::now()));
     }
 
+    /// Where a toolbar segment was drawn this frame, so its list opens in
+    /// the same place whether it was clicked or asked for by key.
+    fn segment_at(&self, command: Command) -> Rect {
+        // A view *is* the filter, and the toolbar shows it in the filter
+        // segment — so that is the word its list belongs under. It has no
+        // segment of its own for the same reason.
+        let want = match command {
+            Command::Views => Command::Filter,
+            other => other,
+        };
+        self.hits
+            .iter()
+            .find(|(_, hit)| matches!(hit, Hit::Run(c) if *c == want))
+            .map(|(rect, _)| *rect)
+            .unwrap_or(Rect {
+                x: self.screen.x,
+                y: self.screen.y.saturating_add(1),
+                width: 0,
+                height: 1,
+            })
+    }
+
+    /// Open the list for a toolbar segment, under where it was drawn.
+    ///
+    /// The anchor comes from the renderer, which is the only thing that knows
+    /// where the segment landed — and it is recorded there as the hit is, so
+    /// the list cannot end up under a word that has moved.
+    pub fn open_dropdown(&mut self, of: Command, anchor: Rect) {
+        let (options, at) = match of {
+            Command::Sort => {
+                // The order in force, default or chosen — the default is an
+                // order too, and until the toolbar said so nobody had ever
+                // been told what it was.
+                let keys = self.sort_keys();
+                let primary = keys.first().cloned();
+                let options: Vec<(String, String, String)> = self
+                    .sort_fields()
+                    .into_iter()
+                    .map(|field| {
+                        // The direction against each field, because an order
+                        // has one and a list of bare names cannot say it.
+                        let note = match keys.iter().find(|k| k.field == field) {
+                            Some(k) if k.descending => "↓".to_string(),
+                            Some(_) => "↑".to_string(),
+                            None => String::new(),
+                        };
+                        (field.clone(), field, note)
+                    })
+                    .collect();
+                let at = primary
+                    .and_then(|k| options.iter().position(|(v, _, _)| *v == k.field))
+                    .unwrap_or(0);
+                (options, at)
+            }
+            Command::GroupBy => {
+                let axes = self.grouping_axes();
+                let at = axes.iter().position(|a| a == self.axis()).unwrap_or(0);
+                let options = axes
+                    .into_iter()
+                    .map(|axis| match axis.as_str() {
+                        "none" => ("none".to_string(), "flat".to_string(), String::new()),
+                        _ => (axis.clone(), axis, String::new()),
+                    })
+                    .collect();
+                (options, at)
+            }
+            Command::Views => {
+                let options: Vec<(String, String, String)> = self
+                    .schema
+                    .views
+                    .iter()
+                    .map(|v| {
+                        (
+                            v.name.clone(),
+                            v.name.clone(),
+                            v.description.clone().unwrap_or_default(),
+                        )
+                    })
+                    .collect();
+                let at = self
+                    .view
+                    .as_deref()
+                    .and_then(|v| options.iter().position(|(name, _, _)| name == v))
+                    .unwrap_or(0);
+                (options, at)
+            }
+            _ => return,
+        };
+        if options.is_empty() {
+            self.toast(
+                match of {
+                    Command::Views => "this project declares no views",
+                    _ => "nothing to choose from",
+                },
+                ToastKind::Info,
+            );
+            return;
+        }
+        self.dropdown = Some(Dropdown::new(of, anchor, options, at));
+    }
+
+    /// Take what the cursor is on.
+    fn resolve_dropdown(&mut self) -> Action {
+        let Some(open) = self.dropdown.take() else {
+            return Action::None;
+        };
+        let Some(value) = open.chosen().map(str::to_string) else {
+            return Action::None;
+        };
+        match open.of {
+            // Taking the key it is already ordered by turns it around, which
+            // is what anybody wants of a column heading they click twice.
+            Command::Sort => {
+                let keys = self.sort_keys();
+                let spec = match keys.first() {
+                    Some(k) if k.field == value && !k.descending => format!("-{value}"),
+                    Some(k) if k.field == value => value,
+                    _ => value,
+                };
+                self.set_sort(spec);
+            }
+            Command::GroupBy => self.set_grouping(&value),
+            Command::Views => self.adopt_view(&value),
+            _ => {}
+        }
+        Action::None
+    }
+
+    fn dropdown_key(&mut self, code: KeyCode, mods: KeyModifiers) -> Action {
+        let len = self.dropdown.as_ref().map(|d| d.options.len()).unwrap_or(0);
+        match code {
+            KeyCode::Esc => self.dropdown = None,
+            KeyCode::Enter => return self.resolve_dropdown(),
+            KeyCode::Down | KeyCode::Tab => {
+                if let Some(d) = self.dropdown.as_mut()
+                    && len > 0
+                {
+                    d.selected = (d.selected + 1) % len;
+                }
+            }
+            KeyCode::Up | KeyCode::BackTab => {
+                if let Some(d) = self.dropdown.as_mut()
+                    && len > 0
+                {
+                    d.selected = (d.selected + len - 1) % len;
+                }
+            }
+            KeyCode::Backspace => {
+                if let Some(d) = self.dropdown.as_mut() {
+                    d.typed.pop();
+                    d.refilter();
+                }
+            }
+            KeyCode::Char(c) if !mods.contains(KeyModifiers::CONTROL) => {
+                if let Some(d) = self.dropdown.as_mut() {
+                    d.typed.push(c);
+                    d.selected = 0;
+                    d.refilter();
+                }
+            }
+            _ => {}
+        }
+        Action::None
+    }
+
     /// The palette's own keys: a line being typed, with a cursor in a list.
     fn palette_key(&mut self, code: KeyCode, mods: KeyModifiers) -> Action {
         let len = self.palette.as_ref().map(|p| p.matches.len()).unwrap_or(0);
@@ -3461,6 +3686,9 @@ impl App {
                 }
                 _ => self.resolve_confirm(false),
             };
+        }
+        if self.dropdown.is_some() {
+            return self.dropdown_key(code, mods);
         }
         if self.palette.is_some() {
             return self.palette_key(code, mods);
@@ -3835,7 +4063,7 @@ impl App {
                 }
                 self.clamp();
             }
-            Command::GroupBy => self.cycle_grouping(),
+            Command::CycleGroup => self.cycle_grouping(),
             // On the stats pane, `enter` is how you follow a figure to what
             // it counted; everywhere else it reads the selected item.
             Command::Read if self.pane == Pane::Stats && !self.doors.is_empty() => {
@@ -3962,7 +4190,6 @@ impl App {
                     id,
                     propose: false,
                     tick: true,
-                    views: false,
                 });
             }
             Command::Claim => return self.claim(true),
@@ -4056,43 +4283,19 @@ impl App {
             // What the project decided was worth naming. harrow has always
             // read these, and `--doctor` has always validated them; there was
             // simply no way to reach one without quitting.
-            Command::Views => {
-                if self.schema.views.is_empty() {
-                    self.toast("this project declares no views", ToastKind::Info);
-                    return Action::None;
-                }
-                let options: Vec<(String, String, String)> = self
-                    .schema
-                    .views
-                    .iter()
-                    .map(|v| {
-                        (
-                            v.name.clone(),
-                            v.name.clone(),
-                            // A project that bothered to describe a view has
-                            // said what it is for better than harrow can.
-                            v.description.clone().unwrap_or_default(),
-                        )
-                    })
-                    .collect();
-                let selected = self
-                    .view
-                    .as_deref()
-                    .and_then(|v| options.iter().position(|(name, _, _)| name == v))
-                    .unwrap_or(0);
-                self.picker = Some(Picker {
-                    title: "look at it how".to_string(),
-                    options,
-                    selected,
-                    permission: crate::schema::Agent::default(),
-                    field: "view".to_string(),
-                    id: 0,
-                    propose: false,
-                    tick: false,
-                    views: true,
-                });
+            // The three that are a choice from a list open one, under the
+            // segment they change. `S` still reaches the text box, because
+            // `-priority,updated,id` is a thing somebody should be able to
+            // type and a list of choices cannot express it.
+            Command::Views | Command::GroupBy => {
+                let anchor = self.segment_at(command);
+                self.open_dropdown(command, anchor);
             }
             Command::Sort => {
+                let anchor = self.segment_at(command);
+                self.open_dropdown(Command::Sort, anchor);
+            }
+            Command::SortBy => {
                 self.editing = Some(Editing::Sort);
                 self.input = if self.sort.trim().is_empty() {
                     String::new()
@@ -4393,6 +4596,12 @@ impl App {
                 // and that closes the palette before it runs anything.
                 self.palette = None;
                 return self.run(command);
+            }
+            Hit::Choose(n) => {
+                if let Some(d) = self.dropdown.as_mut() {
+                    d.selected = n;
+                }
+                return self.resolve_dropdown();
             }
             // Clicking a pane is how a pointer says which one it means, and it
             // is the same statement `↵` makes with a key.

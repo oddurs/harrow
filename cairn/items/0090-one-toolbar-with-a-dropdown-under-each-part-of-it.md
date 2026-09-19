@@ -2,7 +2,7 @@
 id: 90
 title: One toolbar, with a dropdown under each part of it
 type: feature
-status: backlog
+status: done
 milestone: v0.6
 depends_on:
 - 89
@@ -87,9 +87,21 @@ same split the whole milestone is about.
 
 ## Acceptance criteria
 
-- [ ] Sorting, grouping and views open a list under the segment they belong to
-- [ ] `v` shows the axes rather than cycling blindly through them
-- [ ] Typing narrows the list; `↵` takes it; `esc` leaves it unchanged
-- [ ] The sort dropdown shows and toggles direction
-- [ ] Clicking a segment opens its dropdown, and clicking a row takes it
-- [ ] The dropdown stays on screen when its segment is near the right edge
+- [x] Sorting, grouping and views open a list under the segment they belong to
+- [x] `v` shows the axes rather than cycling blindly through them
+- [x] Typing narrows the list; `↵` takes it; `esc` leaves it unchanged
+- [x] The sort dropdown shows and toggles direction
+- [x] Clicking a segment opens its dropdown, and clicking a row takes it
+- [x] The dropdown stays on screen when its segment is near the right edge
+
+## 2026-09-18
+
+Four ways of working became two, split by what the act is. A **dropdown** changes what you are looking at and opens under the word it changes; a **picker** writes to an item and opens over the middle. That is the same split the milestone is about, said in where a list appears.
+
+The anchor comes from the hit map. The renderer is the only thing that knows where a segment landed, and it records it there as it records every other click target — so a key and a click open the list in the same place, and the list cannot end up under a word that has moved.
+
+Views have no segment of their own and do not need one: a view *is* the filter, the toolbar shows it in the filter segment, and that is the word its list belongs under.
+
+`v` and `S` open lists; `ctrl-v` still steps blindly and `ctrl-s` still types a whole order. Neither is a fallback — `-priority,updated,id` is a real thing to want and no list of choices can express it, and stepping is genuinely faster when there are two axes.
+
+The `views` flag on `Picker` is gone. Nothing constructed one with it set any more, and a branch nobody takes is worse than no branch.
