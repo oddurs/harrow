@@ -1,6 +1,6 @@
  harrow  sample    needs  list  board  stats  log    1 needs you                                     just now
  ○ 3 backlog   ✓ 2 done   ⊘ 1 blocked
- / everything   ↓ status priority id   v ⊞ milestone                                                  5 items
+ / everything   S ↓ status priority id   v ⊞ milestone                                                5 items
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Backlog ───────────────────────────────────────────────────╮╭ 0005 ────────────────────────────────────────╮
 │ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  2 left ││ ○ The detail pane scrolls past its pane      │

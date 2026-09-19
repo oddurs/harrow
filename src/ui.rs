@@ -532,9 +532,7 @@ fn draw_view_line(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     segment(
         &mut spans,
         &mut used,
-        // No key yet: sorting is 0083. The segment states the order it is in
-        // meanwhile, which is the half of the gap that costs nothing.
-        None,
+        Some(Command::Sort),
         "↓ ",
         view.sort.replace(',', " "),
         if view.sort_is_default {
@@ -3917,6 +3915,7 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     if let Some(editing) = &app.editing {
         let (label, hint) = match editing {
             Editing::Filter => (" filter ", "   enter to keep · esc to clear"),
+            Editing::Sort => (" sort   ", "   - reverses · enter to keep · esc to clear"),
             Editing::NewItem => (" title  ", "   enter to create · esc to cancel"),
             Editing::Note => (" note   ", "   enter to append · esc to cancel"),
             Editing::Reason => (" why?   ", "   enter to hand it back · esc to keep it"),
@@ -3935,6 +3934,37 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             spans.push(Span::styled(
                 format!("   no such field: {}", app.query.unknown.join(", ")),
                 Style::default().fg(t.warn),
+            ));
+        } else if editing == &Editing::Sort && !app.unknown_sort().is_empty() {
+            spans.push(Span::styled(
+                format!("   no such field: {}", app.unknown_sort().join(", ")),
+                Style::default().fg(t.warn),
+            ));
+        } else if editing == &Editing::Sort {
+            // What this project can be ordered by, read off its schema. The
+            // completion is the documentation: nothing here is a list harrow
+            // keeps of what a backlog is allowed to have.
+            let typed = app.input.rsplit(',').next().unwrap_or("").trim();
+            let typed = typed.strip_prefix('-').unwrap_or(typed).to_lowercase();
+            let offered: Vec<String> = app
+                .sort_fields()
+                .into_iter()
+                .filter(|f| typed.is_empty() || f.starts_with(&typed))
+                .collect();
+            let room = (area.width as usize).saturating_sub(app.input.chars().count() + 12);
+            let mut said = String::new();
+            for field in offered {
+                if said.chars().count() + field.chars().count() + 2 > room {
+                    break;
+                }
+                if !said.is_empty() {
+                    said.push(' ');
+                }
+                said.push_str(&field);
+            }
+            spans.push(Span::styled(
+                format!("   {said}"),
+                Style::default().fg(t.faint),
             ));
         } else {
             spans.push(Span::styled(hint, Style::default().fg(t.faint)));

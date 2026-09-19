@@ -1,6 +1,6 @@
  harrow  sample    needs  list  board  stats  log    1 needs you                                     starting
  ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
- / everything   ↓ status priority id   v ⊞ milestone                                                  5 items
+ / everything   S ↓ status priority id   v ⊞ milestone                                                5 items
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Needs you ─────────────────────────────────────────────────────╮╭ 0006 ────────────────────────────────────╮
 │   an agent asks that 0006 priority become p0      A accepts    ││ ○ Write the readme                       │

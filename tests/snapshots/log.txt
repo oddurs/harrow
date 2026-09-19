@@ -1,6 +1,6 @@
  harrow  sample    needs  list  board  stats  log    1 needs you                                     starting
  ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
- / everything   ↓ status priority id   v ⊞ milestone                                                  5 items
+ / everything   S ↓ status priority id   v ⊞ milestone                                                5 items
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ What happened ─────────────────────────────────────────────────╮╭ 0003 ────────────────────────────────────╮
 │   2026-09-10 Oddur          0003 close the reader              ││ ◐ Draw the list                          │

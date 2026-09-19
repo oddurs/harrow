@@ -2,7 +2,7 @@
 id: 83
 title: Sorting is a key, not a flag
 type: feature
-status: backlog
+status: done
 milestone: v0.6
 depends_on:
 - 82
@@ -64,8 +64,18 @@ for holding this one back.
 
 ## Acceptance criteria
 
-- [ ] A key sets the sort order, and the list reorders without restarting
-- [ ] The fields offered come from the project's schema
-- [ ] `-` reverses, matching what `--sort` already accepts
-- [ ] The default order is stated rather than implied
-- [ ] Sorting survives a lens change, the way the filter does
+- [x] A key sets the sort order, and the list reorders without restarting
+- [x] The fields offered come from the project's schema
+- [x] `-` reverses, matching what `--sort` already accepts
+- [x] The default order is stated rather than implied
+- [x] Sorting survives a lens change, the way the filter does
+
+## 2026-09-18
+
+A typed segment rather than a picker, because `--sort`'s syntax is already the answer and a picker cannot express `-priority,updated`. The completion offers the project's fields as you type, so the syntax is documented by the thing that uses it.
+
+It previews as you type, the way the filter box does, and `esc` puts the order back — the preview changed what is on screen, so a `esc` that kept it would be indistinguishable from `↵`. `S` opens on the order in force rather than empty: you are editing an order, not starting one.
+
+A sort key naming a field the project has not got now says so, the same way an unknown filter field does since 0056. It was the last place left where harrow silently did something other than what it was asked.
+
+Sorting keeps the cursor on the item it was on, which is the difference between reordering a list and losing your place in it.

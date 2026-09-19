@@ -53,6 +53,7 @@ pub enum Command {
     CopyView,
     Palette,
     Filter,
+    Sort,
     Facets,
     Back,
     ToggleAll,
@@ -66,7 +67,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 50] = [
+    pub const ALL: [Command; 51] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -107,6 +108,7 @@ impl Command {
         Command::CopyView,
         Command::Palette,
         Command::Filter,
+        Command::Sort,
         Command::Facets,
         Command::Back,
         Command::ToggleAll,
@@ -163,6 +165,7 @@ impl Command {
             Command::CopyView => "copy-view",
             Command::Palette => "palette",
             Command::Filter => "filter",
+            Command::Sort => "sort",
             Command::Facets => "facets",
             Command::Back => "back",
             Command::ToggleAll => "toggle-all",
@@ -219,6 +222,7 @@ impl Command {
             Command::CopyView => "copy this view as a command line",
             Command::Palette => "every command, by name",
             Command::Filter => "filter, in cairn's own grammar",
+            Command::Sort => "order it by something else",
             Command::Facets => "open the filter panel",
             Command::Back => "back out — one press leaves whatever is open",
             Command::ToggleAll => "show everything — finished, dropped, and milestones",
@@ -233,7 +237,7 @@ impl Command {
     }
 
     /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 36] {
+    pub fn help_order() -> [Command; 37] {
         [
             Command::Down,
             Command::First,
@@ -263,6 +267,7 @@ impl Command {
             Command::Palette,
             Command::Facets,
             Command::Filter,
+            Command::Sort,
             Command::CopyView,
             Command::ToggleAll,
             Command::Back,
@@ -332,6 +337,7 @@ impl Default for Keymap {
                 (K::Char('u'), n, C::Reopen),
                 (K::Char('n'), n, C::New),
                 (K::Char('s'), n, C::Status),
+                (K::Char('S'), n, C::Sort),
                 (K::Char('p'), n, C::Priority),
                 (K::Char('M'), n, C::Milestone),
                 (K::Char('l'), n, C::Advance),
