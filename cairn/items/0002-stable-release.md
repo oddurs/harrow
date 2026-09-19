@@ -5,9 +5,9 @@ title: Stable release
 type: milestone
 status: backlog
 depends_on:
-- 63
+- 81
 created: 2026-09-08
-updated: 2026-09-12
+updated: 2026-09-18
 due: 2027-05-01
 ---
 
