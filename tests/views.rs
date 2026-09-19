@@ -7,11 +7,14 @@
 
 use crossterm::event::{KeyCode, KeyModifiers};
 
-use harrow::app::{App, Picker};
+use harrow::app::App;
 use harrow::schema::{Schema, View};
 use harrow::{testkit, ui};
 
+/// The anchor comes from where the toolbar drew the segment, so a frame has
+/// to have been drawn before a key can open a list under it.
 fn press(app: &mut App, c: char) {
+    let _ = ui::render_frame(app, 110, 26, 0);
     app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
 }
 
@@ -39,24 +42,34 @@ fn app_with_views() -> App {
     app
 }
 
-fn picker(app: &App) -> &Picker {
-    app.picker.as_ref().expect("the picker is open")
+/// A dropdown under the filter segment since 0090, not a picker over the
+/// middle of the screen: a view *is* the filter, and that is the word its
+/// list belongs under.
+fn options(app: &App) -> Vec<(String, String)> {
+    app.dropdown
+        .as_ref()
+        .expect("the list is open")
+        .options
+        .iter()
+        .map(|(_, name, note)| (name.clone(), note.clone()))
+        .collect()
 }
 
 #[test]
 fn a_key_lists_them_with_what_the_project_said_they_are_for() {
     let mut app = app_with_views();
     press(&mut app, 'V');
-    let shown: Vec<(&str, &str)> = picker(&app)
-        .options
-        .iter()
-        .map(|(_, name, note)| (name.as_str(), note.as_str()))
-        .collect();
     assert_eq!(
-        shown,
+        options(&app),
         vec![
-            ("now", "What is actually being worked on"),
-            ("triage", "Items that still need a priority"),
+            (
+                "now".to_string(),
+                "What is actually being worked on".to_string()
+            ),
+            (
+                "triage".to_string(),
+                "Items that still need a priority".to_string()
+            ),
         ]
     );
 }
@@ -125,7 +138,7 @@ fn a_project_with_no_views_says_so() {
     let mut app = testkit::app();
     app.schema.views.clear();
     press(&mut app, 'V');
-    assert!(app.picker.is_none());
+    assert!(app.dropdown.is_none());
     let said = app.toast.as_ref().map(|(m, _, _)| m.clone()).unwrap();
     assert!(said.contains("no views"), "{said}");
 }

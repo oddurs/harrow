@@ -14,10 +14,17 @@ fn key(app: &mut App, c: char) {
     app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
 }
 
+/// The text box. `S` opens the list of fields since 0090; typing a whole
+/// order — `-priority,updated,id` — is what this key is for, because a list
+/// of choices cannot express one.
+fn open_box(app: &mut App) {
+    app.handle_key(KeyCode::Char('s'), KeyModifiers::CONTROL);
+}
+
 /// `S` prefills with the order in force — you are editing it, not starting
 /// over — so a test that types a whole spec has to clear it first.
 fn type_sort(app: &mut App, spec: &str) {
-    key(app, 'S');
+    open_box(app);
     for _ in 0..40 {
         app.handle_key(KeyCode::Backspace, KeyModifiers::NONE);
     }
@@ -32,7 +39,7 @@ fn type_sort(app: &mut App, spec: &str) {
 fn it_opens_on_the_order_in_force() {
     let mut app = testkit::app();
     app.sort = "-priority".into();
-    key(&mut app, 'S');
+    open_box(&mut app);
     assert_eq!(app.input, "-priority");
 }
 
@@ -96,7 +103,7 @@ fn it_reorders_as_you_type() {
     app.group_by = "none".into();
     app.rebuild();
     let before = ids(&app);
-    key(&mut app, 'S');
+    open_box(&mut app);
     for c in "-id".chars() {
         key(&mut app, c);
     }
@@ -111,7 +118,7 @@ fn escape_puts_the_order_back() {
     app.group_by = "none".into();
     app.rebuild();
     let before = ids(&app);
-    key(&mut app, 'S');
+    open_box(&mut app);
     for c in "-id".chars() {
         key(&mut app, c);
     }
@@ -135,7 +142,7 @@ fn what_it_offers_comes_from_the_schema() {
 #[test]
 fn a_field_the_project_has_not_got_is_said_out_loud() {
     let mut app = testkit::app();
-    key(&mut app, 'S');
+    open_box(&mut app);
     for c in "severity".chars() {
         key(&mut app, c);
     }

@@ -105,13 +105,9 @@ The work is somebody else's. The deciding is yours.
 
 ## v0.6 — Compose a view; reach a command
 
-`#########·` 89% · 8 of 9 done · due 2027-04-15
+`##########` 100% · 9 of 9 done · due 2027-04-15
 
 Three questions decide what is on screen — which items, in what order,
-
-### backlog
-
-- [ ] `0090` One toolbar, with a dropdown under each part of it <sup>feature · p1 · chrome</sup>
 
 ### done
 
@@ -123,6 +119,7 @@ Three questions decide what is on screen — which items, in what order,
 - [x] `0087` Reach the views the project declared <sup>feature · p2 · chrome</sup>
 - [x] `0088` A milestone with nothing left shows the work that finished it <sup>feature · p2 · chrome</sup>
 - [x] `0089` Two lines of chrome, not four <sup>feature · p1 · chrome</sup>
+- [x] `0090` One toolbar, with a dropdown under each part of it <sup>feature · p1 · chrome</sup>
 
 ## v1.0 — Stable release
 

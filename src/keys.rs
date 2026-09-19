@@ -32,6 +32,8 @@ pub enum Command {
     ViewBack,
     ViewLens(u8),
     GroupBy,
+    CycleGroup,
+    SortBy,
     Read,
     Edit,
     Note,
@@ -68,7 +70,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 52] = [
+    pub const ALL: [Command; 54] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -88,6 +90,8 @@ impl Command {
         Command::ViewLens(4),
         Command::ViewLens(5),
         Command::GroupBy,
+        Command::CycleGroup,
+        Command::SortBy,
         Command::Read,
         Command::Edit,
         Command::Note,
@@ -146,6 +150,8 @@ impl Command {
             Command::ViewLens(4) => "lens-4",
             Command::ViewLens(_) => "lens-5",
             Command::GroupBy => "group-by",
+            Command::CycleGroup => "cycle-group",
+            Command::SortBy => "sort-by",
             Command::Read => "read",
             Command::Edit => "edit",
             Command::Note => "note",
@@ -203,7 +209,9 @@ impl Command {
             Command::ViewBoard => "switch between the list, the board and the stats",
             Command::ViewBack => "the lens before this one",
             Command::ViewLens(_) => "go straight to a lens, in the order of the tabs",
-            Command::GroupBy => "group by something else",
+            Command::GroupBy => "arrange it by something else",
+            Command::CycleGroup => "step to the next arrangement",
+            Command::SortBy => "type an order, in --sort's own syntax",
             Command::Read => "read it in the panel, and drive the panel",
             Command::Edit => "open the item in your editor",
             Command::Note => "add a line to the item's body — why, what you tried",
@@ -241,7 +249,7 @@ impl Command {
     }
 
     /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 38] {
+    pub fn help_order() -> [Command; 41] {
         [
             Command::Down,
             Command::First,
@@ -251,6 +259,8 @@ impl Command {
             Command::ViewBoard,
             Command::ViewLens(1),
             Command::GroupBy,
+            Command::CycleGroup,
+            Command::SortBy,
             Command::Read,
             Command::Edit,
             Command::Note,
@@ -272,6 +282,7 @@ impl Command {
             Command::Facets,
             Command::Filter,
             Command::Sort,
+            Command::SortBy,
             Command::Views,
             Command::CopyView,
             Command::ToggleAll,
@@ -330,6 +341,7 @@ impl Default for Keymap {
                 (K::Char('4'), n, C::ViewLens(4)),
                 (K::Char('5'), n, C::ViewLens(5)),
                 (K::Char('v'), n, C::GroupBy),
+                (K::Char('v'), ctrl, C::CycleGroup),
                 (K::Char('V'), n, C::Views),
                 (K::Enter, n, C::Read),
                 (K::Char('o'), n, C::Read),
@@ -346,6 +358,7 @@ impl Default for Keymap {
                 (K::Char('n'), n, C::New),
                 (K::Char('s'), n, C::Status),
                 (K::Char('S'), n, C::Sort),
+                (K::Char('s'), ctrl, C::SortBy),
                 (K::Char('p'), n, C::Priority),
                 (K::Char('M'), n, C::Milestone),
                 (K::Char('>'), n, C::Advance),

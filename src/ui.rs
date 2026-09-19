@@ -248,6 +248,9 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     if app.diagnostics {
         draw_diagnostics(f, app, &t, area);
     }
+    if app.dropdown.is_some() {
+        draw_dropdown(f, app, &t, area);
+    }
     if app.palette.is_some() {
         draw_palette(f, app, &t, area);
     }
@@ -3460,6 +3463,132 @@ fn draw_history(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     app.hit(popup, Hit::Overlay);
 }
 
+/// A list under the word it changes.
+///
+/// Anchored, because a menu that opens in the middle of the screen to change
+/// a thing at the top left has lost its anchor: nothing on screen connects
+/// the list to the word it is about. Nudged left where it would run off the
+/// right edge, which is the one thing an anchor cannot be allowed to do.
+fn draw_dropdown(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
+    let Some(open) = &app.dropdown else { return };
+    let widest = open
+        .options
+        .iter()
+        .map(|(_, label, note)| label.chars().count() + note.chars().count() + 1)
+        .max()
+        .unwrap_or(8);
+    // Wide enough for the hint along the bottom, or the hint is clipped and
+    // the one thing the list has to teach is the thing it cannot say.
+    const HINT: &str = " ↵ take · esc leaves it ";
+    // The hint's width is what it wants, never what it takes: on a terminal
+    // narrower than the hint the list still has to fit on the screen.
+    let most = area.width.saturating_sub(2);
+    let width = (widest as u16 + 6)
+        .max((HINT.chars().count() as u16 + 2).min(most))
+        .min(most);
+    let rows = open.options.len().min(9) as u16;
+    let height = (rows + 2).min(area.height.saturating_sub(open.anchor.y + 1));
+    // Two rows of border and nothing between them is not a list.
+    if width < 8 || height < 3 {
+        return;
+    }
+
+    let x = open
+        .anchor
+        .x
+        .saturating_sub(1)
+        .min(area.width.saturating_sub(width));
+    let popup = Rect {
+        x,
+        y: open.anchor.y + 1,
+        width,
+        height,
+    };
+
+    let title = match open.of {
+        Command::Sort => " order by ",
+        Command::GroupBy => " arrange by ",
+        _ => " look at it how ",
+    };
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(t.border_focus))
+        .style(Style::default().bg(t.overlay))
+        .padding(Padding::horizontal(1))
+        .title(Line::from(vec![
+            Span::styled(title, Style::default().fg(t.muted)),
+            Span::styled(open.typed.clone(), Style::default().fg(t.accent)),
+        ]))
+        .title_bottom(Span::styled(
+            if open.options.is_empty() {
+                " nothing by that name "
+            } else {
+                HINT
+            },
+            Style::default().fg(t.faint),
+        ));
+
+    let inner = block.inner(popup);
+    let shown = rows as usize;
+    let first = open.selected.saturating_sub(shown.saturating_sub(1));
+    let note_col = open
+        .options
+        .iter()
+        .map(|(_, _, note)| note.chars().count())
+        .max()
+        .unwrap_or(0);
+    let label_col = (inner.width as usize).saturating_sub(note_col + 3);
+
+    let lines: Vec<Line> = open
+        .options
+        .iter()
+        .enumerate()
+        .skip(first)
+        .take(shown)
+        .map(|(n, (_, label, note))| {
+            let here = n == open.selected;
+            let label = truncate(label, label_col);
+            let pad = label_col.saturating_sub(label.chars().count());
+            Line::from(vec![
+                Span::styled(
+                    if here { "▸ " } else { "  " },
+                    Style::default().fg(t.accent),
+                ),
+                Span::styled(
+                    label,
+                    if here {
+                        Style::default().fg(t.heading).bold()
+                    } else {
+                        Style::default().fg(t.text)
+                    },
+                ),
+                Span::raw(" ".repeat(pad)),
+                Span::styled(note.clone(), Style::default().fg(t.label)),
+            ])
+            .style(if here {
+                Style::default().bg(t.selection)
+            } else {
+                Style::default()
+            })
+        })
+        .collect();
+
+    f.render_widget(Clear, popup);
+    f.render_widget(Paragraph::new(lines).block(block), popup);
+
+    for row in 0..shown.min(open.options.len().saturating_sub(first)) {
+        app.hit(
+            Rect {
+                x: inner.x,
+                y: inner.y + row as u16,
+                width: inner.width,
+                height: 1,
+            },
+            Hit::Choose(first + row),
+        );
+    }
+}
+
 /// Every command, by name, filtered as you type.
 ///
 /// The key sits on the right of every row, so this teaches the keymap rather
@@ -3660,11 +3789,7 @@ fn draw_picker(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
                     .right_aligned(),
                 )
                 .title_bottom(Span::styled(
-                    if picker.views {
-                        // Nothing is being written, so nothing can be
-                        // proposed: this changes what you are looking at.
-                        " ↵ look · esc cancel "
-                    } else if picker.propose {
+                    if picker.propose {
                         " ↵ propose · ctrl-p to set instead · esc cancel "
                     } else {
                         " ↵ set · ctrl-p to propose · esc cancel "
