@@ -1,6 +1,5 @@
  sample    needs  list  board  stats  log            starting
- ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
- / everything   S ↓ status priority id   v ⊞ milestone
+ / filter   S ↓ status priority id         ◐ 1  ○ 3  ✓ 1  ⊘ 1
 ──────────────────────────────────────────────────────────────
 ╭ Backlog ───────────────────────────────────────────────────╮
 │ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  3 left │
@@ -9,6 +8,7 @@
 │  ◐ 0003 Draw the list                      1/2  @oddur  p1 │
 │ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left │
 │  ○ 0006 Write the readme                             ?  p3 │
+│                                                            │
 │                                                            │
 │                                                            │
 │                                                            │

@@ -9,10 +9,12 @@
 use harrow::app::{App, Pane};
 use harrow::{testkit, ui};
 
+/// The toolbar is the second row: the status counts joined it in 0089, so
+/// the chrome is two rows and a rule rather than three and a rule.
 fn line(app: &mut App) -> String {
     ui::render_to_string(app, 110, 26, 0)
         .lines()
-        .nth(2)
+        .nth(1)
         .unwrap_or_default()
         .trim()
         .to_string()
@@ -22,7 +24,7 @@ fn line(app: &mut App) -> String {
 fn the_filter_the_sort_and_the_grouping_are_all_stated() {
     let mut app = testkit::app();
     let said = line(&mut app);
-    assert!(said.contains("everything"), "no filter segment: {said}");
+    assert!(said.contains("filter"), "no filter segment: {said}");
     assert!(said.contains("status"), "no sort segment: {said}");
     assert!(said.contains("milestone"), "no grouping segment: {said}");
 }
@@ -75,7 +77,7 @@ fn every_lens_says_what_it_is_showing() {
 #[test]
 fn showing_everything_is_part_of_the_view() {
     let mut app = testkit::app();
-    assert!(!line(&mut app).contains("finished"));
+    assert!(!line(&mut app).contains("finished"), "{}", line(&mut app));
     app.show_all = true;
     app.rebuild();
     assert!(line(&mut app).contains("finished"), "{}", line(&mut app));
@@ -125,10 +127,10 @@ fn a_short_terminal_keeps_the_backlog_instead() {
     app.filter = "priority=p1".into();
     app.ingest(testkit::report());
     // The header carries the filter too; what must be gone is the row.
-    let cramped = ui::render_to_string(&mut app, 110, 13, 0);
-    let third = cramped.lines().nth(2).unwrap_or_default();
+    let cramped = ui::render_to_string(&mut app, 110, 11, 0);
+    let second = cramped.lines().nth(1).unwrap_or_default();
     assert!(
-        third.trim_start().starts_with('─'),
+        second.trim_start().starts_with('─'),
         "the line is still taking a row it cannot spare:\n{cramped}"
     );
 }

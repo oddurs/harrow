@@ -1,6 +1,5 @@
- harrow  sample    needs  list  board  stats  log    1 needs you                                     just now
- ○ 3 backlog   ✓ 2 done   ⊘ 1 blocked
- / everything   S ↓ status priority id   v ⊞ milestone                                                5 items
+ sample    needs  list  board  stats  log    1 needs you
+ / filter   S ↓ status priority id   v ⊞ milestone                                              ○ 3  ✓ 2  ⊘ 1
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Backlog ───────────────────────────────────────────────────╮╭ 0005 ────────────────────────────────────────╮
 │ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  2 left ││ ○ The detail pane scrolls past its pane      │
@@ -16,5 +15,6 @@
 │                                                            ││   priority p1                                │
 │                                                            ││   area     ui                                │
 │                                                            ││   labels   chrome                            │
-╰────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────────╯
+│                                                            ││   created  2026-09-04                        │
+╰────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
  ● 0003 → done

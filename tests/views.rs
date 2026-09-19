@@ -100,7 +100,7 @@ fn the_view_in_force_is_named_on_the_line_beside_its_grammar() {
 
     let line = ui::render_to_string(&mut app, 110, 26, 0)
         .lines()
-        .nth(2)
+        .nth(1)
         .unwrap_or_default()
         .to_string();
     assert!(line.contains("now"), "{line}");

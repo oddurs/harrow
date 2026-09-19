@@ -43,6 +43,10 @@ const EMPTY_COLUMN: u16 = 15;
 const STATS_TWO_COLUMN: u16 = 88;
 /// Below this, the header drops to the identity and the counts.
 const ROOMY: u16 = 74;
+/// How long since the last read before it is worth saying so. Below this, the
+/// answer is always "just now" and saying it costs a corner of the header for
+/// nothing.
+const STALE_AFTER: u64 = 30;
 /// The least a reader is worth drawing in. Narrower than this and the prose is
 /// being squeezed rather than read, so the lens steps aside and gives it the
 /// body instead.
@@ -158,32 +162,30 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     app.hits.clear();
     app.screen = area;
     app.tick = tick;
-    let strip = u16::from(area.height >= 12 && !app.status_counts().is_empty());
-    // Dropped on a short terminal for the same reason the strip is, and one
-    // row sooner: a backlog you cannot see is worse than a view you cannot
-    // read the rules of.
-    let view = u16::from(area.height >= 14);
+    // One row of chrome, not three. The counts are a filter control and the
+    // toolbar is where the filter lives, so they share its row; the header
+    // carries what identifies the window and nothing else.
+    //
+    // Dropped on a short terminal, because a backlog you cannot see is worse
+    // than a view you cannot read the rules of.
+    let toolbar = u16::from(area.height >= 12);
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),     // identity, tabs, freshness
-            Constraint::Length(strip), // what is happening
-            Constraint::Length(view),  // what is on screen, and why
-            Constraint::Length(1),     // rule
-            Constraint::Min(3),        // the work
-            Constraint::Length(1),     // keys, or what just happened
+            Constraint::Length(1),       // project, lenses, what needs you
+            Constraint::Length(toolbar), // what is on screen, and why
+            Constraint::Length(1),       // rule
+            Constraint::Min(3),          // the work
+            Constraint::Length(1),       // keys, or what just happened
         ])
         .split(area);
 
     draw_header(f, app, &t, chunks[0], tick);
-    if strip == 1 {
-        draw_strip(f, app, &t, chunks[1]);
+    if toolbar == 1 {
+        draw_toolbar(f, app, &t, chunks[1]);
     }
-    if view == 1 {
-        draw_view_line(f, app, &t, chunks[2]);
-    }
-    draw_rule(f, &t, chunks[3]);
+    draw_rule(f, &t, chunks[2]);
 
     // The detail belongs to the selection, not to the list: the same item is
     // selected whichever lens is showing, and there is no reason a board
@@ -196,7 +198,7 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     // The filter takes its column off the left before anything else divides
     // what is left: it is what you are doing *to* the backlog, so the backlog
     // and everything about one item stay together beside it.
-    let (filter, body) = split_off_filter(app, chunks[4]);
+    let (filter, body) = split_off_filter(app, chunks[3]);
     let reading = app.reading && app.selected_item().is_some();
     let (lens, detail, reader) = match body {
         None => (None, None, None),
@@ -235,7 +237,7 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     if let Some(filter) = filter {
         draw_filter(f, app, &t, filter);
     }
-    draw_footer(f, app, &t, chunks[5]);
+    draw_footer(f, app, &t, chunks[4]);
 
     if app.history.is_some() {
         draw_history(f, app, &t, area);
@@ -262,11 +264,9 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
 fn draw_header(f: &mut Frame, app: &mut App, t: &Theme, area: Rect, tick: usize) {
     let roomy = area.width >= ROOMY;
     let mut tabs: Vec<(Rect, Pane)> = Vec::new();
+    // No program name. You launched it, in a window you opened, beside the
+    // name of the project — which is the half that tells you anything.
     let mut left = vec![Span::raw(" ")];
-    if roomy {
-        left.push(Span::styled("harrow", Style::default().fg(t.faint)));
-        left.push(Span::styled("  ", Style::default()));
-    }
     left.push(Span::styled(
         app.schema.name.clone(),
         Style::default().fg(t.heading).bold(),
@@ -324,21 +324,14 @@ fn draw_header(f: &mut Frame, app: &mut App, t: &Theme, area: Rect, tick: usize)
             Style::default().bg(t.secondary).fg(t.background).bold(),
         ));
     }
-    if roomy && !app.filter.is_empty() {
-        left.push(Span::styled("   ", Style::default()));
-        left.push(Span::styled(
-            format!("/{}", truncate(&app.filter, 24)),
-            Style::default().fg(t.warn),
-        ));
-    }
-    if roomy && let Some(view) = &app.view {
-        left.push(Span::styled("   ", Style::default()));
-        left.push(Span::styled(
-            format!("view {view}"),
-            Style::default().fg(t.secondary),
-        ));
-    }
+    // The filter and the view are on the toolbar below, stated in full. The
+    // header used to carry abbreviations of both because there was nowhere
+    // else to put them.
 
+    // Said only when it is worth saying. harrow watches the files and
+    // re-reads on any change, so "just now" was true essentially always — and
+    // a fact that never varies is one nobody reads, which is exactly the
+    // argument the needs counter already makes for itself two lines up.
     let right = if let Some(fail) = &app.failure {
         format!("⚠ cannot read the backlog ({}×) ", fail.count)
     } else if !app.watcher_alive {
@@ -347,16 +340,14 @@ fn draw_header(f: &mut Frame, app: &mut App, t: &Theme, area: Rect, tick: usize)
         format!("{} reading ", SPINNER[tick % SPINNER.len()])
     } else {
         match app.last_load {
-            Some(at) => {
-                let e = at.elapsed();
-                if e.as_secs() < 2 {
-                    "just now ".to_string()
-                } else if roomy {
-                    format!("updated {} ago ", ago(e))
+            Some(at) if at.elapsed().as_secs() >= STALE_AFTER => {
+                if roomy {
+                    format!("updated {} ago ", ago(at.elapsed()))
                 } else {
-                    format!("{} ", ago(e))
+                    format!("{} ", ago(at.elapsed()))
                 }
             }
+            Some(_) => String::new(),
             None => String::from("starting "),
         }
     };
@@ -376,61 +367,52 @@ fn draw_header(f: &mut Frame, app: &mut App, t: &Theme, area: Rect, tick: usize)
     );
 }
 
-/// What is happening, in one line.
+/// What is happening, in as few characters as it takes.
 ///
-/// The reason to keep this open in a pane beside the work: how much is moving,
-/// how much is stuck, how much is done, without reading a single row.
-fn draw_strip(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
-    let mut spans = vec![Span::raw(" ")];
-    let mut used = 1usize;
-    let room = area.width as usize;
-    let mut cells: Vec<(Rect, String)> = Vec::new();
+/// A *filter control*, not a readout: each count is exactly what clicking it
+/// would give you. That is why it lives on the toolbar rather than on a row
+/// of its own — and why it can lose its words. `backlog` and `done` are what
+/// the glyphs are for, and every row in the list is already drawn with them.
+///
+/// Returns what it drew, so the toolbar can lay the rest out around it.
+fn status_counts(
+    app: &App,
+    t: &Theme,
+    room: usize,
+) -> (Vec<Span<'static>>, Vec<(u16, u16, String)>) {
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut cells: Vec<(u16, u16, String)> = Vec::new();
+    let mut used = 0usize;
 
     for (status, count) in app.status_counts() {
         if status.category == Category::Dropped && !app.show_all {
             continue;
         }
-        let colour = t.status(Some(status));
-        let cell = format!(
-            "{} {count} {}",
-            category_glyph(status.category),
-            status.display()
-        );
-        // Everything that does not fit is dropped from the right, so the
-        // leftmost — what is active — survives a narrow pane.
-        if used + cell.chars().count() + 3 > room {
+        let cell = format!("{} {count}", category_glyph(status.category));
+        let gap = usize::from(used > 0) * 2;
+        // Dropped from the right, so the leftmost — what is active — is what
+        // survives a narrow pane.
+        if used + gap + cell.chars().count() > room {
             break;
         }
-        if used > 1 {
-            spans.push(Span::raw("   "));
-            used += 3;
+        if gap > 0 {
+            spans.push(Span::raw("  "));
+            used += gap;
         }
         cells.push((
-            Rect {
-                x: area.x + used as u16,
-                y: area.y,
-                width: cell.chars().count() as u16,
-                height: 1,
-            },
+            used as u16,
+            cell.chars().count() as u16,
             status.name.clone(),
         ));
         used += cell.chars().count();
         spans.push(Span::styled(
             format!("{} ", category_glyph(status.category)),
-            Style::default().fg(colour),
+            Style::default().fg(t.status(Some(status))),
         ));
         spans.push(Span::styled(
             count.to_string(),
             Style::default().fg(t.text).bold(),
         ));
-        spans.push(Span::styled(
-            format!(" {}", status.display()),
-            Style::default().fg(t.muted),
-        ));
-    }
-
-    for (rect, name) in cells {
-        app.hit(rect, Hit::Status(name));
     }
 
     let blocked = app
@@ -438,111 +420,131 @@ fn draw_strip(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         .iter()
         .filter(|i| i.blocked && !i.category.is_closed() && !i.container)
         .count();
-    if blocked > 0 && used + 12 <= room {
-        spans.push(Span::raw("   "));
+    if blocked > 0 && used + 6 <= room {
+        spans.push(Span::raw("  "));
         spans.push(Span::styled("⊘ ", Style::default().fg(t.blocked)));
         spans.push(Span::styled(
             blocked.to_string(),
             Style::default().fg(t.blocked).bold(),
         ));
-        spans.push(Span::styled(" blocked", Style::default().fg(t.blocked)));
     }
-    f.render_widget(Line::from(spans), area);
+    (spans, cells)
 }
 
 /// What is on screen, and why.
 ///
-/// Three segments — which items, in what order, grouped how — each carrying
-/// the key that edits it. The dimmed letter is not decoration: it is where the
-/// cursor goes when you press it, so the line teaches its own controls.
+/// Three questions — which items, in what order, grouped how — and the shape
+/// of the backlog they are being asked of. A segment with a choice shows the
+/// choice; one without shows the key that would make one, because when there
+/// is nothing to say the useful thing to say is how to change it.
 ///
 /// Stated rather than remembered. A filter that arrived from `--filter`, from
-/// `--view` or from a click on the status strip was never typed anywhere, so
-/// until now the rows were narrowed and the screen did not say why.
-fn draw_view_line(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
+/// `--view` or from a click on the counts was never typed anywhere, so the
+/// rows were narrowed and the screen did not say why.
+fn draw_toolbar(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let view = app.view_line();
-    let keys = &app.keymap;
+    let room = area.width as usize;
+    let keys = app.keymap.clone();
+
+    // The right-hand end first, because what is left is what the segments get
+    // to lay themselves out in.
+    // Only when something is narrowing. Unfiltered, the counts beside it
+    // already add up to the whole backlog, and a second total reads as a
+    // third status.
+    let (shown, total) = view.shown_and_total;
+    let tally = if shown == total {
+        String::new()
+    } else {
+        format!("{shown} of {total}")
+    };
+    let (counts, count_cells) = status_counts(app, t, room / 3);
+    let counts_width: usize = counts.iter().map(|s| s.content.chars().count()).sum();
+    let right_width = counts_width + usize::from(!tally.is_empty()) * (tally.chars().count() + 2);
+
     let mut spans = vec![Span::raw(" ")];
     let mut used = 1usize;
     let mut cells: Vec<(Rect, Command)> = Vec::new();
 
-    // `(key, glyph, text, colour, what it opens)`, in the order the questions
-    // are asked. Everything is pushed and then clipped from the right, so a
-    // narrow pane keeps the filter — which is the one that changes what is
-    // there rather than how it is laid out.
     let segment = |spans: &mut Vec<Span<'static>>,
                    used: &mut usize,
-                   command: Option<Command>,
+                   command: Command,
                    glyph: &str,
-                   text: String,
+                   text: &str,
+                   chosen: bool,
                    colour: Color,
                    cells: &mut Vec<(Rect, Command)>| {
-        if text.is_empty() {
-            return;
-        }
-        let key = command.and_then(|c| keys.keys_for(c).into_iter().next());
-        let lead = match &key {
-            Some(k) => format!("{k} "),
-            None => String::new(),
+        let key = keys.keys_for(command).into_iter().next();
+        // The key and the value both, because the value alone teaches
+        // nothing and the key alone says nothing. The key is what goes first
+        // when the room runs out — it is the half you only need once.
+        let full = match &key {
+            Some(k) => format!("{k} {glyph}{text}"),
+            None => format!("{glyph}{text}"),
         };
-        let body = format!("{glyph}{text}");
-        let width = lead.chars().count() + body.chars().count();
-        if *used + width + 3 > area.width as usize {
+        let bare = format!("{glyph}{text}");
+        let gap = usize::from(*used > 1) * 3;
+        let fits = |body: &str| *used + gap + body.chars().count() + right_width + 3 <= room;
+        let body = if fits(&full) {
+            full
+        } else if fits(&bare) {
+            bare
+        } else {
             return;
-        }
-        if *used > 1 {
+        };
+        let width = body.chars().count();
+        if gap > 0 {
             spans.push(Span::raw("   "));
-            *used += 3;
+            *used += gap;
         }
-        if let Some(command) = command {
-            cells.push((
-                Rect {
-                    x: area.x + *used as u16,
-                    y: area.y,
-                    width: width as u16,
-                    height: 1,
-                },
-                command,
-            ));
-        }
-        if !lead.is_empty() {
-            spans.push(Span::styled(lead, Style::default().fg(t.faint)));
-        }
-        spans.push(Span::styled(body, Style::default().fg(colour)));
+        cells.push((
+            Rect {
+                x: area.x + *used as u16,
+                y: area.y,
+                width: width as u16,
+                height: 1,
+            },
+            command,
+        ));
+        spans.push(Span::styled(
+            body,
+            if chosen {
+                Style::default().fg(colour)
+            } else {
+                Style::default().fg(t.faint)
+            },
+        ));
         *used += width;
     };
 
     // The name where one was chosen, and only while it still means what it
-    // said: editing a clause makes it no longer that view.
+    // said: narrowing it further shows both, because both are in force.
+    let filtered = !view.query.is_empty() || view.view.is_some();
     let filter = match (&view.view, view.query.is_empty()) {
         (Some(name), true) => name.clone(),
         (Some(name), false) => format!("{name} · {}", view.query),
-        (None, _) => view.query.clone(),
+        (None, true) => "filter".to_string(),
+        (None, false) => view.query.clone(),
     };
     segment(
         &mut spans,
         &mut used,
-        Some(Command::Filter),
-        "",
-        if filter.is_empty() {
-            "everything".to_string()
-        } else {
-            filter
-        },
-        if view.query.is_empty() && view.view.is_none() {
-            t.faint
-        } else {
-            t.accent
-        },
+        Command::Filter,
+        // No glyph on the prompt: `/ filter` says it, and `/ ⊙ filter` is a
+        // mark and a word for the same nothing.
+        if filtered { "⊙ " } else { "" },
+        &truncate(&filter, room / 3),
+        filtered,
+        t.accent,
         &mut cells,
     );
     if app.show_all {
         segment(
             &mut spans,
             &mut used,
-            Some(Command::ToggleAll),
+            Command::ToggleAll,
             "+ ",
-            "finished".to_string(),
+            "finished",
+            true,
             t.done,
             &mut cells,
         );
@@ -550,47 +552,51 @@ fn draw_view_line(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     segment(
         &mut spans,
         &mut used,
-        Some(Command::Sort),
+        Command::Sort,
         "↓ ",
-        view.sort.replace(',', " "),
-        if view.sort_is_default {
-            t.faint
-        } else {
-            t.label
-        },
+        &view.sort.replace(',', " "),
+        !view.sort_is_default,
+        t.label,
         &mut cells,
     );
     segment(
         &mut spans,
         &mut used,
-        Some(Command::GroupBy),
+        Command::GroupBy,
         "⊞ ",
         match view.group_by.as_str() {
-            "none" | "" => "flat".to_string(),
-            other => other.to_string(),
+            "none" | "" => "flat",
+            other => other,
         },
+        true,
         t.milestone,
         &mut cells,
     );
 
-    // The tally on the right, where the freshness is on the line above.
-    let (shown, total) = view.shown_and_total;
-    let tally = if shown == total {
-        format!("{total} items")
-    } else {
-        format!("{shown} of {total}")
-    };
-    let room = area.width as usize;
-    if used + tally.chars().count() + 2 <= room {
-        spans.push(Span::raw(
-            " ".repeat(room - used - tally.chars().count() - 1),
-        ));
-        spans.push(Span::styled(tally, Style::default().fg(t.faint)));
+    // Counts and tally, right-aligned, in the room reserved for them.
+    let pad = room.saturating_sub(used + right_width + 1).max(2);
+    let counts_at = used + pad;
+    spans.push(Span::raw(" ".repeat(pad)));
+    spans.extend(counts);
+    if !tally.is_empty() {
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled(tally, Style::default().fg(t.accent)));
     }
 
     f.render_widget(Line::from(spans), area);
     for (rect, command) in cells {
         app.hit(rect, Hit::Run(command));
+    }
+    for (x, width, name) in count_cells {
+        app.hit(
+            Rect {
+                x: area.x + counts_at as u16 + x,
+                y: area.y,
+                width,
+                height: 1,
+            },
+            Hit::Status(name),
+        );
     }
 }
 
@@ -4581,17 +4587,21 @@ five six",
         assert!(wide.contains("Fields"), "with room, it comes back");
     }
 
+    /// The counts lost their words and kept their order: active first,
+    /// because it is a summary and a summary leads with what is live. The
+    /// words were what the glyphs are for, and every row in the list is
+    /// already drawn with them.
     #[test]
-    fn the_strip_says_what_is_happening_before_any_row_is_read() {
+    fn the_counts_say_what_is_happening_before_any_row_is_read() {
         let mut app = testkit::app();
         let text = render_to_string(&mut app, 100, 24, 0);
-        let strip = text.lines().nth(1).expect("the second line");
-        assert!(strip.contains("in progress"), "{strip}");
-        assert!(strip.contains("backlog"), "{strip}");
-        // Active first: it is a summary, and a summary leads with what is live.
-        let doing = strip.find("in progress").expect("doing");
-        let backlog = strip.find("backlog").expect("backlog");
-        assert!(doing < backlog, "{strip}");
+        let toolbar = text.lines().nth(1).expect("the second line");
+        for glyph in ["◐", "○", "✓"] {
+            assert!(toolbar.contains(glyph), "no {glyph}: {toolbar}");
+        }
+        let doing = toolbar.find('◐').expect("doing");
+        let backlog = toolbar.find('○').expect("backlog");
+        assert!(doing < backlog, "{toolbar}");
     }
 
     #[test]
