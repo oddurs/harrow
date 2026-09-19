@@ -1,5 +1,5 @@
  sample    needs  list  board  stats  log    1 needs you
- / filter   S ↓ status priority id   v ⊞ milestone                                              ○ 3  ✓ 2  ⊘ 1
+ f filter ▾  S status priority id ▾  v milestone ▾                                              ○ 3  ✓ 2  ⊘ 1
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Backlog ───────────────────────────────────────────────────╮╭ 0005 ────────────────────────────────────────╮
 │ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  2 left ││ ○ The detail pane scrolls past its pane      │
