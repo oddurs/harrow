@@ -1,7 +1,8 @@
  harrow  sample    needs  list  board  stats  log    1 needs you                                                                   starting
  ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+ / everything   ↓ status priority id   v ⊞ milestone                                                                                5 items
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-╭ Filter ────────────────╮╭ Backlog · by milestone ──────────────────────────────────────╮╭ 0003 ──────────────────────────────────────────╮
+╭ Filter ────────────────╮╭ Backlog ─────────────────────────────────────────────────────╮╭ 0003 ──────────────────────────────────────────╮
 │ status                 ││ ▾ v0.1  First usable version             ▰▰▱▱▱▱  25%  3 left ││ ◐ Draw the list                                │
 │  ☐ backlog          3  ││  ○ 0005 The detail pane scrolls past its pane             p1 ││   in progress · feature · v0.1 · @oddur        │
 │  ☐ in progress      1  ││  ⊘ 0004 Draw the board                                    p2 ││                                                │
@@ -23,6 +24,5 @@
 │  ☐ ui               3  ││                                                              ││                                                │
 │  ☐ core             1  ││                                                              ││                                                │
 │  ☐ docs             0  ││                                                              ││                                                │
-│                        ││                                                              ││                                                │
 ╰ 5 items ───────────────╯╰──────────────────────────────────────────────────────────────╯╰────────────────────────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab views  ? help

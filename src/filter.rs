@@ -208,6 +208,17 @@ impl Query {
             .collect()
     }
 
+    /// The expression, written back out as cairn would read it.
+    ///
+    /// Not the string that was typed: a query that arrived as a saved view, or
+    /// as a click on the status strip, never had one. This is what the view is
+    /// *now*, in the grammar that would reproduce it — which is what lets the
+    /// view line state a filter nobody typed, and what lets a narrowed backlog
+    /// be handed to somebody else as a command line.
+    pub fn source(&self) -> String {
+        self.except(&[]).join(",")
+    }
+
     pub fn matches(&self, item: &Item, schema: &Schema) -> bool {
         self.clauses.iter().all(|clause| match clause {
             Clause::Text(needle) => item.matches(needle, schema),

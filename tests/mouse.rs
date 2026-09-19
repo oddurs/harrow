@@ -477,12 +477,13 @@ fn scrolling_the_detail_pane_moves_what_is_clickable() {
     let mut app = testkit::app();
     app.select_id(5);
     // Short enough that the pane holds more than it shows; a pane with
-    // nothing to scroll would pass this without meaning anything.
-    let _ = ui::render_frame(&mut app, 110, 14, 0);
+    // nothing to scroll would pass this without meaning anything. One row
+    // taller than it used to be, because the view line now takes one.
+    let _ = ui::render_frame(&mut app, 110, 15, 0);
     let before = find(&app, &Hit::Link(0));
 
     app.run(harrow::keys::Command::DetailDown);
-    let _ = ui::render_frame(&mut app, 110, 14, 0);
+    let _ = ui::render_frame(&mut app, 110, 15, 0);
     let after = find(&app, &Hit::Link(0));
     assert_eq!(after.0, before.0);
     assert_eq!(after.1 + 1, before.1);

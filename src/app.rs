@@ -127,6 +127,38 @@ pub enum Hit {
     Link(usize),
 }
 
+/// What is on screen and why. See [`App::view_line`].
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct ViewLine {
+    /// The saved view in force, where the reader chose one by name.
+    pub view: Option<String>,
+    /// The filter, in the grammar that would reproduce it.
+    pub query: String,
+    /// The sort keys, as `--sort` would take them.
+    pub sort: String,
+    /// Whether that sort is the project's default rather than a choice.
+    pub sort_is_default: bool,
+    pub group_by: String,
+    pub shown_and_total: (usize, usize),
+}
+
+/// Quote a word for a shell, only where it needs it.
+///
+/// A filter is usually one bare word, and quoting it anyway makes the line
+/// look harder than it is. A comma is safe bare and separates clauses in
+/// nearly every filter there is; `|`, `<`, `>` and `!` are not, and `!`
+/// least of all — interactive bash would expand it.
+fn shell_word(s: &str) -> String {
+    if !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_.=/:,+@".contains(c))
+    {
+        s.to_string()
+    } else {
+        format!("'{}'", s.replace('\'', r"'\''"))
+    }
+}
+
 /// What an ordinary listing is leaving out. See [`App::hidden`].
 #[derive(Default, Clone, PartialEq, Eq, Debug)]
 pub struct Hidden {
@@ -1045,6 +1077,67 @@ impl App {
             Category::Dropped => 3,
         });
         counts
+    }
+
+    /// What is on screen, and why — the three answers the view line states.
+    ///
+    /// Which items, in what order, grouped how. All three are already state;
+    /// only one of them has ever been on screen, and it was the one nobody
+    /// could change. A view whose rules are off screen is a view nobody can
+    /// check, which is how the strip and the list came to disagree twice.
+    pub fn view_line(&self) -> ViewLine {
+        ViewLine {
+            view: self.view.clone(),
+            query: self.query.source(),
+            sort: self
+                .sort_keys()
+                .iter()
+                .map(|k| {
+                    if k.descending {
+                        format!("-{}", k.field)
+                    } else {
+                        k.field.clone()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(","),
+            // The sort has never been set by anything but argv, so saying
+            // whether it is the project's default or a choice is most of
+            // what there is to say about it.
+            sort_is_default: self.sort.trim().is_empty(),
+            group_by: self.group_by.clone(),
+            shown_and_total: self.shown_and_total(),
+        }
+    }
+
+    /// The same view, as the command that would reproduce it.
+    ///
+    /// A backlog narrowed by hand becomes something that can go in a script,
+    /// a README, or somebody else's terminal — and the interface teaches the
+    /// command line rather than hiding it.
+    pub fn command_line(&self) -> String {
+        let mut out = String::from("harrow");
+        if self.show_all {
+            out.push_str(" -a");
+        }
+        match (&self.view, self.query.source()) {
+            // The name, where one was chosen and nothing has been added to
+            // it: `--view triage` is the thing somebody would rather paste.
+            (Some(view), _) if self.filter.trim().is_empty() => {
+                out.push_str(&format!(" --view {}", shell_word(view)));
+            }
+            (_, query) if !query.is_empty() => {
+                out.push_str(&format!(" -f {}", shell_word(&query)));
+            }
+            _ => {}
+        }
+        if !self.sort.trim().is_empty() {
+            out.push_str(&format!(" --sort {}", shell_word(&self.sort)));
+        }
+        if !matches!(self.group_by.as_str(), "milestone") {
+            out.push_str(&format!(" --group-by {}", shell_word(&self.group_by)));
+        }
+        out
     }
 
     /// What an ordinary listing is leaving out, of the things that match.
@@ -3628,6 +3721,9 @@ impl App {
             Command::Milestone => self.open_picker("milestone"),
             Command::Advance => return self.step_status(true),
             Command::Retreat => return self.step_status(false),
+            // The whole view, as the command that would reproduce it. The
+            // interface then teaches the command line rather than hiding it.
+            Command::CopyView => return Action::Copy(self.command_line()),
             Command::Copy => {
                 let Some(item) = self.selected_item() else {
                     return Action::None;
