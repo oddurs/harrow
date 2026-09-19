@@ -570,6 +570,9 @@ pub struct Picker {
     pub propose: bool,
     /// Whether the options are acceptance criteria, chosen to be ticked.
     pub tick: bool,
+    /// Whether the options are the project's saved views. Not a write at all:
+    /// choosing one changes what you are looking at, not the backlog.
+    pub views: bool,
 }
 
 /// Every command, by name, filtered as you type.
@@ -2904,6 +2907,7 @@ impl App {
             // not a restriction — the toggle is right there.
             propose: self.permission_for(field) == crate::schema::Agent::Propose,
             tick: false,
+            views: false,
         });
     }
 
@@ -3037,6 +3041,12 @@ impl App {
         let Some((value, _, _)) = picker.options.get(picker.selected).cloned() else {
             return Action::None;
         };
+        // A view changes what you are looking at, not the backlog, so it
+        // resolves before anything that would select an item or write.
+        if picker.views {
+            self.adopt_view(&value);
+            return Action::None;
+        }
         self.select_id(picker.id);
         if picker.tick {
             let reference = self.schema.format_id(picker.id);
@@ -3067,6 +3077,39 @@ impl App {
             return Action::None;
         }
         self.set_field(&picker.field, &value)
+    }
+
+    /// Adopt a view the project declared: its filter, its sort, its grouping.
+    ///
+    /// It replaces rather than narrows. A view is the project saying *this is
+    /// how to look at this*, and picking one on top of a half-typed filter
+    /// would be looking at something nobody described.
+    pub fn adopt_view(&mut self, name: &str) {
+        let Some(view) = self.schema.view(name).cloned() else {
+            return;
+        };
+        self.view = Some(view.name.clone());
+        self.filter.clear();
+        // Its sort too, which nothing had ever applied — there was no way to
+        // sort at all until `S`, so a view that named an order was declaring
+        // something harrow could not do.
+        if let Some(sort) = &view.sort {
+            self.sort = sort.clone();
+        }
+        self.follow_view();
+        self.reparse_filter();
+        let id = self.selected_item().map(|i| i.id);
+        self.rebuild();
+        if let Some(id) = id {
+            self.select_id(id);
+        }
+        self.toast(
+            match &view.description {
+                Some(said) => format!("{}: {said}", view.name),
+                None => view.name.clone(),
+            },
+            ToastKind::Info,
+        );
     }
 
     fn submit_input(&mut self) -> Action {
@@ -3872,6 +3915,7 @@ impl App {
                     id,
                     propose: false,
                     tick: true,
+                    views: false,
                 });
             }
             Command::Claim => return self.claim(true),
@@ -3962,6 +4006,45 @@ impl App {
             // The third question a backlog answers, and the one that has
             // never had a door. Prefilled with the order in force — which,
             // until the view line, no reader had ever been told.
+            // What the project decided was worth naming. harrow has always
+            // read these, and `--doctor` has always validated them; there was
+            // simply no way to reach one without quitting.
+            Command::Views => {
+                if self.schema.views.is_empty() {
+                    self.toast("this project declares no views", ToastKind::Info);
+                    return Action::None;
+                }
+                let options: Vec<(String, String, String)> = self
+                    .schema
+                    .views
+                    .iter()
+                    .map(|v| {
+                        (
+                            v.name.clone(),
+                            v.name.clone(),
+                            // A project that bothered to describe a view has
+                            // said what it is for better than harrow can.
+                            v.description.clone().unwrap_or_default(),
+                        )
+                    })
+                    .collect();
+                let selected = self
+                    .view
+                    .as_deref()
+                    .and_then(|v| options.iter().position(|(name, _, _)| name == v))
+                    .unwrap_or(0);
+                self.picker = Some(Picker {
+                    title: "look at it how".to_string(),
+                    options,
+                    selected,
+                    permission: crate::schema::Agent::default(),
+                    field: "view".to_string(),
+                    id: 0,
+                    propose: false,
+                    tick: false,
+                    views: true,
+                });
+            }
             Command::Sort => {
                 self.editing = Some(Editing::Sort);
                 self.input = if self.sort.trim().is_empty() {
