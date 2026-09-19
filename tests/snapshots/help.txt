@@ -1,29 +1,29 @@
  harrow  sample    needs  list  board  stats  log    1 needs you                                     starting
  ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
  / everything   S ↓ status priority id   v ⊞ milestone                                                5 items
-───────╭ Keys ────────────────────────────────────────────────────────────────────────────────────────╮───────
-╭ Backl│                                                                                              │──────╮
-│ ▾ v0.│  ↑/k, ↓/j      move between items              x             close it, with a confirm        │      │
-│  ○ 00│  home/g, end/G jump to the first or last       u             reopen it                       │      │
-│  ⊘ 00│  K, J          scroll the detail pane          n             new item                        │      │
-│  ◐ 00│  ←, →          previous or next group — a co…  y             copy the item's reference       │────  │
-│ ▾ no │  space         mark it for the next change —…  :             every command, by name          │      │
-│  ○ 00│  tab, backtab  the next lens, or the one bef…  f             open the filter panel           │      │
-│      │  1…5           go straight to the first, sec…  /             filter, in cairn's own grammar  │y     │
-│      │  v             group by something else         S             order it by something else      │      │
-│      │  ↵/o           read it in the panel, and dri…  Y             copy this view as a command l…  │      │
-│      │  e             open the item in your editor    a             show everything — finished, d…  │────  │
-│      │  N             add a line to the item's body…  esc           back out — one press leaves w…  │      │
-│      │  H             how this item got the way it …  r             re-read the backlog now         │      │
-│      │  A             accept the change somebody pr…  D             diagnostics — what failed, an…  │      │
-│      │  ctrl-p        in a picker: ask for the chan…  ctrl-k        validate the project against …  │      │
-│      │  t             tick an acceptance criterion …  ?             this help                       │      │
-│      │  c             claim it — assign it to you a…  q/ctrl-c      quit                            │      │
-│      │  C             give it back                                                                  │      │
-│      │  s             set the status                  click         a tab, a status, a row, a foo…  │      │
-│      │  h/<, l/>      move it back or forward throu…  double-click  read the item                   │      │
-│      │  p             set the priority                drag          a card to another column, whi…  │      │
-│      │  M             set the milestone               scroll        move the pane under the point…  │      │
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭ Backl╭ Keys ────────────────────────────────────────────────────────────────────────────────────────╮──────╮
+│ ▾ v0.│                                                                                              │      │
+│  ○ 00│  ↑/k, ↓/j      move between items              M             set the milestone               │      │
+│  ⊘ 00│  home/g, end/G jump to the first or last       x             close it, with a confirm        │      │
+│  ◐ 00│  K, J          scroll the detail pane          u             reopen it                       │────  │
+│ ▾ no │  ←/h, →/l      previous or next group — a co…  n             new item                        │      │
+│  ○ 00│  space         mark it for the next change —…  y             copy the item's reference       │      │
+│      │  tab, backtab  the next lens, or the one bef…  :             every command, by name          │y     │
+│      │  1…5           go straight to the first, sec…  f             open the filter panel           │      │
+│      │  v             group by something else         /             filter, in cairn's own grammar  │      │
+│      │  ↵/o           read it in the panel, and dri…  S             order it by something else      │────  │
+│      │  e             open the item in your editor    Y             copy this view as a command l…  │      │
+│      │  N             add a line to the item's body…  a             show everything — finished, d…  │      │
+│      │  H             how this item got the way it …  esc           back out — one press leaves w…  │      │
+│      │  A             accept the change somebody pr…  r             re-read the backlog now         │      │
+│      │  ctrl-p        in a picker: ask for the chan…  ?             this help                       │      │
+│      │  t             tick an acceptance criterion …  q/ctrl-c      quit                            │      │
+│      │  c             claim it — assign it to you a…                                                │      │
+│      │  C             give it back                    click         a tab, a status, a row, a foo…  │      │
+│      │  s             set the status                  double-click  read the item                   │      │
+│      │  <, >          move it back or forward throu…  drag          a card to another column, whi…  │      │
+│      │  p             set the priority                scroll        move the pane under the point…  │      │
 │      │                                                                                              │      │
 │      ╰──────────────────────────────────────────────────────────────────────────────────────────────╯      │
 │                                                            ││                                              │

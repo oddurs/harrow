@@ -310,7 +310,9 @@ impl Default for Keymap {
                 (K::Char('K'), n, C::DetailUp),
                 (K::Char(' '), n, C::ToggleGroup),
                 (K::Left, n, C::PrevGroup),
+                (K::Char('h'), n, C::PrevGroup),
                 (K::Right, n, C::NextGroup),
+                (K::Char('l'), n, C::NextGroup),
                 (K::Tab, n, C::ViewBoard),
                 (K::BackTab, KeyModifiers::SHIFT, C::ViewBack),
                 // The digits, positional and in the order the tabs are in.
@@ -340,9 +342,7 @@ impl Default for Keymap {
                 (K::Char('S'), n, C::Sort),
                 (K::Char('p'), n, C::Priority),
                 (K::Char('M'), n, C::Milestone),
-                (K::Char('l'), n, C::Advance),
                 (K::Char('>'), n, C::Advance),
-                (K::Char('h'), n, C::Retreat),
                 (K::Char('<'), n, C::Retreat),
                 (K::Char('y'), n, C::Copy),
                 (K::Char('Y'), n, C::CopyView),
@@ -352,10 +352,7 @@ impl Default for Keymap {
                 (K::Char('a'), n, C::ToggleAll),
                 (K::Char('r'), n, C::Refresh),
                 (K::Char('r'), ctrl, C::Reload),
-                (K::Char('D'), n, C::Diagnostics),
-                (K::Char('k'), ctrl, C::Check),
                 (K::Char('?'), n, C::Help),
-                (K::Char('m'), n, C::ToggleMouse),
                 (K::Char('q'), n, C::Quit),
                 (K::Char('c'), ctrl, C::Quit),
             ],
@@ -715,16 +712,32 @@ mod tests {
             .collect()
     }
 
+    /// What the palette changed. Every command used to need a key, which is
+    /// the zero-sum rule written down as a test: forty-eight commands over
+    /// forty-one letters is how a mouse-reporting toggle came to hold one.
+    ///
+    /// Now a command may live in the palette instead — but only on purpose.
+    /// The list below is the whole of what does, so demoting anything else
+    /// fails here until somebody adds it and says why.
     #[test]
-    fn the_defaults_cover_every_command() {
+    fn a_command_has_a_key_unless_it_is_one_of_these() {
+        /// Occasional, and reachable by name. A mouse-reporting toggle and a
+        /// project validation are not things a hand reaches for by reflex,
+        /// and `ctrl-k` for `check` was already the sign that there was
+        /// nothing left to spend.
+        // In declaration order, which is the order the list below is
+        // compared in and the order the palette offers them.
+        const BY_NAME_ONLY: &[Command] =
+            &[Command::Diagnostics, Command::Check, Command::ToggleMouse];
+
         let map = Keymap::default();
-        for command in Command::ALL {
-            assert!(
-                !map.keys_for(command).is_empty(),
-                "{} has no default key",
-                command.name()
-            );
-        }
+        let keyless: Vec<&str> = Command::ALL
+            .into_iter()
+            .filter(|c| map.keys_for(*c).is_empty())
+            .map(|c| c.name())
+            .collect();
+        let expected: Vec<&str> = BY_NAME_ONLY.iter().map(|c| c.name()).collect();
+        assert_eq!(keyless, expected, "the keymap gained or lost a demotion");
     }
 
     #[test]

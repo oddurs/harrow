@@ -2,7 +2,7 @@
 id: 86
 title: h and l mean what the arrows mean
 type: bug
-status: backlog
+status: done
 milestone: v0.6
 depends_on:
 - 85
@@ -59,8 +59,16 @@ backlog is not. After 1.0 this correction costs somebody's config file.
 
 ## Acceptance criteria
 
-- [ ] `h` and `l` do what `←` and `→` do
-- [ ] `<` and `>` are the only bindings for advance and retreat
-- [ ] `m`, `D` and `ctrl-k` are reachable by name and hold no key
-- [ ] The help overlay and the footer hints follow, because they are generated
-- [ ] Nothing that had a key before is unreachable now
+- [x] `h` and `l` do what `←` and `→` do
+- [x] `<` and `>` are the only bindings for advance and retreat
+- [x] `m`, `D` and `ctrl-k` are reachable by name and hold no key
+- [x] The help overlay and the footer hints follow, because they are generated
+- [x] Nothing that had a key before is unreachable now
+
+## 2026-09-18
+
+Two tests had to go, and they were the same test twice: `the_defaults_cover_every_command` in keys.rs and the second half of `the_suite_presses_every_key_the_program_binds` both asserted that every command has a key. That is the zero-sum rule written down — it is *why* a mouse-reporting toggle held a letter, and it would have failed on any demotion however sensible.
+
+Replaced rather than deleted. Reachability now means by a key *or* by name, and the palette is generated from `Command::ALL` so the second half is structural. The keys.rs one keeps a list of exactly what is demoted, so demoting anything else fails until somebody adds it to the list and says why — the same shape the GAPS table in tests/lenses.rs had.
+
+Three tests in interaction.rs were pressing `l` and `h` to advance and retreat a status. They now press `>` and `<`, which is what they always meant.

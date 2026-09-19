@@ -152,11 +152,23 @@ fn the_suite_presses_every_key_the_program_binds() {
     }
 
     // Every command reachable, not merely every key — the same thing said
-    // from the other end, so a command bound to nothing is caught too.
+    // from the other end. Reachable now means by a key *or* by name: the
+    // palette is built from `Command::ALL`, which is what lets an occasional
+    // command give its letter back without going anywhere.
+    let mut app = testkit::app();
+    app.handle_key(KeyCode::Char(':'), KeyModifiers::NONE);
+    let by_name: Vec<&str> = app
+        .palette
+        .as_ref()
+        .expect("the palette opens")
+        .matches
+        .iter()
+        .map(|(c, _)| c.name())
+        .collect();
     for command in harrow::keys::Command::ALL {
         assert!(
-            !map.keys_for(command).is_empty(),
-            "{command:?} has no key, so nothing can reach it"
+            !map.keys_for(command).is_empty() || by_name.contains(&command.name()),
+            "{command:?} has no key and no name, so nothing can reach it"
         );
     }
 

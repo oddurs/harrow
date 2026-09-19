@@ -100,7 +100,7 @@ fn closing_asks_first_and_only_the_answer_writes() {
 #[test]
 fn a_change_carries_the_command_that_puts_it_back() {
     let mut app = app();
-    let Action::Write(change) = press(&mut app, 'l') else {
+    let Action::Write(change) = press(&mut app, '>') else {
         panic!("advancing a status is a change");
     };
     assert_eq!(change.args, vec!["set", "3", "status=done"]);
@@ -115,7 +115,7 @@ fn a_change_carries_the_command_that_puts_it_back() {
 fn a_status_moves_one_step_at_a_time_and_stops_at_the_ends() {
     let mut app = app();
     assert_eq!(
-        args(&press(&mut app, 'h')),
+        args(&press(&mut app, '<')),
         vec!["set", "3", "status=backlog"]
     );
 
@@ -124,7 +124,7 @@ fn a_status_moves_one_step_at_a_time_and_stops_at_the_ends() {
     app.rebuild();
     app.select_id(2);
     assert_eq!(app.selected_item().map(|i| i.id), Some(2));
-    assert_eq!(press(&mut app, 'l'), Action::None);
+    assert_eq!(press(&mut app, '>'), Action::None);
     let (message, _, _) = app.toast.as_ref().expect("and says why");
     assert!(message.contains("last status"), "{message}");
 }
@@ -138,12 +138,12 @@ fn a_status_never_steps_into_a_column_the_project_hid() {
     app.rebuild();
     app.select_id(2);
     assert_eq!(
-        press(&mut app, 'l'),
+        press(&mut app, '>'),
         Action::None,
         "done is the last column shown"
     );
     assert_eq!(
-        args(&press(&mut app, 'h')),
+        args(&press(&mut app, '<')),
         vec!["set", "2", "status=doing"]
     );
 }
