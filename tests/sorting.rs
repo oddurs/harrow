@@ -152,7 +152,7 @@ fn the_order_is_stated_whether_or_not_anybody_chose_it() {
     assert!(
         default
             .lines()
-            .nth(2)
+            .nth(1)
             .unwrap_or_default()
             .contains("status"),
         "the default order is not stated"
@@ -162,7 +162,7 @@ fn the_order_is_stated_whether_or_not_anybody_chose_it() {
     assert!(
         chosen
             .lines()
-            .nth(2)
+            .nth(1)
             .unwrap_or_default()
             .contains("-priority"),
         "{chosen}"

@@ -104,7 +104,8 @@ fn a_screenshot_needs_no_terminal() {
     ]);
     assert_eq!(code, 0);
     assert_eq!(out.lines().count(), 20, "one line per row of the screen");
-    assert!(out.contains("harrow"), "{out}");
+    // The project names the window; the program's own name is not on screen.
+    assert!(out.contains("sample"), "{out}");
     assert!(out.contains("First usable version"), "{out}");
 }
 

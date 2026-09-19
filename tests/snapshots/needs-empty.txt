@@ -1,12 +1,12 @@
- harrow  sample    needs  list  board  stats  log                                                    starting
- ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
- / everything   S ↓ status priority id   v ⊞ milestone                                                5 items
+ sample    needs  list  board  stats  log                                                            starting
+ / filter   S ↓ status priority id   v ⊞ milestone                                         ◐ 1  ○ 3  ✓ 1  ⊘ 1
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Needs you ─────────────────────────────────────────────────────────────────────────────────────────────────╮
 │                                                                                                            │
 │                                             Nothing needs you.                                             │
 │                                                                                                            │
 │                  No proposals waiting, no claim gone cold, nothing finished and left open.                 │
+│                                                                                                            │
 │                                                                                                            │
 │                                                                                                            │
 │                                                                                                            │

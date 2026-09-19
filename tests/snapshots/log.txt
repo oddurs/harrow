@@ -1,6 +1,5 @@
- harrow  sample    needs  list  board  stats  log    1 needs you                                     starting
- ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
- / everything   S ↓ status priority id   v ⊞ milestone                                                5 items
+ sample    needs  list  board  stats  log    1 needs you                                             starting
+ / filter   S ↓ status priority id   v ⊞ milestone                                         ◐ 1  ○ 3  ✓ 1  ⊘ 1
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ What happened ─────────────────────────────────────────────────╮╭ 0003 ────────────────────────────────────╮
 │   2026-09-10 Oddur          0003 close the reader              ││ ◐ Draw the list                          │
@@ -12,5 +11,6 @@
 │                                                                ││   1 of 2 ticked                          │
 │                                                                ││                                          │
 │                                                                ││   Body ────────────────────────────────  │
+│                                                                ││   Problem                                │
 ╰────────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab views  ? help

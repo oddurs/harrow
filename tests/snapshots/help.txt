@@ -1,18 +1,18 @@
- harrow  sample    needs  list  board  stats  log    1 needs you                                     starting
- ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
- / everything   S ↓ status priority id   v ⊞ milestone                                                5 items
-───────╭ Keys ────────────────────────────────────────────────────────────────────────────────────────╮───────
-╭ Backl│                                                                                              │──────╮
-│ ▾ v0.│  ↑/k, ↓/j      move between items              x             close it, with a confirm        │      │
-│  ○ 00│  home/g, end/G jump to the first or last       u             reopen it                       │      │
-│  ⊘ 00│  K, J          scroll the detail pane          n             new item                        │      │
-│  ◐ 00│  ←/h, →/l      previous or next group — a co…  y             copy the item's reference       │────  │
-│ ▾ no │  space         mark it for the next change —…  :             every command, by name          │      │
-│  ○ 00│  tab, backtab  the next lens, or the one bef…  f             open the filter panel           │      │
-│      │  1…5           go straight to the first, sec…  /             filter, in cairn's own grammar  │y     │
+ sample    needs  list  board  stats  log    1 needs you                                             starting
+ / filter   S ↓ status priority id   v ⊞ milestone                                         ◐ 1  ○ 3  ✓ 1  ⊘ 1
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭ Backl╭ Keys ────────────────────────────────────────────────────────────────────────────────────────╮──────╮
+│ ▾ v0.│                                                                                              │      │
+│  ○ 00│  ↑/k, ↓/j      move between items              x             close it, with a confirm        │      │
+│  ⊘ 00│  home/g, end/G jump to the first or last       u             reopen it                       │      │
+│  ◐ 00│  K, J          scroll the detail pane          n             new item                        │────  │
+│ ▾ no │  ←/h, →/l      previous or next group — a co…  y             copy the item's reference       │      │
+│  ○ 00│  space         mark it for the next change —…  :             every command, by name          │      │
+│      │  tab, backtab  the next lens, or the one bef…  f             open the filter panel           │y     │
+│      │  1…5           go straight to the first, sec…  /             filter, in cairn's own grammar  │      │
 │      │  v             group by something else         S             order it by something else      │      │
-│      │  ↵/o           read it in the panel, and dri…  V             look at it the way the projec…  │      │
-│      │  e             open the item in your editor    Y             copy this view as a command l…  │────  │
+│      │  ↵/o           read it in the panel, and dri…  V             look at it the way the projec…  │────  │
+│      │  e             open the item in your editor    Y             copy this view as a command l…  │      │
 │      │  N             add a line to the item's body…  a             show everything — finished, d…  │      │
 │      │  H             how this item got the way it …  esc           back out — one press leaves w…  │      │
 │      │  A             accept the change somebody pr…  r             re-read the backlog now         │      │
