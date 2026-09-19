@@ -572,6 +572,78 @@ pub struct Picker {
     pub tick: bool,
 }
 
+/// Every command, by name, filtered as you type.
+///
+/// The pressure valve for a keymap that has run out. Forty-eight commands over
+/// forty-one spent letters is why a mouse-reporting toggle held one and
+/// `check` ended up on `ctrl-k`; after this, a new command lands here and
+/// earns a key later, if it earns one at all.
+///
+/// Built from `Command::ALL` rather than from a list kept here, so nothing can
+/// exist in harrow and be missing from it.
+pub struct Palette {
+    pub typed: String,
+    pub selected: usize,
+    /// What matches, best first: the command, and the key that does the same
+    /// thing without opening this.
+    pub matches: Vec<(Command, Option<String>)>,
+}
+
+impl Palette {
+    fn open(keymap: &Keymap) -> Palette {
+        let mut palette = Palette {
+            typed: String::new(),
+            selected: 0,
+            matches: Vec::new(),
+        };
+        palette.refilter(keymap);
+        palette
+    }
+
+    /// Subsequence matching, the way every palette does it: `cl` finds
+    /// `close` and `claim`, and `hb` finds `hand back`.
+    ///
+    /// Ranked by where the match starts, so typing `cl` offers `claim` before
+    /// `release · hand back` — a command whose *name* begins with what you
+    /// typed is what you meant.
+    fn refilter(&mut self, keymap: &Keymap) {
+        let needle = self.typed.to_lowercase();
+        let mut found: Vec<(u8, usize, Command)> = Vec::new();
+        for (n, command) in Command::ALL.into_iter().enumerate() {
+            // The stable name and the sentence are both searchable: nobody
+            // remembers that reopening is called `reopen` rather than `open`.
+            let name = command.name();
+            let described = command.describe().to_lowercase();
+            let rank = if needle.is_empty() {
+                2
+            } else if name.starts_with(&needle) {
+                0
+            } else if subsequence(&needle, name) {
+                1
+            } else if described.contains(&needle) {
+                2
+            } else {
+                continue;
+            };
+            found.push((rank, n, command));
+        }
+        found.sort_by_key(|(rank, n, _)| (*rank, *n));
+        self.matches = found
+            .into_iter()
+            .map(|(_, _, command)| (command, keymap.keys_for(command).into_iter().next()))
+            .collect();
+        self.selected = self.selected.min(self.matches.len().saturating_sub(1));
+    }
+}
+
+/// Whether every character of `needle` appears in `haystack`, in order.
+fn subsequence(needle: &str, haystack: &str) -> bool {
+    let mut chars = haystack.chars();
+    needle
+        .chars()
+        .all(|want| chars.any(|c| c.eq_ignore_ascii_case(&want)))
+}
+
 /// A line of text being typed: the filter box, or a new item's title.
 #[derive(PartialEq, Eq)]
 pub enum Editing {
@@ -678,6 +750,8 @@ pub struct App {
     /// the repository, which is the only place that knows.
     pub history: Option<History>,
     pub picker: Option<Picker>,
+    /// Every command by name, when it is open.
+    pub palette: Option<Palette>,
     pub confirm: Option<Confirm>,
     pub help: bool,
     pub diagnostics: bool,
@@ -830,6 +904,7 @@ impl App {
             stats_scroll: 0,
             history: None,
             picker: None,
+            palette: None,
             confirm: None,
             help: false,
             diagnostics: false,
@@ -3180,6 +3255,61 @@ impl App {
         self.toast = Some((msg.into(), kind, Instant::now()));
     }
 
+    /// The palette's own keys: a line being typed, with a cursor in a list.
+    fn palette_key(&mut self, code: KeyCode, mods: KeyModifiers) -> Action {
+        let len = self.palette.as_ref().map(|p| p.matches.len()).unwrap_or(0);
+        match code {
+            KeyCode::Esc => {
+                self.palette = None;
+            }
+            KeyCode::Enter => {
+                let chosen = self
+                    .palette
+                    .as_ref()
+                    .and_then(|p| p.matches.get(p.selected))
+                    .map(|(c, _)| *c);
+                self.palette = None;
+                if let Some(command) = chosen {
+                    // Run it the way a key would, so everything reachable
+                    // here stays assertable with no repository underneath.
+                    return self.run(command);
+                }
+            }
+            KeyCode::Down | KeyCode::Tab => {
+                if let Some(p) = self.palette.as_mut()
+                    && len > 0
+                {
+                    p.selected = (p.selected + 1) % len;
+                }
+            }
+            KeyCode::Up | KeyCode::BackTab => {
+                if let Some(p) = self.palette.as_mut()
+                    && len > 0
+                {
+                    p.selected = (p.selected + len - 1) % len;
+                }
+            }
+            KeyCode::Backspace => {
+                let keymap = self.keymap.clone();
+                if let Some(p) = self.palette.as_mut() {
+                    p.typed.pop();
+                    p.selected = 0;
+                    p.refilter(&keymap);
+                }
+            }
+            KeyCode::Char(c) if !mods.contains(KeyModifiers::CONTROL) => {
+                let keymap = self.keymap.clone();
+                if let Some(p) = self.palette.as_mut() {
+                    p.typed.push(c);
+                    p.selected = 0;
+                    p.refilter(&keymap);
+                }
+            }
+            _ => {}
+        }
+        Action::None
+    }
+
     /// Called once per frame by the shell.
     pub fn tick_clock(&mut self) {
         self.now = unix_seconds();
@@ -3222,6 +3352,9 @@ impl App {
                 }
                 _ => self.resolve_confirm(false),
             };
+        }
+        if self.palette.is_some() {
+            return self.palette_key(code, mods);
         }
         if self.picker.is_some() {
             let len = self.picker.as_ref().map(|p| p.options.len()).unwrap_or(0);
@@ -3724,6 +3857,7 @@ impl App {
             // The whole view, as the command that would reproduce it. The
             // interface then teaches the command line rather than hiding it.
             Command::CopyView => return Action::Copy(self.command_line()),
+            Command::Palette => self.palette = Some(Palette::open(&self.keymap)),
             Command::Copy => {
                 let Some(item) = self.selected_item() else {
                     return Action::None;
@@ -4032,7 +4166,12 @@ impl App {
                 return self.resolve_picker(true);
             }
             Hit::Answer(yes) => return self.resolve_confirm(yes),
-            Hit::Run(command) => return self.run(command),
+            Hit::Run(command) => {
+                // A click on a palette row is the same gesture as `↵` on it,
+                // and that closes the palette before it runs anything.
+                self.palette = None;
+                return self.run(command);
+            }
             // Clicking a pane is how a pointer says which one it means, and it
             // is the same statement `↵` makes with a key.
             Hit::Reader => self.focus = Focus::Reader,

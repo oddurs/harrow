@@ -105,7 +105,7 @@ The work is somebody else's. The deciding is yours.
 
 ## v0.6 — Compose a view; reach a command
 
-`##········` 17% · 1 of 6 done · due 2027-04-15
+`####······` 33% · 2 of 6 done · due 2027-04-15
 
 Three questions decide what is on screen — which items, in what order,
 
@@ -113,13 +113,13 @@ Three questions decide what is on screen — which items, in what order,
 
 - [ ] `0083` Sorting is a key, not a flag <sup>feature · p1 · chrome</sup>
 - [ ] `0084` One query, two ways to type it <sup>feature · p2 · filter</sup>
-- [ ] `0085` Every command has a name before it has a key <sup>feature · p1 · chrome</sup>
 - [ ] `0086` h and l mean what the arrows mean <sup>bug · p2 · chrome</sup>
 - [ ] `0087` Reach the views the project declared <sup>feature · p2 · chrome</sup>
 
 ### done
 
 - [x] `0082` The view says what it is, in one line <sup>feature · p1 · chrome</sup>
+- [x] `0085` Every command has a name before it has a key <sup>feature · p1 · chrome</sup>
 
 ## v1.0 — Stable release
 
