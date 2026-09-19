@@ -2,7 +2,7 @@
 id: 84
 title: One query, two ways to type it
 type: feature
-status: backlog
+status: done
 milestone: v0.6
 depends_on:
 - 82
@@ -59,7 +59,15 @@ from `--view` rather than from the box.
 
 ## Acceptance criteria
 
-- [ ] Ticking a facet writes one clause; unticking removes that clause and no other
-- [ ] Opening the panel on a typed filter shows the clauses it understands as ticked
-- [ ] A clause the panel cannot express survives being ticked around
-- [ ] `Query` renders back to grammar that reparses to the same query
+- [x] Ticking a facet writes one clause; unticking removes that clause and no other
+- [x] Opening the panel on a typed filter shows the clauses it understands as ticked
+- [x] A clause the panel cannot express survives being ticked around
+- [x] `Query` renders back to grammar that reparses to the same query
+
+## 2026-09-18
+
+**Filed against a premise that did not hold.** The body says a date bound is silently lost or kept when you tick a facet. It is not: `toggle_facet` has always rebuilt the filter as `query.except(&managed)` plus the panel's own clauses, so an unmanaged clause is written back as it was read. `ticked()` reads a typed `priority=p1` as a tick for the same reason. Both were right before this item existed, and I should have read the function before writing the item rather than after.
+
+What was actually missing was smaller and is now done: the panel narrowed every count on it by a clause it could not draw and said nothing about it. It now says `5 of 79 · 1 typed`, so the panel is honest standing alone rather than only beside the view line.
+
+The rest of this is tests. Four behaviours nobody had held: a tick writes one clause and an untick removes that one, a bound survives being ticked around, a typed clause opens already ticked, and `Query::source` round-trips. They are the agreement between the two controls, and the agreement is the thing 0080 cost two releases to find the absence of.
