@@ -33,6 +33,7 @@ pub enum Command {
     ViewLens(u8),
     GroupBy,
     CycleGroup,
+    Frontier,
     SortBy,
     Read,
     Edit,
@@ -70,7 +71,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 54] = [
+    pub const ALL: [Command; 55] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -91,6 +92,7 @@ impl Command {
         Command::ViewLens(5),
         Command::GroupBy,
         Command::CycleGroup,
+        Command::Frontier,
         Command::SortBy,
         Command::Read,
         Command::Edit,
@@ -151,6 +153,7 @@ impl Command {
             Command::ViewLens(_) => "lens-5",
             Command::GroupBy => "group-by",
             Command::CycleGroup => "cycle-group",
+            Command::Frontier => "go-to-the-work",
             Command::SortBy => "sort-by",
             Command::Read => "read",
             Command::Edit => "edit",
@@ -211,6 +214,7 @@ impl Command {
             Command::ViewLens(_) => "go straight to a lens, in the order of the tabs",
             Command::GroupBy => "arrange it by something else",
             Command::CycleGroup => "step to the next arrangement",
+            Command::Frontier => "go to where the work is",
             Command::SortBy => "type an order, in --sort's own syntax",
             Command::Read => "read it in the panel, and drive the panel",
             Command::Edit => "open the item in your editor",
@@ -746,8 +750,15 @@ mod tests {
         /// nothing left to spend.
         // In declaration order, which is the order the list below is
         // compared in and the order the palette offers them.
-        const BY_NAME_ONLY: &[Command] =
-            &[Command::Diagnostics, Command::Check, Command::ToggleMouse];
+        const BY_NAME_ONLY: &[Command] = &[
+            // Where the work is. Worth having and not worth a letter — it is
+            // what opening the program already does, and this is for after
+            // you have wandered.
+            Command::Frontier,
+            Command::Diagnostics,
+            Command::Check,
+            Command::ToggleMouse,
+        ];
 
         let map = Keymap::default();
         let keyless: Vec<&str> = Command::ALL

@@ -745,6 +745,10 @@ pub struct App {
 
     pub selected: usize,
     pub offset: usize,
+    /// The row the first frame should place a third of the way down, and the
+    /// flag that says it has not done so yet. Resolved by the renderer, which
+    /// is the only thing that knows how tall the pane is.
+    pub homing: Option<usize>,
     pub column: usize,
     pub column_row: usize,
     /// Where each board column has been scrolled to, by column. A column is a
@@ -954,6 +958,7 @@ impl App {
             by_id: HashMap::new(),
             selected: 0,
             offset: 0,
+            homing: None,
             column: 0,
             column_row: 0,
             column_offsets: Vec::new(),
@@ -1045,6 +1050,7 @@ impl App {
 
     /// Replace the backlog, keeping the cursor on the same item where we can.
     pub fn ingest(&mut self, report: Report) {
+        let first = self.last_load.is_none();
         let anchor = self.selected_item().map(|i| i.id);
         let moved = self.notice_changes(&report.items);
 
@@ -1080,6 +1086,13 @@ impl App {
 
         if let Some(id) = anchor {
             self.select_id(id);
+        }
+        // The first backlog to arrive opens where the work is. Later ones
+        // leave the reader where they were: a re-read happens whenever
+        // anybody touches a file, and one that moved the cursor would be the
+        // watcher arguing with the reader.
+        if first {
+            self.go_to_the_work();
         }
         self.clamp();
         self.announce(moved);
@@ -2582,6 +2595,65 @@ impl App {
             self.selected = header + 1;
         }
         self.clamp();
+    }
+
+    /// The seam: where what is finished stops and what is left begins.
+    ///
+    /// The first group that still has open work — everything above it is
+    /// done, everything below it is not started — and within that group, the
+    /// fold row if it has one, because 0092's `✓ 3 done` *is* the boundary.
+    /// Failing that, the heading; failing that, the first open row there is.
+    pub fn frontier(&self) -> Option<(usize, usize)> {
+        let row_in = |g: usize, want: fn(&Item) -> bool| {
+            self.rows.iter().position(
+                |r| matches!(r, Row::Item(i) if self.group_of[*i] == g && want(&self.items[*i])),
+            )
+        };
+        // Work under way outranks work merely unstarted, so one forgotten
+        // item in an old milestone does not pin the reader to the past. Both
+        // passes run in display order, so "first" means first on screen
+        // rather than first by a rule nobody can see.
+        let under_way = |i: &Item| i.category == Category::Active;
+        let unfinished = |i: &Item| !i.category.is_closed();
+        let found = (0..self.groups.len())
+            .find_map(|g| row_in(g, under_way).map(|at| (g, at)))
+            .or_else(|| {
+                (0..self.groups.len()).find_map(|g| row_in(g, unfinished).map(|at| (g, at)))
+            });
+        if let Some((g, item)) = found {
+            let seam = self
+                .rows
+                .iter()
+                .position(|r| matches!(r, Row::Finished(f) if *f == g))
+                .or_else(|| {
+                    self.rows
+                        .iter()
+                        .position(|r| matches!(r, Row::Group(h) if *h == g))
+                })
+                .unwrap_or(item);
+            // The cursor goes on the row the frontier was found by — the work
+            // under way where there is any — rather than on whatever the sort
+            // happens to put first under the seam.
+            return Some((seam, item));
+        }
+        // Flat, or nothing open at all: the first row a key would act on.
+        self.rows
+            .iter()
+            .position(|r| matches!(r, Row::Item(i) if !self.items[*i].category.is_closed()))
+            .map(|at| (at, at))
+    }
+
+    /// Put the reader where the work is.
+    ///
+    /// The cursor goes on the first open item under the seam, because that is
+    /// the row a key would act on; the seam itself is what the pane places a
+    /// third of the way down.
+    pub fn go_to_the_work(&mut self) {
+        let Some((seam, cursor)) = self.frontier() else {
+            return;
+        };
+        self.selected = cursor;
+        self.homing = Some(seam);
     }
 
     /// Unfold what a group has finished, or fold it away again.
@@ -4159,6 +4231,7 @@ impl App {
                 self.clamp();
             }
             Command::CycleGroup => self.cycle_grouping(),
+            Command::Frontier => self.go_to_the_work(),
             // On the stats pane, `enter` is how you follow a figure to what
             // it counted; everywhere else it reads the selected item.
             Command::Read if self.pane == Pane::Stats && !self.doors.is_empty() => {

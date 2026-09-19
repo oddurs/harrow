@@ -105,7 +105,7 @@ The work is somebody else's. The deciding is yours.
 
 ## v0.6 — Compose a view; reach a command
 
-`##########` 100% · 11 of 11 done · due 2027-04-15
+`##########` 100% · 12 of 12 done · due 2027-04-15
 
 Three questions decide what is on screen — which items, in what order,
 
@@ -122,6 +122,7 @@ Three questions decide what is on screen — which items, in what order,
 - [x] `0090` One toolbar, with a dropdown under each part of it <sup>feature · p1 · chrome</sup>
 - [x] `0091` The toolbar draws a glyph the terminal has not got <sup>bug · p1 · chrome</sup>
 - [x] `0092` A milestone in progress hides the work it has finished <sup>bug · p1 · read</sup>
+- [x] `0093` Open where the work is, not at the beginning of the project <sup>feature · p1 · chrome</sup>
 
 ## v1.0 — Stable release
 

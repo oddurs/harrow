@@ -671,6 +671,17 @@ fn draw_list(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let inner_width = area.width.saturating_sub(2) as usize;
     let inner_height = area.height.saturating_sub(2) as usize;
 
+    // A backlog has a direction: what is behind you is context and what is
+    // ahead is the work. Two thirds of the pane for what is ahead and a third
+    // for what got you here — at the top there is no context at all, and in
+    // the middle half the pane goes on history.
+    //
+    // Resolved here because here is where the height is known. It happens
+    // once: homing on every rebuild would throw the scroll back on every
+    // claim, every close and every keystroke into the filter box.
+    if let Some(seam) = app.homing.take() {
+        app.offset = seam.saturating_sub(inner_height / 3);
+    }
     // Only the rows that will be on screen are built, so the cost of a frame
     // scales with the size of the window rather than the size of the backlog.
     app.offset = scroll_to(app.offset, app.selected, app.rows.len(), inner_height);
