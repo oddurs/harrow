@@ -3,12 +3,12 @@
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Backlog ───────────────────╮╭ 0003 ────────────────────────────────────────────────────────────────────────╮
 │ ▾ v0.1  First usa…  3 left ││                                                                              │
-│  ○ 0005 The detail pane s… ││  ◐ Draw the list                                                             │
-│  ⊘ 0004 Draw the board     ││                                                                              │
-│  ◐ 0003 Draw the list      ││  in progress · feature · v0.1                                                │
-│ ▾ no milestone      1 left ││  p1 · ui · @oddur                                                            │
-│  ○ 0006 Write the readme ? ││                                                                              │
-│                            ││  ──────────────────────────────────────────────────────────────────────────  │
+│  ✓ 1 done          ↵ shows ││  ◐ Draw the list                                                             │
+│  ○ 0005 The detail pane s… ││                                                                              │
+│  ⊘ 0004 Draw the board     ││  in progress · feature · v0.1                                                │
+│  ◐ 0003 Draw the list      ││  p1 · ui · @oddur                                                            │
+│ ▾ no milestone      1 left ││                                                                              │
+│  ○ 0006 Write the readme ? ││  ──────────────────────────────────────────────────────────────────────────  │
 │                            ││                                                                              │
 │                            ││    Problem                                                                   │
 │                            ││                                                                              │

@@ -3,12 +3,12 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Filter ────────────────╮╭ Backlog ─────────────────────────────────────────────────────╮╭ 0003 ──────────────────────────────────────────╮
 │ status                 ││ ▾ v0.1  First usable version             ▰▰▱▱▱▱  25%  3 left ││ ◐ Draw the list                                │
-│  ☐ backlog          3  ││  ○ 0005 The detail pane scrolls past its pane             p1 ││   in progress · feature · v0.1 · @oddur        │
-│  ☐ in progress      1  ││  ⊘ 0004 Draw the board                                    p2 ││                                                │
-│  ☐ done             1  ││  ◐ 0003 Draw the list                        1/2  @oddur  p1 ││   Acceptance ────────────────────────────────  │
-│                        ││ ▾ no milestone                           ▱▱▱▱▱▱   0%  1 left ││     ✓ rows                                     │
-│ type                   ││  ○ 0006 Write the readme                               ?  p3 ││     ☐ groups                                   │
-│  ☐ feature          3  ││                                                              ││   1 of 2 ticked                                │
+│  ☐ backlog          3  ││  ✓ 1 done                                            ↵ shows ││   in progress · feature · v0.1 · @oddur        │
+│  ☐ in progress      1  ││  ○ 0005 The detail pane scrolls past its pane             p1 ││                                                │
+│  ☐ done             1  ││  ⊘ 0004 Draw the board                                    p2 ││   Acceptance ────────────────────────────────  │
+│                        ││  ◐ 0003 Draw the list                        1/2  @oddur  p1 ││     ✓ rows                                     │
+│ type                   ││ ▾ no milestone                           ▱▱▱▱▱▱   0%  1 left ││     ☐ groups                                   │
+│  ☐ feature          3  ││  ○ 0006 Write the readme                               ?  p3 ││   1 of 2 ticked                                │
 │  ☐ bug              1  ││                                                              ││                                                │
 │  ☐ chore            1  ││                                                              ││   Body ──────────────────────────────────────  │
 │  ☐ milestone        0  ││                                                              ││   Problem                                      │

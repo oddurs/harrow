@@ -3,12 +3,12 @@
 ──────────────────────────────────────────────────────────────
 ╭ Backlog ───────────────────────────────────────────────────╮
 │ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  3 left │
+│  ✓ 1 done                                          ↵ shows │
 │  ○ 0005 The detail pane scrolls past its pane           p1 │
 │  ⊘ 0004 Draw the board                                  p2 │
 │  ◐ 0003 Draw the list                      1/2  @oddur  p1 │
 │ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left │
 │  ○ 0006 Write the readme                             ?  p3 │
-│                                                            │
 │                                                            │
 │                                                            │
 │                                                            │

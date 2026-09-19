@@ -3,12 +3,12 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Filter ────────────────╮╭ Backlog ───────────────────────────────────────────────────────────╮
 │ status                 ││ ▾ v0.1  First usable version                   ▰▰▱▱▱▱  25%  3 left │
-│  ☐ backlog          3  ││  ○ 0005 The detail pane scrolls past its pane                   p1 │
-│  ☐ in progress      1  ││  ⊘ 0004 Draw the board                                          p2 │
-│  ☐ done             1  ││  ◐ 0003 Draw the list                              1/2  @oddur  p1 │
-│                        ││ ▾ no milestone                                 ▱▱▱▱▱▱   0%  1 left │
-│ type                   ││  ○ 0006 Write the readme                                     ?  p3 │
-│  ☐ feature          3  ││                                                                    │
+│  ☐ backlog          3  ││  ✓ 1 done                                                  ↵ shows │
+│  ☐ in progress      1  ││  ○ 0005 The detail pane scrolls past its pane                   p1 │
+│  ☐ done             1  ││  ⊘ 0004 Draw the board                                          p2 │
+│                        ││  ◐ 0003 Draw the list                              1/2  @oddur  p1 │
+│ type                   ││ ▾ no milestone                                 ▱▱▱▱▱▱   0%  1 left │
+│  ☐ feature          3  ││  ○ 0006 Write the readme                                     ?  p3 │
 │  ☐ bug              1  ││                                                                    │
 │  ☐ chore            1  ││                                                                    │
 │  ☐ milestone        0  ││                                                                    │
