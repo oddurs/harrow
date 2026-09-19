@@ -3,12 +3,12 @@
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Backlog ───────────────────────────────────────────────────╮╭ 0003 ────────────────────────────────────────╮
 │ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  3 left ││ ◐ Draw the list                              │
-│  ○ 0005 The detail pane scrolls past its pane           p1 ││   in progress · feature · v0.1 · @oddur      │
-│  ⊘ 0004 Draw the board                                  p2 ││                                              │
-│  ◐ 0003 Draw the list                      1/2  @oddur  p1 ││   Latest ──────────────────────────────────  │
-│ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left ││   2026-09-11                                 │
-│  ○ 0006 Write the readme                             ?  p3 ││   It is the lock ordering rather than the    │
-│                                                            ││   lock.                                      │
+│  ✓ 1 done                                          ↵ shows ││   in progress · feature · v0.1 · @oddur      │
+│  ○ 0005 The detail pane scrolls past its pane           p1 ││                                              │
+│  ⊘ 0004 Draw the board                                  p2 ││   Latest ──────────────────────────────────  │
+│  ◐ 0003 Draw the list                      1/2  @oddur  p1 ││   2026-09-11                                 │
+│ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left ││   It is the lock ordering rather than the    │
+│  ○ 0006 Write the readme                             ?  p3 ││   lock.                                      │
 │                                                            ││                                              │
 │                                                            ││   Acceptance ──────────────────────────────  │
 │                                                            ││     ✓ rows                                   │

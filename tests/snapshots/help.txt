@@ -3,12 +3,12 @@
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ Backl╭ Keys ────────────────────────────────────────────────────────────────────────────────────────╮──────╮
 │ ▾ v0.│                                                                                              │      │
-│  ○ 00│  ↑/k, ↓/j      move between items              M             set the milestone               │      │
-│  ⊘ 00│  home/g, end/G jump to the first or last       x             close it, with a confirm        │      │
-│  ◐ 00│  K, J          scroll the detail pane          u             reopen it                       │────  │
-│ ▾ no │  ←/h, →/l      previous or next group — a co…  n             new item                        │      │
-│  ○ 00│  space         mark it for the next change —…  y             copy the item's reference       │      │
-│      │  tab, backtab  the next lens, or the one bef…  :             every command, by name          │y     │
+│  ✓ 1 │  ↑/k, ↓/j      move between items              M             set the milestone               │      │
+│  ○ 00│  home/g, end/G jump to the first or last       x             close it, with a confirm        │      │
+│  ⊘ 00│  K, J          scroll the detail pane          u             reopen it                       │────  │
+│  ◐ 00│  ←/h, →/l      previous or next group — a co…  n             new item                        │rt ·  │
+│ ▾ no │  space         mark it for the next change —…  y             copy the item's reference       │      │
+│  ○ 00│  tab, backtab  the next lens, or the one bef…  :             every command, by name          │────  │
 │      │  1…5           go straight to the first, sec…  f             open the filter panel           │      │
 │      │  v             arrange it by something else    /             filter, in cairn's own grammar  │      │
 │      │  ctrl-v        step to the next arrangement    S             order it by something else      │────  │

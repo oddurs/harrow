@@ -308,6 +308,10 @@ pub enum Door {
 pub enum Row {
     Group(usize),
     Item(usize),
+    /// What a group has already finished, folded into one row under its
+    /// heading. The claim the heading makes and the thing it counts, together
+    /// — one keystroke apart rather than nowhere at all.
+    Finished(usize),
 }
 
 /// A `cairn` invocation. The only way harrow changes anything: it does not write
@@ -748,6 +752,14 @@ pub struct App {
     /// column the cursor happens to be in.
     pub column_offsets: Vec<usize>,
     pub collapsed: HashSet<String>,
+    /// Groups showing the work they have already finished. Folded by default,
+    /// because beside open work a closed item is noise — but the *milestone
+    /// you are in* is where that stops being true, and where the count is
+    /// bounded by the milestone rather than by the backlog.
+    pub unfolded: HashSet<String>,
+    /// How much finished work each group is holding back, by group key.
+    /// What unfolding it would show.
+    pub folded_away: HashMap<String, usize>,
     /// Items marked for the next change, by id.
     ///
     /// Triage is one keystroke per item until the same decision applies to
@@ -946,6 +958,8 @@ impl App {
             column_row: 0,
             column_offsets: Vec::new(),
             collapsed: HashSet::new(),
+            unfolded: HashSet::new(),
+            folded_away: HashMap::new(),
             marked: HashSet::new(),
             filter: String::new(),
             query: Query::default(),
@@ -1489,6 +1503,8 @@ impl App {
             // nothing under it — the claim the rows are not allowed to
             // support. 0080 found the same hole from the other side.
             && !self.finished.contains(&self.group_key(item))
+            // Or its group has been asked to show what it finished.
+            && !self.unfolded.contains(&self.group_key(item))
     }
 
     /// Groups whose container is still open and has nothing unfinished under
@@ -2087,35 +2103,84 @@ impl App {
         self.group_of.clear();
         self.group_of.resize(self.items.len(), usize::MAX);
 
+        // What each group is holding back: work that matches, is finished, and
+        // is only off screen because an ordinary listing hides it. That is
+        // what the fold offers to show, so it is counted from the same set
+        // rather than from the group's own tally, which ignores the filter.
+        self.folded_away.clear();
+        for item in self.items.iter().filter(|i| !i.container) {
+            if item.category.is_closed() && self.query.matches(item, &self.schema) {
+                *self.folded_away.entry(self.group_key(item)).or_insert(0) += 1;
+            }
+        }
+
         let flat = matches!(self.group_by.as_str(), "none" | "");
-        let mut current: Option<&str> = None;
+
+        // The sorted indices, cut into the runs the grouping makes. Cut first
+        // rather than emitted as they come, because the fold needs to put a
+        // group's finished work directly under itself — which is a
+        // rearrangement within a group, not a different sort.
+        let mut runs: Vec<(String, Vec<usize>)> = Vec::new();
         for i in indices.iter().copied() {
-            let key = keys[i].as_str();
-            if !flat && current != Some(key) {
-                let (count, done, blocked) = self.tally(key, heading_type.as_deref());
+            let key = keys[i].clone();
+            match runs.last_mut() {
+                Some((k, run)) if *k == key => run.push(i),
+                _ => runs.push((key, vec![i])),
+            }
+        }
+
+        for (key, run) in runs {
+            if !flat {
+                let (count, done, blocked) = self.tally(&key, heading_type.as_deref());
                 self.groups.push(Group {
-                    key: key.to_string(),
-                    label: self.group_label(key),
+                    key: key.clone(),
+                    label: self.group_label(&key),
                     count,
                     done,
                     blocked,
-                    shown: 0,
+                    shown: run.len(),
                     item: self
-                        .item_named(key)
+                        .item_named(&key)
                         .and_then(|m| self.by_id.get(&m.id))
                         .copied(),
                 });
-                self.rows.push(Row::Group(self.groups.len() - 1));
-                current = Some(key);
+                let g = self.groups.len() - 1;
+                self.rows.push(Row::Group(g));
+                for i in run.iter().copied() {
+                    self.group_of[i] = g;
+                }
+                // Directly under the heading, so the claim the heading makes
+                // and the thing it counts are one line apart. Not on a group
+                // with nothing finished, and not on one already showing its
+                // work for having nothing left (0088) — there the fold would
+                // be the only thing under the heading.
+                let holds = self.folded_away.get(&key).copied().unwrap_or(0);
+                if holds > 0 && !self.finished.contains(&key) && !self.collapsed.contains(&key) {
+                    self.rows.push(Row::Finished(g));
+                }
             }
-            if !flat {
-                let group_idx = self.groups.len() - 1;
-                self.group_of[i] = group_idx;
-                let g = self.groups.last_mut().expect("a group was pushed above");
-                g.shown += 1;
+            if !flat && self.collapsed.contains(&key) {
+                continue;
             }
-            if flat || !self.collapsed.contains(key) {
-                self.rows.push(Row::Item(i));
+            // Finished first where it has been unfolded: the fold is a
+            // container and its contents belong under it, in whatever order
+            // the reader chose. Everywhere else the run is emitted as it was
+            // sorted.
+            if self.unfolded.contains(&key) {
+                for i in run.iter().copied() {
+                    if self.items[i].category.is_closed() {
+                        self.rows.push(Row::Item(i));
+                    }
+                }
+                for i in run.iter().copied() {
+                    if !self.items[i].category.is_closed() {
+                        self.rows.push(Row::Item(i));
+                    }
+                }
+            } else {
+                for i in run {
+                    self.rows.push(Row::Item(i));
+                }
             }
         }
 
@@ -2288,6 +2353,8 @@ impl App {
     fn is_selectable(&self, idx: usize) -> bool {
         match self.rows.get(idx) {
             Some(Row::Item(_)) => true,
+            // The fold is a control, so the cursor has to be able to reach it.
+            Some(Row::Finished(_)) => true,
             Some(Row::Group(g)) => self
                 .groups
                 .get(*g)
@@ -2357,7 +2424,9 @@ impl App {
             Row::Item(i) => Some(*i),
             // A collapsed heading that names an item selects that item, so a
             // milestone can be read and acted on without being a row of its own.
-            Row::Group(g) => self.groups.get(*g).and_then(|g| g.item),
+            // The fold under it names the same one, so the detail pane keeps
+            // showing the milestone rather than emptying as you pass over it.
+            Row::Group(g) | Row::Finished(g) => self.groups.get(*g).and_then(|g| g.item),
         }
     }
 
@@ -2515,11 +2584,32 @@ impl App {
         self.clamp();
     }
 
+    /// Unfold what a group has finished, or fold it away again.
+    ///
+    /// The same gesture as collapsing and on the same key: a heading folds a
+    /// group away, and the row under it unfolds what the group has already
+    /// done.
+    pub fn toggle_finished(&mut self, key: &str) {
+        if self.unfolded.contains(key) {
+            self.unfolded.remove(key);
+        } else {
+            self.unfolded.insert(key.to_string());
+        }
+        self.rebuild();
+    }
+
     pub fn toggle_group(&mut self) {
+        // On the fold, the gesture is about the finished work rather than
+        // about the group.
+        if let Some(Row::Finished(g)) = self.rows.get(self.selected) {
+            let key = self.groups[*g].key.clone();
+            self.toggle_finished(&key);
+            return;
+        }
         let key = match self.rows.get(self.selected) {
             Some(Row::Group(g)) => self.groups[*g].key.clone(),
             Some(Row::Item(i)) => self.group_key(&self.items[*i]),
-            None => return,
+            _ => return,
         };
         let collapsing = !self.collapsed.contains(&key);
         if collapsing {
@@ -4026,8 +4116,13 @@ impl App {
             }
             // On a heading, fold. On an item, mark it — which is where the
             // gesture is going anyway once there is more than one thing to do.
+            // A heading folds a group away; the row under it unfolds what
+            // the group has already done. Same gesture, same key, on the row
+            // that says so — and neither is an item, so neither marks one.
             Command::ToggleGroup => match self.rows.get(self.selected) {
-                Some(Row::Group(_)) if self.pane == Pane::List => self.toggle_group(),
+                Some(Row::Group(_) | Row::Finished(_)) if self.pane == Pane::List => {
+                    self.toggle_group()
+                }
                 _ => self.toggle_mark(),
             },
             Command::PrevGroup => self.step_group(false),
@@ -4076,6 +4171,12 @@ impl App {
                     return Action::None;
                 };
                 return Action::History(item.id);
+            }
+            // On the fold, `↵` is what the row says it is. The row names the
+            // group's milestone for the detail pane, so without this it
+            // would open the reader on a milestone nobody asked to read.
+            Command::Read if matches!(self.rows.get(self.selected), Some(Row::Finished(_))) => {
+                self.toggle_group();
             }
             // Opening it and focusing it are one gesture: a panel you have to
             // open and then reach for is two.
@@ -4556,7 +4657,7 @@ impl App {
                 self.toast(message, ToastKind::Info);
             }
             Hit::Row(idx) => match self.rows.get(idx) {
-                Some(Row::Group(_)) => {
+                Some(Row::Group(_) | Row::Finished(_)) => {
                     self.focus = Focus::List;
                     self.selected = idx;
                     self.toggle_group();

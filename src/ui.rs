@@ -681,6 +681,7 @@ fn draw_list(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         .iter()
         .map(|row| match row {
             Row::Group(g) => group_line(app, t, *g, inner_width),
+            Row::Finished(g) => finished_line(app, t, *g, inner_width),
             Row::Item(i) => item_line(app, &app.items[*i], t, inner_width),
         })
         .collect();
@@ -795,6 +796,32 @@ fn scroll_to(offset: usize, selected: usize, len: usize, height: usize) -> usize
         offset = selected + 1 - height;
     }
     offset.min(max_offset)
+}
+
+/// What a group has already finished, folded into one row under its heading.
+///
+/// The heading says `53%` and this says what the fifty-three per cent is, one
+/// keystroke away — which is the whole of it. Before this the claim was on
+/// screen and nothing that supported it was.
+fn finished_line(app: &App, t: &Theme, idx: usize, width: usize) -> ListItem<'static> {
+    let g = &app.groups[idx];
+    let open = app.unfolded.contains(&g.key);
+    let n = app.folded_away.get(&g.key).copied().unwrap_or(0);
+    let said = format!("{n} done");
+    let hint = if open { "↵ folds" } else { "↵ shows" };
+    let pad = width
+        .saturating_sub(said.chars().count() + hint.chars().count() + 5)
+        .max(1);
+    ListItem::new(Line::from(vec![
+        Span::raw("  "),
+        Span::styled(
+            if open { "▾ " } else { "✓ " },
+            Style::default().fg(if open { t.faint } else { t.done }),
+        ),
+        Span::styled(said, Style::default().fg(t.muted)),
+        Span::raw(" ".repeat(pad)),
+        Span::styled(hint, Style::default().fg(t.faint)),
+    ]))
 }
 
 fn group_line(app: &App, t: &Theme, idx: usize, width: usize) -> ListItem<'static> {

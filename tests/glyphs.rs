@@ -74,7 +74,24 @@ fn states() -> Vec<State> {
         (
             "with a group collapsed",
             build(|app| {
-                app.handle_key(KeyCode::Char(' '), KeyModifiers::NONE);
+                app.collapsed.insert("v0.1".into());
+                app.rebuild();
+            }),
+        ),
+        (
+            // `space` on the first row folds or collapses now, so marking has
+            // to be asked for on a row that is an item.
+            "with something marked",
+            build(|app| {
+                app.select_id(3);
+                app.run(Command::ToggleGroup);
+            }),
+        ),
+        (
+            "with the finished work unfolded",
+            build(|app| {
+                app.unfolded.insert("v0.1".into());
+                app.rebuild();
             }),
         ),
         (
