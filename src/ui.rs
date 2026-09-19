@@ -1237,10 +1237,12 @@ fn draw_filter(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         .padding(Padding::horizontal(1))
         .title(Span::styled(" Filter ", Style::default().fg(t.muted)))
         .title_bottom(Span::styled(
-            if shown == total {
-                format!(" {total} items ")
-            } else {
-                format!(" {shown} of {total} ")
+            match (shown == total, app.unmanaged_clauses()) {
+                // Said rather than implied. A bound the panel cannot draw is
+                // still narrowing every count on it.
+                (_, n) if n > 0 => format!(" {shown} of {total} · {n} typed "),
+                (true, _) => format!(" {total} items "),
+                (false, _) => format!(" {shown} of {total} "),
             },
             Style::default().fg(if shown == total { t.faint } else { t.accent }),
         ));

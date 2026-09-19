@@ -1900,6 +1900,19 @@ impl App {
 
     /// Tick or untick what the cursor is on, and write the result back as the
     /// expression somebody could have typed.
+    /// Clauses in force that the panel is not managing — a date bound, a
+    /// negation, a bare word.
+    ///
+    /// The panel offers the values a field declares, so it can say
+    /// `priority=p0` and cannot say `created<2026-09-04`. It keeps such a
+    /// clause through a tick, which is the important half; this is the other
+    /// half, so the panel can say there is something in force that it is not
+    /// showing rather than looking like the whole story.
+    pub fn unmanaged_clauses(&self) -> usize {
+        let managed: Vec<String> = self.facets.iter().map(|f| f.field.clone()).collect();
+        self.query.except(&managed).len()
+    }
+
     pub fn toggle_facet(&mut self) {
         let Some((facet, value)) = self.facet_at(self.facet) else {
             return;
