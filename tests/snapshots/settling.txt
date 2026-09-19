@@ -1,20 +1,20 @@
  sample    needs  list  board  stats  log    1 needs you
  f filter ▾  S status priority id ▾  v milestone ▾                                              ○ 3  ✓ 2  ⊘ 1
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-╭ Backlog ───────────────────────────────────────────────────╮╭ 0001 ────────────────────────────────────────╮
-│ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  2 left ││ ○ First usable version                       │
-│  ✓ 2 done                                          ↵ shows ││   backlog · milestone                        │
+╭ Backlog ───────────────────────────────────────────────────╮╭ 0005 ────────────────────────────────────────╮
+│ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  2 left ││ ○ The detail pane scrolls past its pane      │
+│  ✓ 2 done                                          ↵ shows ││   backlog · bug · v0.1                       │
 │  ○ 0005 The detail pane scrolls past its pane           p1 ││                                              │
-│  ⊘ 0004 Draw the board                                  p2 ││   Rollup ──────────────────────────────────  │
-│ •✓ 0003 Draw the list                      1/2  @oddur  p1 ││   ✓ 2 done · ○ 2 to start · ⊘ 1 blocked      │
+│  ⊘ 0004 Draw the board                                  p2 ││   Body ────────────────────────────────────  │
+│ •✓ 0003 Draw the list                      1/2  @oddur  p1 ││   What happens                               │
 │ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left ││                                              │
-│  ○ 0006 Write the readme                             ?  p3 ││   Body ────────────────────────────────────  │
-│                                                            ││   Enough to dogfood.                         │
+│  ○ 0006 Write the readme                             ?  p3 ││   A long body runs off the bottom, every     │
+│                                                            ││   time, and the report says why.             │
 │                                                            ││                                              │
 │                                                            ││   Fields ──────────────────────────────────  │
-│                                                            ││   created 2026-09-01                         │
-│                                                            ││                                              │
-│                                                            ││                                              │
-│                                                            ││                                              │
+│                                                            ││   priority p1                                │
+│                                                            ││   area     ui                                │
+│                                                            ││   labels   chrome                            │
+│                                                            ││   created  2026-09-04                        │
 ╰────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
  ● 0003 → done

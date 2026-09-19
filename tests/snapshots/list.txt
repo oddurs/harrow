@@ -1,25 +1,25 @@
  sample    needs  list  board  stats  log    1 needs you                                             starting
  f filter ▾  S status priority id ▾  v milestone ▾                                         ◐ 1  ○ 3  ✓ 1  ⊘ 1
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-╭ Backlog ───────────────────────────────────────────────────╮╭ 0001 ────────────────────────────────────────╮
-│ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  3 left ││ ○ First usable version                       │
-│  ✓ 1 done                                          ↵ shows ││   backlog · milestone                        │
+╭ Backlog ───────────────────────────────────────────────────╮╭ 0003 ────────────────────────────────────────╮
+│ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  3 left ││ ◐ Draw the list                              │
+│  ✓ 1 done                                          ↵ shows ││   in progress · feature · v0.1 · @oddur      │
 │  ○ 0005 The detail pane scrolls past its pane           p1 ││                                              │
-│  ⊘ 0004 Draw the board                                  p2 ││   Rollup ──────────────────────────────────  │
-│  ◐ 0003 Draw the list                      1/2  @oddur  p1 ││   ✓ 1 done · ◐ 1 in flight · ○ 2 to start ·  │
-│ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left ││                                              │
-│  ○ 0006 Write the readme                             ?  p3 ││   Body ────────────────────────────────────  │
-│                                                            ││   Enough to dogfood.                         │
+│  ⊘ 0004 Draw the board                                  p2 ││   Acceptance ──────────────────────────────  │
+│  ◐ 0003 Draw the list                      1/2  @oddur  p1 ││     ✓ rows                                   │
+│ ▾ no milestone                         ▱▱▱▱▱▱   0%  1 left ││     ☐ groups                                 │
+│  ○ 0006 Write the readme                             ?  p3 ││   1 of 2 ticked                              │
+│                                                            ││                                              │
+│                                                            ││   Body ────────────────────────────────────  │
+│                                                            ││   Problem                                    │
+│                                                            ││                                              │
+│                                                            ││   A backlog you cannot move through is a     │
+│                                                            ││   file you could have opened.                │
 │                                                            ││                                              │
 │                                                            ││   Fields ──────────────────────────────────  │
-│                                                            ││   created 2026-09-01                         │
-│                                                            ││                                              │
-│                                                            ││                                              │
-│                                                            ││                                              │
-│                                                            ││                                              │
-│                                                            ││                                              │
-│                                                            ││                                              │
-│                                                            ││                                              │
+│                                                            ││   priority p1                                │
+│                                                            ││   area     ui                                │
+│                                                            ││   created  2026-09-02                        │
 │                                                            ││                                              │
 │                                                            ││                                              │
 ╰────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
