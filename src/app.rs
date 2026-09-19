@@ -648,6 +648,8 @@ fn subsequence(needle: &str, haystack: &str) -> bool {
 #[derive(PartialEq, Eq)]
 pub enum Editing {
     Filter,
+    /// The sort segment of the view line, in `--sort`'s own syntax.
+    Sort,
     NewItem,
     /// Why a change is being proposed rather than made.
     Why,
@@ -3064,6 +3066,10 @@ impl App {
                 self.rebuild();
                 Action::None
             }
+            Some(Editing::Sort) => {
+                self.set_sort(text);
+                Action::None
+            }
             // One line, and the gesture being cheap is the value: a note
             // nobody writes because it costs an editor round trip is a note
             // that does not exist. `e` is still there for a paragraph.
@@ -3410,10 +3416,17 @@ impl App {
                 KeyCode::Esc => {
                     let was = self.editing.take();
                     self.input.clear();
+                    // `esc` puts it back rather than keeping a half-typed
+                    // one: the preview changed what is on screen as you
+                    // typed, so leaving has to undo that or backing out is
+                    // indistinguishable from committing.
                     if was == Some(Editing::Filter) {
                         self.filter.clear();
                         self.reparse_filter();
                         self.rebuild();
+                    }
+                    if was == Some(Editing::Sort) {
+                        self.set_sort(String::new());
                     }
                 }
                 KeyCode::Enter => return self.submit_input(),
@@ -3458,13 +3471,68 @@ impl App {
     }
 
     /// The list narrows as you type, so a filter is something you watch rather
-    /// than something you submit and hope about.
+    /// than something you submit and hope about. The same for the order: a
+    /// sort you have to commit to before seeing is a guess.
     fn preview_filter(&mut self) {
-        if self.editing == Some(Editing::Filter) {
-            self.filter = self.input.clone();
-            self.reparse_filter();
-            self.rebuild();
+        match self.editing {
+            Some(Editing::Filter) => {
+                self.filter = self.input.clone();
+                self.reparse_filter();
+                self.rebuild();
+            }
+            Some(Editing::Sort) => {
+                let text = self.input.clone();
+                self.set_sort(text);
+            }
+            _ => {}
         }
+    }
+
+    /// Reorder, keeping the reader where they were.
+    ///
+    /// An order is a rearrangement of what is already on screen, so the item
+    /// under the cursor should still be under it afterwards — otherwise
+    /// sorting is also a way to lose your place.
+    fn set_sort(&mut self, spec: String) {
+        self.sort = spec;
+        let id = self.selected_item().map(|i| i.id);
+        self.rebuild();
+        if let Some(id) = id {
+            self.select_id(id);
+        }
+    }
+
+    /// Sort keys naming something this project has not got.
+    ///
+    /// The same rule the filter follows, for the same reason: a field nothing
+    /// declares orders by nothing, which is indistinguishable from an order
+    /// somebody asked for. Said out loud rather than silently ignored.
+    pub fn unknown_sort(&self) -> Vec<String> {
+        let known = self.sort_fields();
+        crate::filter::parse_sort(&self.sort)
+            .into_iter()
+            .map(|k| k.field)
+            .filter(|f| !known.iter().any(|k| k == f))
+            .collect()
+    }
+
+    /// What the backlog can be ordered by, in the order the completion offers
+    /// them: the fields anything reasons about, then whatever the project
+    /// declared. Nothing hardcoded that a project has not got.
+    pub fn sort_fields(&self) -> Vec<String> {
+        let mut out: Vec<String> = ["status", "type", "id", "title", "created", "updated"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        for field in &self.schema.fields {
+            if !out.contains(&field.name) {
+                out.push(field.name.clone());
+            }
+        }
+        if self.items.iter().any(|i| i.assignee.is_some()) {
+            out.push("assignee".to_string());
+        }
+        out
     }
 
     /// Perform a named command. Everything with an effect outside the process
@@ -3877,6 +3945,17 @@ impl App {
             Command::Filter => {
                 self.editing = Some(Editing::Filter);
                 self.input = self.filter.clone();
+            }
+            // The third question a backlog answers, and the one that has
+            // never had a door. Prefilled with the order in force — which,
+            // until the view line, no reader had ever been told.
+            Command::Sort => {
+                self.editing = Some(Editing::Sort);
+                self.input = if self.sort.trim().is_empty() {
+                    String::new()
+                } else {
+                    self.sort.clone()
+                };
             }
             Command::ToggleAll => {
                 self.show_all = !self.show_all;

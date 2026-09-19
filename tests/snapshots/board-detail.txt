@@ -1,6 +1,6 @@
  harrow  sample    needs  list  board  stats  log    1 needs you                                                                   starting
  ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
- / everything   ↓ status priority id   v ⊞ milestone                                                                                5 items
+ / everything   S ↓ status priority id   v ⊞ milestone                                                                              5 items
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭ backlog 3 ───────────────────╮╭ in progress 1 ───────────────╮╭ done 1 ──────────────────────╮╭ 0003 ────────────────────────────────────╮
 │  ○ 0005 The detail pane …  p1││  ◐ 0003 Draw the list      p1││  ✓ 0002 Read the item fi…  p0││ ◐ Draw the list                          │

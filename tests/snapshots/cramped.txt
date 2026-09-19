@@ -1,6 +1,6 @@
  sample    needs  list  board  starting
  ◐ 1 in progress   ○ 3 backlog
- / everything   ↓ status priority id
+ / everything   S ↓ status priority id
 ────────────────────────────────────────
 ╭ Backlog ─────────────────────────────╮
 │ ▾ v0.1  First usable …   25%  3 left │
