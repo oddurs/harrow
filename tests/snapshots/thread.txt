@@ -1,7 +1,8 @@
  harrow  sample    needs  list  board  stats  log    1 needs you                                     starting
  ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+ / everything   ↓ status priority id   v ⊞ milestone                                                  5 items
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-╭ Backlog · by milestone ────────────────────────────────────╮╭ 0003 ────────────────────────────────────────╮
+╭ Backlog ───────────────────────────────────────────────────╮╭ 0003 ────────────────────────────────────────╮
 │ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  3 left ││ ◐ Draw the list                              │
 │  ○ 0005 The detail pane scrolls past its pane           p1 ││   in progress · feature · v0.1 · @oddur      │
 │  ⊘ 0004 Draw the board                                  p2 ││                                              │
@@ -15,6 +16,5 @@
 │                                                            ││     ☐ groups                                 │
 │                                                            ││   1 of 2 ticked                              │
 │                                                            ││                                              │
-│                                                            ││   Body ────────────────────────────────────  │
 ╰────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab views  ? help

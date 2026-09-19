@@ -1,7 +1,8 @@
  harrow  sample    needs  list  board  stats  log    1 needs you                                     starting
  ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+ / everything   ↓ status priority id   v ⊞ milestone                                                  5 items
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-╭ Backlog · by milestone ────╮╭ 0003 ────────────────────────────────────────────────────────────────────────╮
+╭ Backlog ───────────────────╮╭ 0003 ────────────────────────────────────────────────────────────────────────╮
 │ ▾ v0.1  First usa…  3 left ││                                                                              │
 │  ○ 0005 The detail pane s… ││  ◐ Draw the list                                                             │
 │  ⊘ 0004 Draw the board     ││                                                                              │
@@ -21,6 +22,5 @@
 │                            ││    Paragraph 5 of a proposal nobody will finish reading.                     │
 │                            ││                                                                              │
 │                            ││    Paragraph 6 of a proposal nobody will finish reading.                     │
-│                            ││                                                                              │
 ╰────────────────────────────╯╰ ↵ read · K/J scroll · esc closes ────────────────────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab views  ? help

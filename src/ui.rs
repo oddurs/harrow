@@ -141,12 +141,17 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     app.hits.clear();
     app.screen = area;
     let strip = u16::from(area.height >= 12 && !app.status_counts().is_empty());
+    // Dropped on a short terminal for the same reason the strip is, and one
+    // row sooner: a backlog you cannot see is worse than a view you cannot
+    // read the rules of.
+    let view = u16::from(area.height >= 14);
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1),     // identity, tabs, freshness
             Constraint::Length(strip), // what is happening
+            Constraint::Length(view),  // what is on screen, and why
             Constraint::Length(1),     // rule
             Constraint::Min(3),        // the work
             Constraint::Length(1),     // keys, or what just happened
@@ -157,7 +162,10 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     if strip == 1 {
         draw_strip(f, app, &t, chunks[1]);
     }
-    draw_rule(f, &t, chunks[2]);
+    if view == 1 {
+        draw_view_line(f, app, &t, chunks[2]);
+    }
+    draw_rule(f, &t, chunks[3]);
 
     // The detail belongs to the selection, not to the list: the same item is
     // selected whichever lens is showing, and there is no reason a board
@@ -170,7 +178,7 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     // The filter takes its column off the left before anything else divides
     // what is left: it is what you are doing *to* the backlog, so the backlog
     // and everything about one item stay together beside it.
-    let (filter, body) = split_off_filter(app, chunks[3]);
+    let (filter, body) = split_off_filter(app, chunks[4]);
     let reading = app.reading && app.selected_item().is_some();
     let (lens, detail, reader) = match body {
         None => (None, None, None),
@@ -209,7 +217,7 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     if let Some(filter) = filter {
         draw_filter(f, app, &t, filter);
     }
-    draw_footer(f, app, &t, chunks[4]);
+    draw_footer(f, app, &t, chunks[5]);
 
     if app.history.is_some() {
         draw_history(f, app, &t, area);
@@ -421,6 +429,152 @@ fn draw_strip(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     f.render_widget(Line::from(spans), area);
 }
 
+/// What is on screen, and why.
+///
+/// Three segments — which items, in what order, grouped how — each carrying
+/// the key that edits it. The dimmed letter is not decoration: it is where the
+/// cursor goes when you press it, so the line teaches its own controls.
+///
+/// Stated rather than remembered. A filter that arrived from `--filter`, from
+/// `--view` or from a click on the status strip was never typed anywhere, so
+/// until now the rows were narrowed and the screen did not say why.
+fn draw_view_line(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
+    let view = app.view_line();
+    let keys = &app.keymap;
+    let mut spans = vec![Span::raw(" ")];
+    let mut used = 1usize;
+    let mut cells: Vec<(Rect, Command)> = Vec::new();
+
+    // `(key, glyph, text, colour, what it opens)`, in the order the questions
+    // are asked. Everything is pushed and then clipped from the right, so a
+    // narrow pane keeps the filter — which is the one that changes what is
+    // there rather than how it is laid out.
+    let segment = |spans: &mut Vec<Span<'static>>,
+                   used: &mut usize,
+                   command: Option<Command>,
+                   glyph: &str,
+                   text: String,
+                   colour: Color,
+                   cells: &mut Vec<(Rect, Command)>| {
+        if text.is_empty() {
+            return;
+        }
+        let key = command.and_then(|c| keys.keys_for(c).into_iter().next());
+        let lead = match &key {
+            Some(k) => format!("{k} "),
+            None => String::new(),
+        };
+        let body = format!("{glyph}{text}");
+        let width = lead.chars().count() + body.chars().count();
+        if *used + width + 3 > area.width as usize {
+            return;
+        }
+        if *used > 1 {
+            spans.push(Span::raw("   "));
+            *used += 3;
+        }
+        if let Some(command) = command {
+            cells.push((
+                Rect {
+                    x: area.x + *used as u16,
+                    y: area.y,
+                    width: width as u16,
+                    height: 1,
+                },
+                command,
+            ));
+        }
+        if !lead.is_empty() {
+            spans.push(Span::styled(lead, Style::default().fg(t.faint)));
+        }
+        spans.push(Span::styled(body, Style::default().fg(colour)));
+        *used += width;
+    };
+
+    // The name where one was chosen, and only while it still means what it
+    // said: editing a clause makes it no longer that view.
+    let filter = match (&view.view, view.query.is_empty()) {
+        (Some(name), true) => name.clone(),
+        (Some(name), false) => format!("{name} · {}", view.query),
+        (None, _) => view.query.clone(),
+    };
+    segment(
+        &mut spans,
+        &mut used,
+        Some(Command::Filter),
+        "",
+        if filter.is_empty() {
+            "everything".to_string()
+        } else {
+            filter
+        },
+        if view.query.is_empty() && view.view.is_none() {
+            t.faint
+        } else {
+            t.accent
+        },
+        &mut cells,
+    );
+    if app.show_all {
+        segment(
+            &mut spans,
+            &mut used,
+            Some(Command::ToggleAll),
+            "+ ",
+            "finished".to_string(),
+            t.done,
+            &mut cells,
+        );
+    }
+    segment(
+        &mut spans,
+        &mut used,
+        // No key yet: sorting is 0083. The segment states the order it is in
+        // meanwhile, which is the half of the gap that costs nothing.
+        None,
+        "↓ ",
+        view.sort.replace(',', " "),
+        if view.sort_is_default {
+            t.faint
+        } else {
+            t.label
+        },
+        &mut cells,
+    );
+    segment(
+        &mut spans,
+        &mut used,
+        Some(Command::GroupBy),
+        "⊞ ",
+        match view.group_by.as_str() {
+            "none" | "" => "flat".to_string(),
+            other => other.to_string(),
+        },
+        t.milestone,
+        &mut cells,
+    );
+
+    // The tally on the right, where the freshness is on the line above.
+    let (shown, total) = view.shown_and_total;
+    let tally = if shown == total {
+        format!("{total} items")
+    } else {
+        format!("{shown} of {total}")
+    };
+    let room = area.width as usize;
+    if used + tally.chars().count() + 2 <= room {
+        spans.push(Span::raw(
+            " ".repeat(room - used - tally.chars().count() - 1),
+        ));
+        spans.push(Span::styled(tally, Style::default().fg(t.faint)));
+    }
+
+    f.render_widget(Line::from(spans), area);
+    for (rect, command) in cells {
+        app.hit(rect, Hit::Run(command));
+    }
+}
+
 fn draw_rule(f: &mut Frame, t: &Theme, area: Rect) {
     let rule = "─".repeat(area.width as usize);
     f.render_widget(
@@ -432,11 +586,10 @@ fn draw_rule(f: &mut Frame, t: &Theme, area: Rect) {
 // ── The list ─────────────────────────────────────────────────────────────────
 
 fn draw_list(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
-    let title = if matches!(app.group_by.as_str(), "none" | "") {
-        " Backlog ".to_string()
-    } else {
-        format!(" Backlog · by {} ", app.group_by)
-    };
+    // Just the name. The grouping used to be here because there was nowhere
+    // else to put it; the view line says it now, beside the other two things
+    // that decide what is on screen.
+    let title = " Backlog ".to_string();
     // The focused pane is the one the keys are driving, and the border is where
     // that gets said. Without it, `↵` moves the keyboard somewhere the screen
     // does not admit to.

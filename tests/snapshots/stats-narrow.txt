@@ -1,5 +1,6 @@
  sample    needs  list  board  stats  log            starting
  ◐ 1 in progress   ○ 3 backlog   ✓ 1 done   ⊘ 1 blocked
+ / everything   ↓ status priority id   v ⊞ milestone  5 items
 ──────────────────────────────────────────────────────────────
 ╭ sample ────────────────────────────────────────────────────╮
 │   Where it stands ───────────────────────────────────────  │
@@ -21,6 +22,5 @@
 │   0003 Draw the list                                       │
 │   1 item is waiting on it                                  │
 │                                                            │
-│   Milestones ────────────────────────────────────────────  │
 ╰ ↑↓ move · ↵ opens ─────────────────────────────────────────╯
  ↑↓ move  ↵ read  c claim  s status  x close  f filter

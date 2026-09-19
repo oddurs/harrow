@@ -1,7 +1,8 @@
  harrow  sample    needs  list  board  stats  log    1 needs you                                     just now
  ○ 3 backlog   ✓ 2 done   ⊘ 1 blocked
+ / everything   ↓ status priority id   v ⊞ milestone                                                  5 items
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-╭ Backlog · by milestone ────────────────────────────────────╮╭ 0005 ────────────────────────────────────────╮
+╭ Backlog ───────────────────────────────────────────────────╮╭ 0005 ────────────────────────────────────────╮
 │ ▾ v0.1  First usable version           ▰▰▱▱▱▱  25%  2 left ││ ○ The detail pane scrolls past its pane      │
 │  ○ 0005 The detail pane scrolls past its pane           p1 ││   backlog · bug · v0.1                       │
 │  ⊘ 0004 Draw the board                                  p2 ││                                              │
@@ -15,6 +16,5 @@
 │                                                            ││   priority p1                                │
 │                                                            ││   area     ui                                │
 │                                                            ││   labels   chrome                            │
-│                                                            ││   created  2026-09-04                        │
-╰────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
+╰────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────────╯
  ● 0003 → done

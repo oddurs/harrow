@@ -2,7 +2,7 @@
 id: 82
 title: The view says what it is, in one line
 type: feature
-status: backlog
+status: done
 milestone: v0.6
 created: 2026-09-18
 updated: 2026-09-18
@@ -74,8 +74,18 @@ its corner: a number you cannot check is a number you cannot use.
 
 ## Acceptance criteria
 
-- [ ] The filter, the sort and the grouping in force are all on screen, in every lens
-- [ ] A filter that came from `--filter`, `--view` or a click on the strip is stated, not just a typed one
-- [ ] The query segment reads as cairn's grammar, and reparses to what is shown
-- [ ] The line is dropped on a terminal too short for it, the way the strip already is
-- [ ] `y` yields the command line that reproduces the view
+- [x] The filter, the sort and the grouping in force are all on screen, in every lens
+- [x] A filter that came from `--filter`, `--view` or a click on the strip is stated, not just a typed one
+- [x] The query segment reads as cairn's grammar, and reparses to what is shown
+- [x] The line is dropped on a terminal too short for it, the way the strip already is
+- [x] `y` yields the command line that reproduces the view
+
+## 2026-09-18
+
+`Query::source()` is `except(&[])` — the clause rendering the facet panel already needed to keep an untouched range alive through a tick. So the thing 0084 was filed to build turned out to be half built already, and this needed only to name it.
+
+The list's title lost its `· by milestone`. It was there because there was nowhere else to put the grouping, and the line is the better place: beside the other two things that decide what is on screen, rather than on the one lens that happens to have a title.
+
+`Y` copies the whole view as a command line, pairing with `y` for an item's id. `--view now` is emitted in preference to its expansion where the reader chose it by name and has not edited it, because that is the thing somebody would rather paste. Quoting is by need: a comma is safe bare and separates clauses in nearly every filter there is, while `!` is quoted always — interactive bash would expand it.
+
+The sort segment has no key yet. It states the order and says the default out loud, which is most of the gap; 0083 makes it editable.

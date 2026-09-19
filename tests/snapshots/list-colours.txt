@@ -8,8 +8,8 @@ legend:
   g = DarkGray
   h = Green
   i = Rgb(247, 118, 142)
-  j = Rgb(42, 46, 66)
-  k = Rgb(187, 154, 247)
+  j = Rgb(187, 154, 247)
+  k = Rgb(42, 46, 66)
   l = Rgb(224, 175, 104)
   m = Red
   n = Rgb(125, 207, 255)
@@ -17,27 +17,27 @@ legend:
 
 .aaaaaa..bbbbbb....aaaaa..cccc..aaaaa..aaaaa..aaa....d.ddddd.ddd.....................................aaaaaaaa.
 .e.c.ff.ffffffff...g.c.fffffff...h.c.ffff...i.i.iiiiiii.......................................................
-jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj
-d.ccccccc.c.cc.ccccccccc.dddddddddddddddddddddddddddddddddddddj.ffff.jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj
-d.a.kkkk..kkkkk.kkkkkk.kkkkkkk...........aaaaaa..aaa..a.aaaa.dj.g.bbb.bbbbbb.bbbb.bbbbbbb.bbbb.bbb.bbbb......j
-d..g.aaaa.ccc.cccccc.cccc.ccccccc.cccc.ccc.cccc...........ll.dj...ggggggg.a.mmm.a.kkkk.......................j
-d..i.aaaa.cccc.ccc.ccccc..................................nn.dj..............................................j
-d..e.aaaa.cccc.ccc.cccc......................aaa..dddddd..ll.dj...ffff.jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj..j
-d.a.aa.aaaaaaaaa.........................aaaaaa...aa..a.aaaa.dj...bbbb.bbbbbbb...............................j
-d..g.aaaa.ccccc.ccc.cccccc.............................d..aa.dj..............................................j
-d............................................................dj...f.ffff.ffff.ffff.fff.fff.fffffff.ccccc.....j
-d............................................................dj...ccccf.fff.fff.oooooo.ffff.ffff.............j
-d............................................................dj..............................................j
-d............................................................dj...ffffff.jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj..j
-d............................................................dj...aaaaaaaa.ff................................j
-d............................................................dj...aaaa.....ff................................j
-d............................................................dj...aaaaaa...nnnnnn............................j
-d............................................................dj...aaaaaaa..ffffffffff........................j
-d............................................................dj..............................................j
-d............................................................dj..............................................j
-d............................................................dj..............................................j
-d............................................................dj..............................................j
-d............................................................dj..............................................j
-d............................................................dj..............................................j
-ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj
+.a.aaaaaaaaaa...a.aaaaaa.aaaaaaaa.aa...a.j.jjjjjjjjj..................................................a.aaaaa.
+kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+d.ccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddk.ffff.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+d.a.jjjj..jjjjj.jjjjjj.jjjjjjj...........aaaaaa..aaa..a.aaaa.dk.g.bbb.bbbbbb.bbbb.bbbbbbb.bbbb.bbb.bbbb......k
+d..g.aaaa.ccc.cccccc.cccc.ccccccc.cccc.ccc.cccc...........ll.dk...ggggggg.a.mmm.a.jjjj.......................k
+d..i.aaaa.cccc.ccc.ccccc..................................nn.dk..............................................k
+d..e.aaaa.cccc.ccc.cccc......................aaa..dddddd..ll.dk...ffff.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk..k
+d.a.aa.aaaaaaaaa.........................aaaaaa...aa..a.aaaa.dk...bbbb.bbbbbbb...............................k
+d..g.aaaa.ccccc.ccc.cccccc.............................d..aa.dk..............................................k
+d............................................................dk...f.ffff.ffff.ffff.fff.fff.fffffff.ccccc.....k
+d............................................................dk...ccccf.fff.fff.oooooo.ffff.ffff.............k
+d............................................................dk..............................................k
+d............................................................dk...ffffff.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk..k
+d............................................................dk...aaaaaaaa.ff................................k
+d............................................................dk...aaaa.....ff................................k
+d............................................................dk...aaaaaa...nnnnnn............................k
+d............................................................dk...aaaaaaa..ffffffffff........................k
+d............................................................dk..............................................k
+d............................................................dk..............................................k
+d............................................................dk..............................................k
+d............................................................dk..............................................k
+d............................................................dk..............................................k
+ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
 .dd.aaaa..d.aaaa..d.aaaaa..d.aaaaaa..d.aaaaa..d.aaaaaa..ddd.aaaaa..d.aaaa.....................................
