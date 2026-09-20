@@ -126,7 +126,7 @@ Three questions decide what is on screen — which items, in what order,
 
 ## v1.0 — Stable release
 
-`##········` 20% · 3 of 15 done · due 2027-05-01
+`##········` 19% · 3 of 16 done · due 2027-05-01
 
 Documented, tested, and safe to depend on.
 
@@ -144,6 +144,10 @@ Documented, tested, and safe to depend on.
 - [ ] `0051` Select the item a cairn check finding names <sup>feature · p3 · chrome</sup>
 - [ ] `0052` A digit in a picker does not pick outright <sup>bug · p3 · chrome</sup>
 - [ ] `0077` The log reads the repository it was pointed at <sup>bug · p2 · read</sup>
+
+### in progress
+
+- [ ] `0094` The map is wrong in six places <sup>bug · p1 · chrome</sup>
 
 ### done
 

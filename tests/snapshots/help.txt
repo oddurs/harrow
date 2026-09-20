@@ -1,23 +1,22 @@
  sample    needs  list  board  stats  log    1 needs you                                             starting
  f filter ▾  S status priority id ▾  v milestone ▾                                         ◐ 1  ○ 3  ✓ 1  ⊘ 1
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-╭ Backl╭ Keys ────────────────────────────────────────────────────────────────────────────────────────╮──────╮
-│ ▾ v0.│                                                                                              │      │
-│  ✓ 1 │  ↑/k, ↓/j      move between items              M             set the milestone               │      │
-│  ○ 00│  home/g, end/G jump to the first or last       x             close it, with a confirm        │      │
-│  ⊘ 00│  K, J          scroll the detail pane          u             reopen it                       │────  │
-│  ◐ 00│  ←/h, →/l      previous or next group — a co…  n             new item                        │      │
-│ ▾ no │  space         mark it for the next change —…  y             copy the item's reference       │      │
-│  ○ 00│  tab, backtab  the next lens, or the one bef…  :             every command, by name          │      │
-│      │  1…5           go straight to the first, sec…  f             open the filter panel           │      │
-│      │  v             arrange it by something else    /             filter, in cairn's own grammar  │────  │
-│      │  ctrl-v        step to the next arrangement    S             order it by something else      │      │
-│      │  ctrl-s        type an order, in --sort's ow…  ctrl-s        type an order, in --sort's ow…  │      │
-│      │  ↵/o           read it in the panel, and dri…  V             look at it the way the projec…  │a     │
-│      │  e             open the item in your editor    Y             copy this view as a command l…  │      │
-│      │  N             add a line to the item's body…  a             show everything — finished, d…  │      │
-│      │  H             how this item got the way it …  esc           back out — one press leaves w…  │────  │
-│      │  A             accept the change somebody pr…  r             re-read the backlog now         │      │
+───────╭ Keys ────────────────────────────────────────────────────────────────────────────────────────╮───────
+╭ Backl│                                                                                              │──────╮
+│ ▾ v0.│  ↑/k, ↓/j      move between items              x             close it, with a confirm        │      │
+│  ✓ 1 │  home/g, end/G jump to the first or last       u             reopen it                       │      │
+│  ○ 00│  pgup, pgdn    a screenful up or down          n             new item                        │      │
+│  ⊘ 00│  K, J          scroll the detail pane          y             copy the item's reference       │────  │
+│  ◐ 00│  ←/h, →/l      previous or next group — a co…  :             every command, by name          │      │
+│ ▾ no │  space         mark it for the next change —…  f             open the filter panel           │      │
+│  ○ 00│  tab, backtab  the next lens, or the one bef…  /             filter, in cairn's own grammar  │      │
+│      │  1…5           go straight to the first, sec…  S             order it by something else      │      │
+│      │  v             arrange it by something else    ctrl-s        type an order, in --sort's ow…  │────  │
+│      │  ctrl-v        step to the next arrangement    V             look at it the way the projec…  │      │
+│      │  ↵/o           read it in the panel, and dri…  Y             copy this view as a command l…  │      │
+│      │  e             open the item in your editor    a             show everything — finished, d…  │a     │
+│      │  N             add a line to the item's body…  esc           back out — one press leaves w…  │      │
+│      │  H             how this item got the way it …  r             re-read the backlog now         │      │
+│      │  A             accept the change somebody pr…  ctrl-r        reload the config and theme     │────  │
 │      │  ctrl-p        in a picker: ask for the chan…  ?             this help                       │      │
 │      │  t             tick an acceptance criterion …  q/ctrl-c      quit                            │      │
 │      │  c             claim it — assign it to you a…                                                │      │
@@ -25,8 +24,9 @@
 │      │  s             set the status                  double-click  read the item                   │      │
 │      │  <, >          move it back or forward throu…  drag          a card to another column, whi…  │      │
 │      │  p             set the priority                scroll        move the pane under the point…  │      │
+│      │  M             set the milestone               :toggle-mouse give the pointer back to the …  │      │
 │      │                                                                                              │      │
 │      ╰──────────────────────────────────────────────────────────────────────────────────────────────╯      │
 │                                                            ││                                              │
 ╰────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab views  ? help
+ ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab lenses  ? help
