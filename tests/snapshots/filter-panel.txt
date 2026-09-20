@@ -25,4 +25,4 @@
 │  ☐ docs             0  ││                                                              ││                                                │
 │                        ││                                                              ││                                                │
 ╰ 5 items ───────────────╯╰──────────────────────────────────────────────────────────────╯╰────────────────────────────────────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab views  ? help
+ ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab lenses  ? help

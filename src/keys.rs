@@ -253,10 +253,11 @@ impl Command {
     }
 
     /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 41] {
+    pub fn help_order() -> [Command; 42] {
         [
             Command::Down,
             Command::First,
+            Command::PageDown,
             Command::DetailDown,
             Command::PrevGroup,
             Command::ToggleGroup,
@@ -264,7 +265,6 @@ impl Command {
             Command::ViewLens(1),
             Command::GroupBy,
             Command::CycleGroup,
-            Command::SortBy,
             Command::Read,
             Command::Edit,
             Command::Note,
@@ -292,6 +292,7 @@ impl Command {
             Command::ToggleAll,
             Command::Back,
             Command::Refresh,
+            Command::Reload,
             Command::Diagnostics,
             Command::Check,
             Command::Help,
@@ -497,6 +498,14 @@ impl Keymap {
             .collect()
     }
 
+    /// How much room the overlay gives a row's keys.
+    ///
+    /// It pads to this and does not truncate, because half a key name is no
+    /// use to anybody — so a row wider than this does not get clipped, it
+    /// pushes its own description right and drags the next column out of
+    /// alignment. `a_help_row_fits_the_column_it_is_drawn_in` holds it.
+    pub const HELP_KEY_COLUMN: usize = 14;
+
     /// `(keys, description)` for the help overlay, generated from the active
     /// bindings rather than from a hardcoded list.
     pub fn help_rows(&self) -> Vec<(String, &'static str)> {
@@ -512,6 +521,10 @@ impl Keymap {
             let keys = match command {
                 Command::Down => pair(self.keys_for(Command::Up), keys),
                 Command::First => pair(keys, self.keys_for(Command::Last)),
+                Command::PageDown => {
+                    let first = |c| self.keys_for(c).into_iter().next().unwrap_or_default();
+                    pair(vec![first(Command::PageUp)], vec![first(Command::PageDown)])
+                }
                 Command::DetailDown => pair(self.keys_for(Command::DetailUp), keys),
                 Command::PrevGroup => pair(keys, self.keys_for(Command::NextGroup)),
                 Command::ViewBoard => pair(keys, self.keys_for(Command::ViewBack)),
@@ -532,6 +545,7 @@ impl Keymap {
             let describe = match command {
                 Command::Down => "move between items",
                 Command::First => "jump to the first or last",
+                Command::PageDown => "a screenful up or down",
                 Command::DetailDown => "scroll the detail pane",
                 Command::PrevGroup => "previous or next group — a column, on the board",
                 Command::ViewBoard => "the next lens, or the one before it",
@@ -551,6 +565,15 @@ impl Keymap {
             "a card to another column, which sets its status",
         ));
         rows.push(("scroll".to_string(), "move the pane under the pointer"));
+        // Capture is on from the first frame, which means the terminal's own
+        // drag-to-select is dead from the first frame. That is a fair trade
+        // for dragging a card between columns, but only if the way back is
+        // posted somewhere — and `help_rows` skips keyless commands, so the
+        // one command that undoes it can never reach this list on its own.
+        rows.push((
+            format!(":{}", Command::ToggleMouse.name()),
+            "give the pointer back to the terminal, to select text",
+        ));
         rows
     }
 
@@ -564,7 +587,7 @@ impl Keymap {
             (Command::Status, "status"),
             (Command::Close, "close"),
             (Command::Facets, "filter"),
-            (Command::ViewBoard, "views"),
+            (Command::ViewBoard, "lenses"),
             (Command::Help, "help"),
         ];
         wanted
@@ -768,6 +791,83 @@ mod tests {
             .collect();
         let expected: Vec<&str> = BY_NAME_ONLY.iter().map(|c| c.name()).collect();
         assert_eq!(keyless, expected, "the keymap gained or lost a demotion");
+    }
+
+    /// The overlay is the map, and a map that omits a road is worse than no
+    /// map: the reader stops looking. Paging was bound to the four keys
+    /// everyone expects and named in no row of it, and `sort-by` was named in
+    /// two, and the suite was green through both.
+    ///
+    /// So the contract, stated once: a command a hand can press is in the
+    /// overlay, or folded into the row of the command it pairs with, and
+    /// nothing is in it twice. A command with no key is the palette's
+    /// business and `a_command_has_a_key_unless_it_is_one_of_these` above is
+    /// where that is held.
+    #[test]
+    fn every_key_a_hand_can_press_is_somewhere_in_the_overlay() {
+        /// Two commands, one row, because `↑/k, ↓/j` reads as one idea and
+        /// two rows of it read as two. The left of each pair is the one the
+        /// row is filed under in `help_order`.
+        const FOLDED: &[(Command, Command)] = &[
+            (Command::Down, Command::Up),
+            (Command::First, Command::Last),
+            (Command::PageDown, Command::PageUp),
+            (Command::DetailDown, Command::DetailUp),
+            (Command::PrevGroup, Command::NextGroup),
+            (Command::ViewBoard, Command::ViewBack),
+            (Command::Advance, Command::Retreat),
+        ];
+
+        let order = Command::help_order();
+
+        let mut seen = Vec::new();
+        for command in order {
+            assert!(
+                !seen.contains(&command),
+                "`{}` is in the overlay twice",
+                command.name()
+            );
+            seen.push(command);
+        }
+
+        let map = Keymap::default();
+        for command in Command::ALL {
+            if map.keys_for(command).is_empty() {
+                continue;
+            }
+            // `1…5` is one row standing for five bindings, and only the first
+            // is filed; the others are reached through it.
+            if matches!(command, Command::ViewLens(n) if n > 1) {
+                continue;
+            }
+            let folded_into = FOLDED.iter().find(|(_, b)| *b == command).map(|(a, _)| *a);
+            let reached =
+                order.contains(&command) || folded_into.is_some_and(|a| order.contains(&a));
+            assert!(
+                reached,
+                "`{}` has a key and no row: put it in `help_order`, or fold it \
+                 into one there and say so in `FOLDED`",
+                command.name()
+            );
+        }
+    }
+
+    /// The overlay pads the key column rather than clipping it, so this is
+    /// not a cosmetic bound: `pgup/ctrl-u, pgdn/ctrl-d` is twenty-four
+    /// characters and it shoved its own description sideways and took the
+    /// right-hand column with it.
+    #[test]
+    fn a_help_row_fits_the_column_it_is_drawn_in() {
+        for (keys, _) in Keymap::default().help_rows() {
+            assert!(
+                keys.chars().count() <= Keymap::HELP_KEY_COLUMN,
+                "`{keys}` is {} wide and the column is {}; shorten the row \
+                 rather than widening the column, which narrows every \
+                 description in the overlay",
+                keys.chars().count(),
+                Keymap::HELP_KEY_COLUMN
+            );
+        }
     }
 
     #[test]

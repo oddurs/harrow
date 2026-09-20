@@ -3903,7 +3903,7 @@ fn draw_help(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
         .map(|(k, _)| k.chars().count())
         .max()
         .unwrap_or(8)
-        .clamp(8, 14);
+        .clamp(8, crate::keys::Keymap::HELP_KEY_COLUMN);
     let room = column_width.saturating_sub(key_col + 3);
 
     let cell = |(keys, description): &(String, &'static str)| {
