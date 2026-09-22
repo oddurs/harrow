@@ -23,4 +23,4 @@
 │                                                            ││                                              │
 │                                                            ││                                              │
 ╰────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
- ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab lenses  ? help
+ ● grouped by status

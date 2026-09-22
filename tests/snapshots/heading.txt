@@ -1,0 +1,20 @@
+ sample    needs  list  board  stats  log    1 needs you                                             starting
+ f filter ▾  S status priority id ▾  v status ▾                                            ◐ 1  ○ 3  ✓ 1  ⊘ 1
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭ Backlog ───────────────────────────────────────────────────╮╭ backlog ─────────────────────────────────────╮
+│ ▾ backlog                              ▱▱▱▱▱▱   0%  4 left ││ ▾ backlog                                    │
+│  ○ 0005 The detail pane scrolls past its pane           p1 ││   4 items · 3 listed                         │
+│  ⊘ 0004 Draw the board                                  p2 ││                                              │
+│  ○ 0006 Write the readme                             ?  p3 ││   Progress ────────────────────────────────  │
+│ ▾ in progress                          ▱▱▱▱▱▱   0%  1 left ││   ▱▱▱▱▱▱▱▱▱▱▱▱  0%                           │
+│  ◐ 0003 Draw the list                      1/2  @oddur  p1 ││   0 done · 4 left · 1 blocked                │
+│                                                            ││                                              │
+│                                                            ││   space folds it away                        │
+│                                                            ││                                              │
+│                                                            ││                                              │
+│                                                            ││                                              │
+│                                                            ││                                              │
+│                                                            ││                                              │
+│                                                            ││                                              │
+╰────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
+ ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab lenses  ? help

@@ -50,9 +50,28 @@ fn the_statistics_in_one_column() {
 #[test]
 fn grouped_by_status() {
     let mut app = support::app();
-    app.group_by = "status".into();
-    app.rebuild();
+    // Through the way a reader regroups, which keeps the cursor on the item it
+    // was on. Setting the field and rebuilding keeps the row number instead,
+    // and after a regroup that row is somebody else.
+    app.set_grouping("status");
     support::assert_snapshot("by-status", &ui::render_to_string(&mut app, 110, 26, 0));
+}
+
+/// A heading with no item behind it, under the cursor. It keeps the detail
+/// pane — which would otherwise drop out and move the list sideways — and says
+/// what the group holds and how to fold it.
+#[test]
+fn a_heading_under_the_cursor() {
+    let mut app = support::app();
+    app.set_grouping("status");
+    app.toast = None;
+    let heading = app
+        .rows
+        .iter()
+        .position(|r| matches!(r, harrow::app::Row::Group(_)))
+        .expect("a heading");
+    app.selected = heading;
+    support::assert_snapshot("heading", &ui::render_to_string(&mut app, 110, 20, 0));
 }
 
 #[test]

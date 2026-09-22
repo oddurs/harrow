@@ -126,7 +126,7 @@ Three questions decide what is on screen — which items, in what order,
 
 ## v1.0 — Stable release
 
-`##········` 19% · 3 of 16 done · due 2027-05-01
+`###·······` 22% · 4 of 18 done · due 2027-05-01
 
 Documented, tested, and safe to depend on.
 
@@ -144,6 +144,7 @@ Documented, tested, and safe to depend on.
 - [ ] `0051` Select the item a cairn check finding names <sup>feature · p3 · chrome</sup>
 - [ ] `0052` A digit in a picker does not pick outright <sup>bug · p3 · chrome</sup>
 - [ ] `0077` The log reads the repository it was pointed at <sup>bug · p2 · read</sup>
+- [ ] `0096` A rebuild keeps the row number rather than the thing on it <sup>bug · p2 · read</sup>
 
 ### in progress
 
@@ -154,6 +155,7 @@ Documented, tested, and safe to depend on.
 - [x] `0045` Soak it against backlogs nobody wrote by hand <sup>chore · p1 · testing</sup>
 - [x] `0046` Every screen, at every size it can be given <sup>chore · p2 · testing</sup>
 - [x] `0070` The randomised suite has never pressed half the keys <sup>bug · p1 · testing</sup>
+- [x] `0095` The tree does not fold from the keyboard <sup>bug · p0 · chrome</sup>
 
 ## later — Someday
 

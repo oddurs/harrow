@@ -351,12 +351,15 @@ fn the_panel_keeps_its_place_in_each_item_separately() {
     // Out of the panel, then along the list: the cursor moves, the panel
     // follows, and the place it was left at belongs to the item rather than to
     // the pane.
+    // Up rather than down: below this item is a heading, which the cursor
+    // stops on now that the tree can be folded from the keyboard, and the
+    // point here is two items.
     app.handle_key(KeyCode::Esc, KeyModifiers::NONE);
-    app.handle_key(KeyCode::Down, KeyModifiers::NONE);
+    app.handle_key(KeyCode::Up, KeyModifiers::NONE);
     let second = app.selected_item().map(|i| i.id).expect("another item");
     assert_eq!(app.reader.at(second), 0, "a new item starts at its top");
 
-    app.handle_key(KeyCode::Up, KeyModifiers::NONE);
+    app.handle_key(KeyCode::Down, KeyModifiers::NONE);
     assert_eq!(app.reader.at(first), 2, "and stepping back returns to it");
 }
 

@@ -835,6 +835,19 @@ fn finished_line(app: &App, t: &Theme, idx: usize, width: usize) -> ListItem<'st
     ]))
 }
 
+/// How a heading's name is drawn, wherever it is drawn: on its row, and in the
+/// detail pane when the cursor is on it. The list's own axis — a group heading
+/// is part of the list, not the board.
+fn group_name_style(app: &App, t: &Theme, g: &crate::app::Group) -> Style {
+    match app.group_by.as_str() {
+        "status" => Style::default()
+            .fg(t.status(app.schema.status(&g.key)))
+            .bold(),
+        _ if g.key.is_empty() => Style::default().fg(t.faint).italic(),
+        _ => Style::default().fg(t.milestone).bold(),
+    }
+}
+
 fn group_line(app: &App, t: &Theme, idx: usize, width: usize) -> ListItem<'static> {
     let g = &app.groups[idx];
     let collapsed = app.collapsed.contains(&g.key);
@@ -870,14 +883,7 @@ fn group_line(app: &App, t: &Theme, idx: usize, width: usize) -> ListItem<'stati
     let name = truncate(&g.label, budget);
     let pad = budget.saturating_sub(name.chars().count());
 
-    // The list's own axis: a group heading is part of the list, not the board.
-    let name_style = match app.group_by.as_str() {
-        "status" => Style::default()
-            .fg(t.status(app.schema.status(&g.key)))
-            .bold(),
-        _ if g.key.is_empty() => Style::default().fg(t.faint).italic(),
-        _ => Style::default().fg(t.milestone).bold(),
-    };
+    let name_style = group_name_style(app, t, g);
 
     ListItem::new(Line::from(vec![
         Span::styled(marker, Style::default().fg(t.faint)),
@@ -1292,7 +1298,10 @@ fn split_off_detail(app: &App, body: Rect) -> (Rect, Option<Rect>) {
         Pane::Board => COLUMN_MIN * app.columns.len().max(1) as u16 + DETAIL_WIDTH,
         Pane::Stats => STATS_TWO_COLUMN + DETAIL_WIDTH,
     };
-    if body.width < needed || app.selected_item().is_none() {
+    // A heading with no item behind it still has something to say, and a
+    // pane that came and went as the cursor crossed each heading would move
+    // the whole list sideways on every press.
+    if body.width < needed || (app.selected_item().is_none() && app.selected_group().is_none()) {
         return (body, None);
     }
     let split = Layout::default()
@@ -1307,7 +1316,75 @@ fn split_off_detail(app: &App, body: Rect) -> (Rect, Option<Rect>) {
     (split[0], Some(split[1]))
 }
 
-/// Where the filter panel goes, and what is left for everything else.
+/// A heading with no item behind it: what the group holds, how far along it
+/// is, and — because the cursor is on a fold — how to fold it.
+fn draw_group_detail(f: &mut Frame, app: &App, t: &Theme, g: &crate::app::Group, area: Rect) {
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(t.border))
+        .padding(Padding::horizontal(1))
+        .title(Span::styled(
+            format!(" {} ", g.label),
+            Style::default().fg(t.muted),
+        ));
+    let width = block.inner(area).width as usize;
+
+    let collapsed = app.collapsed.contains(&g.key);
+    let marker = if collapsed { "▸ " } else { "▾ " };
+    let noun = if g.count == 1 { "item" } else { "items" };
+    let left = g.count.saturating_sub(g.done);
+    let percent = g.percent(&app.items);
+
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled(marker, Style::default().fg(t.faint)),
+            Span::styled(g.label.clone(), group_name_style(app, t, g)),
+        ]),
+        // `count` is everything under the heading and `shown` is the rows —
+        // a milestone that is itself an item, finished work behind `a`, and
+        // whatever the filter holds back all make them differ. Say both, and
+        // not which of those it was: the pane does not know, and a reason
+        // given wrongly is worse than none.
+        Line::from(Span::styled(
+            if g.shown < g.count {
+                format!("  {} {noun} · {} listed", g.count, g.shown)
+            } else {
+                format!("  {} {noun}", g.count)
+            },
+            Style::default().fg(t.muted),
+        )),
+        Line::from(""),
+        section("Progress", t, width),
+        Line::from(vec![
+            Span::raw("  "),
+            Span::styled(progress_bar(percent, 12), Style::default().fg(t.milestone)),
+            Span::styled(format!("  {percent}%"), Style::default().fg(t.muted)),
+        ]),
+        Line::from(Span::styled(
+            format!("  {} done · {left} left · {} blocked", g.done, g.blocked),
+            Style::default().fg(t.muted),
+        )),
+    ];
+    // The fold is why the cursor can be here at all, so the pane says how,
+    // in whatever key this user has it on.
+    if let Some(key) = app.keymap.keys_for(Command::ToggleGroup).into_iter().next() {
+        let does = if collapsed {
+            "opens it"
+        } else {
+            "folds it away"
+        };
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(key, Style::default().fg(t.accent).bold()),
+            Span::styled(format!(" {does}"), Style::default().fg(t.faint)),
+        ]));
+    }
+
+    f.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+/// Where the filter panel goes, and what is left for everything else./// Where the filter panel goes, and what is left for everything else.
 ///
 /// Placed by the room, the way the reader is. With enough left over it takes a
 /// column off the left and the backlog carries on beside it; without, it takes
@@ -1492,6 +1569,12 @@ fn split_off_reader(app: &App, body: Rect) -> (Option<Rect>, Rect) {
 // ── The detail pane ──────────────────────────────────────────────────────────
 
 fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
+    if app.selected_item().is_none()
+        && let Some(g) = app.selected_group()
+    {
+        draw_group_detail(f, app, t, g, area);
+        return;
+    }
     let Some(item) = app.selected_item() else {
         f.render_widget(
             Paragraph::new(Line::from(Span::styled(

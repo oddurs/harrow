@@ -34,13 +34,17 @@ fn h_and_l_do_what_the_arrows_do() {
 fn l_no_longer_writes_to_the_backlog() {
     let mut app = testkit::app();
     app.select_id(5);
-    let before = app.selected_item().map(|i| i.status.clone());
+    // Item 5 itself, not whatever is under the cursor afterwards: `l` moves
+    // the cursor, so comparing the selection compared two different things.
+    let status_of = |app: &App| {
+        app.items
+            .iter()
+            .find(|i| i.id == 5)
+            .map(|i| i.status.clone())
+    };
+    let before = status_of(&app);
     press(&mut app, 'l');
-    assert_eq!(
-        app.selected_item().map(|i| i.status.clone()),
-        before,
-        "`l` still moved it"
-    );
+    assert_eq!(status_of(&app), before, "`l` still moved it");
     assert!(app.toast.is_none(), "`l` still announced a change");
 }
 

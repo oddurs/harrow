@@ -2361,19 +2361,20 @@ impl App {
 
     // ── Moving about ─────────────────────────────────────────────────────────
 
-    /// Group headers are only landable when collapsed — otherwise the cursor
-    /// would stop on a row with nothing behind it in the detail pane.
+    /// Every row the tree draws, because a fold is a control and a control
+    /// the cursor cannot reach is not one.
+    ///
+    /// Headings used to be landable only while shut, to keep the cursor off a
+    /// row with nothing behind it in the detail pane. It bought that at the
+    /// price of the fold: nothing on the keyboard could shut an open heading,
+    /// so the tree opened and stayed open unless you had a pointer. The pane
+    /// is the thing to fix — `Row::Group` resolves to the milestone's item
+    /// where there is one, and to the group itself where there is not.
     fn is_selectable(&self, idx: usize) -> bool {
-        match self.rows.get(idx) {
-            Some(Row::Item(_)) => true,
-            // The fold is a control, so the cursor has to be able to reach it.
-            Some(Row::Finished(_)) => true,
-            Some(Row::Group(g)) => self
-                .groups
-                .get(*g)
-                .is_some_and(|g| self.collapsed.contains(&g.key)),
-            None => false,
-        }
+        matches!(
+            self.rows.get(idx),
+            Some(Row::Item(_) | Row::Finished(_) | Row::Group(_))
+        )
     }
 
     pub fn clamp(&mut self) {
@@ -2411,6 +2412,23 @@ impl App {
         (from + 1..self.rows.len())
             .chain((0..from).rev())
             .find(|i| self.is_selectable(*i))
+    }
+
+    /// The heading under the cursor, in the list.
+    ///
+    /// A heading with an item behind it — a milestone — is also
+    /// `selected_item`, and the detail pane shows the item. One without — `no
+    /// milestone`, a status, a priority — is only this, and the pane reads the
+    /// group rather than going blank under a cursor that is plainly on
+    /// something.
+    pub fn selected_group(&self) -> Option<&Group> {
+        if self.pane != Pane::List {
+            return None;
+        }
+        match self.rows.get(self.selected)? {
+            Row::Group(g) => self.groups.get(*g),
+            _ => None,
+        }
     }
 
     pub fn selected_item(&self) -> Option<&Item> {
@@ -2578,22 +2596,21 @@ impl App {
         if headers.is_empty() {
             return;
         }
+        // Back is the last heading before the cursor, which from inside a
+        // group is that group's own: the parent first, the way a tree goes,
+        // and one press from folding what you are in. It used to reach past
+        // its own heading from a group's first row and not from its others,
+        // because a heading could not be stood on and the first row stood in
+        // for it.
         let target = if forward {
             headers.iter().find(|h| **h > self.selected).copied()
         } else {
-            headers
-                .iter()
-                .rev()
-                .find(|h| **h < self.selected.saturating_sub(1))
-                .copied()
+            headers.iter().rev().find(|h| **h < self.selected).copied()
         };
         let Some(header) = target.or_else(|| headers.first().copied()) else {
             return;
         };
         self.selected = header;
-        if !self.is_selectable(header) {
-            self.selected = header + 1;
-        }
         self.clamp();
     }
 
@@ -2801,6 +2818,20 @@ impl App {
         };
         if !self.marked.remove(&id) {
             self.marked.insert(id);
+        }
+        // On to the next item, not the next row. A run of `space` is marking
+        // items, and the heading between two groups is a fold: stopping on it
+        // would turn the next press into folding a group away mid-run.
+        // `mark_range` already skips headings for the same reason.
+        if self.pane == Pane::List && !self.rows.is_empty() {
+            let len = self.rows.len();
+            if let Some(next) = (1..len)
+                .map(|step| (self.selected + step) % len)
+                .find(|&r| matches!(self.rows.get(r), Some(Row::Item(_))))
+            {
+                self.selected = next;
+            }
+            return;
         }
         self.move_by(1);
     }
