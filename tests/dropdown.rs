@@ -187,13 +187,20 @@ fn clicking_a_segment_opens_it_and_clicking_a_row_takes_it() {
         .find(|(_, hit)| matches!(hit, Hit::Run(Command::GroupBy)))
         .map(|(rect, _)| *rect)
         .expect("a grouping segment");
+    // Down and up, as a terminal sends a click: the row is taken on the way
+    // up, the way a menu takes it.
     let click = |app: &mut App, x: u16, y: u16| {
-        app.handle_mouse(MouseEvent {
-            kind: MouseEventKind::Down(MouseButton::Left),
-            column: x,
-            row: y,
-            modifiers: KeyModifiers::NONE,
-        })
+        for kind in [
+            MouseEventKind::Down(MouseButton::Left),
+            MouseEventKind::Up(MouseButton::Left),
+        ] {
+            app.handle_mouse(MouseEvent {
+                kind,
+                column: x,
+                row: y,
+                modifiers: KeyModifiers::NONE,
+            });
+        }
     };
     click(&mut app, segment.x, segment.y);
     assert!(app.dropdown.is_some(), "the click did not open it");
