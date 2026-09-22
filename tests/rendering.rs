@@ -116,6 +116,8 @@ fn the_help_overlay() {
     let mut app = support::app();
     app.help = true;
     support::assert_snapshot("help", &ui::render_to_string(&mut app, 110, 32, 0));
+    // Shorter than the overlay: it scrolls, and its edge says so.
+    support::assert_snapshot("help-short", &ui::render_to_string(&mut app, 110, 20, 0));
 }
 
 #[test]

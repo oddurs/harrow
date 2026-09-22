@@ -206,7 +206,7 @@ impl Command {
             Command::Last => "jump to the last item",
             Command::DetailDown => "scroll the detail pane down",
             Command::DetailUp => "scroll the detail pane up",
-            Command::ToggleGroup => "mark it for the next change — a heading folds",
+            Command::ToggleGroup => "mark it, or fold a heading",
             Command::PrevGroup => "previous group — column, on the board",
             Command::NextGroup => "next group — column, on the board",
             Command::ViewBoard => "switch between the list, the board and the stats",
@@ -252,52 +252,94 @@ impl Command {
         }
     }
 
-    /// Rows shown in the help overlay, in the order they appear.
-    pub fn help_order() -> [Command; 42] {
-        [
-            Command::Down,
-            Command::First,
-            Command::PageDown,
-            Command::DetailDown,
-            Command::PrevGroup,
-            Command::ToggleGroup,
-            Command::ViewBoard,
-            Command::ViewLens(1),
-            Command::GroupBy,
-            Command::CycleGroup,
-            Command::Read,
-            Command::Edit,
-            Command::Note,
-            Command::History,
-            Command::Accept,
-            Command::Propose,
-            Command::Tick,
-            Command::Claim,
-            Command::Release,
-            Command::Status,
-            Command::Advance,
-            Command::Priority,
-            Command::Milestone,
-            Command::Close,
-            Command::Reopen,
-            Command::New,
-            Command::Copy,
-            Command::Palette,
-            Command::Facets,
-            Command::Filter,
-            Command::Sort,
-            Command::SortBy,
-            Command::Views,
-            Command::CopyView,
-            Command::ToggleAll,
-            Command::Back,
-            Command::Refresh,
-            Command::Reload,
-            Command::Diagnostics,
-            Command::Check,
-            Command::Help,
-            Command::Quit,
-        ]
+    /// The overlay, by what a reader has come to it to do.
+    ///
+    /// It was forty-two rows in one run, in an order only its author could
+    /// navigate — in a program whose whole purpose is putting structure on a
+    /// list too long to take in at once. A reader looking for how to set a
+    /// status knows it is a change and not a way of looking; the heading lets
+    /// them go straight there.
+    ///
+    /// Sections are kept whole on screen, so their sizes decide how the two
+    /// columns balance. `Change` is the biggest by far and that is honest:
+    /// most of what harrow does is write to the backlog.
+    pub const HELP_SECTIONS: &[(&'static str, &'static [Command])] = &[
+        (
+            "Move",
+            &[
+                Command::Down,
+                Command::First,
+                Command::PageDown,
+                Command::DetailDown,
+                Command::PrevGroup,
+            ],
+        ),
+        (
+            "Look",
+            &[
+                Command::ViewBoard,
+                Command::ViewLens(1),
+                Command::GroupBy,
+                Command::CycleGroup,
+                Command::Sort,
+                Command::SortBy,
+                Command::Views,
+                Command::ToggleAll,
+            ],
+        ),
+        (
+            "Find",
+            &[Command::Filter, Command::Facets, Command::Palette],
+        ),
+        (
+            "Read and copy",
+            &[
+                Command::Read,
+                Command::History,
+                Command::Copy,
+                Command::CopyView,
+            ],
+        ),
+        (
+            "Change",
+            &[
+                Command::ToggleGroup,
+                Command::Claim,
+                Command::Release,
+                Command::Status,
+                Command::Advance,
+                Command::Priority,
+                Command::Milestone,
+                Command::Tick,
+                Command::Accept,
+                Command::Propose,
+                Command::Note,
+                Command::Edit,
+                Command::Close,
+                Command::Reopen,
+                Command::New,
+            ],
+        ),
+        (
+            "Program",
+            &[
+                Command::Back,
+                Command::Refresh,
+                Command::Reload,
+                Command::Diagnostics,
+                Command::Check,
+                Command::Help,
+                Command::Quit,
+            ],
+        ),
+    ];
+
+    /// Every command the overlay files, in the order it files them.
+    pub fn help_order() -> Vec<Command> {
+        Self::HELP_SECTIONS
+            .iter()
+            .flat_map(|(_, commands)| commands.iter().copied())
+            .collect()
     }
 }
 
@@ -506,75 +548,98 @@ impl Keymap {
     /// alignment. `a_help_row_fits_the_column_it_is_drawn_in` holds it.
     pub const HELP_KEY_COLUMN: usize = 14;
 
-    /// `(keys, description)` for the help overlay, generated from the active
-    /// bindings rather than from a hardcoded list.
-    pub fn help_rows(&self) -> Vec<(String, &'static str)> {
-        let mut rows = Vec::new();
-        for command in Command::help_order() {
-            let keys = self.keys_for(command);
-            if keys.is_empty() {
-                continue;
-            }
-            // Pairs read better as one row than as two, and the two separators
-            // have to differ or `↑ / k / ↓ / j` looks like four alternatives to
-            // one action.
-            let keys = match command {
-                Command::Down => pair(self.keys_for(Command::Up), keys),
-                Command::First => pair(keys, self.keys_for(Command::Last)),
-                Command::PageDown => {
-                    let first = |c| self.keys_for(c).into_iter().next().unwrap_or_default();
-                    pair(vec![first(Command::PageUp)], vec![first(Command::PageDown)])
-                }
-                Command::DetailDown => pair(self.keys_for(Command::DetailUp), keys),
-                Command::PrevGroup => pair(keys, self.keys_for(Command::NextGroup)),
-                Command::ViewBoard => pair(keys, self.keys_for(Command::ViewBack)),
-                // Five bindings, one row: "1…5" says it and a list of them
-                // would be the widest row in the overlay for no more meaning.
-                Command::ViewLens(_) => {
-                    let bound: Vec<String> = (1..=5)
-                        .filter_map(|n| self.keys_for(Command::ViewLens(n)).into_iter().next())
-                        .collect();
-                    match (bound.first(), bound.last()) {
-                        (Some(a), Some(b)) if bound.len() > 1 => format!("{a}…{b}"),
-                        _ => bound.join("/"),
-                    }
-                }
-                Command::Advance => pair(self.keys_for(Command::Retreat), keys),
-                _ => keys.join("/"),
-            };
-            let describe = match command {
-                Command::Down => "move between items",
-                Command::First => "jump to the first or last",
-                Command::PageDown => "a screenful up or down",
-                Command::DetailDown => "scroll the detail pane",
-                Command::PrevGroup => "previous or next group — a column, on the board",
-                Command::ViewBoard => "the next lens, or the one before it",
-                Command::ViewLens(_) => "go straight to the first, second, … lens",
-                Command::Advance => "move it back or forward through the statuses",
-                other => other.describe(),
-            };
-            rows.push((keys, describe));
-        }
+    /// The overlay, section by section, from the active bindings rather than
+    /// from a hardcoded list. A section whose every command has been bound
+    /// away is left out rather than drawn as a heading over nothing.
+    pub fn help_sections(&self) -> Vec<HelpSection> {
+        let mut sections: Vec<HelpSection> = Command::HELP_SECTIONS
+            .iter()
+            .map(|(title, commands)| HelpSection {
+                title,
+                rows: commands.iter().filter_map(|c| self.help_row(*c)).collect(),
+            })
+            .filter(|section| !section.rows.is_empty())
+            .collect();
         // The pointer is not a second-class way to drive this, so the help
         // says what it does rather than leaving it to be discovered.
-        rows.push((String::new(), ""));
-        rows.push(("click".to_string(), "a tab, a status, a row, a footer hint"));
-        rows.push(("double-click".to_string(), "read the item"));
-        rows.push((
-            "drag".to_string(),
-            "a card to another column, which sets its status",
-        ));
-        rows.push(("scroll".to_string(), "move the pane under the pointer"));
-        // Capture is on from the first frame, which means the terminal's own
-        // drag-to-select is dead from the first frame. That is a fair trade
-        // for dragging a card between columns, but only if the way back is
-        // posted somewhere — and `help_rows` skips keyless commands, so the
-        // one command that undoes it can never reach this list on its own.
-        rows.push((
-            format!(":{}", Command::ToggleMouse.name()),
-            "give the pointer back to the terminal, to select text",
-        ));
-        rows
+        sections.push(HelpSection {
+            title: "Pointer",
+            rows: vec![
+                ("click".to_string(), "a tab, a status, a row, a footer hint"),
+                ("double-click".to_string(), "read the item"),
+                (
+                    "drag".to_string(),
+                    "a card to another column, which sets its status",
+                ),
+                ("scroll".to_string(), "move the pane under the pointer"),
+                // Capture is on from the first frame, which means the
+                // terminal's own drag-to-select is dead from the first frame.
+                // That is a fair trade for dragging a card between columns,
+                // but only if the way back is posted somewhere — and a
+                // keyless command never earns a row of its own.
+                (
+                    format!(":{}", Command::ToggleMouse.name()),
+                    "give the pointer back to the terminal, to select text",
+                ),
+            ],
+        });
+        sections
+    }
+
+    /// Every row of the overlay, without its headings.
+    pub fn help_rows(&self) -> Vec<(String, &'static str)> {
+        self.help_sections()
+            .into_iter()
+            .flat_map(|section| section.rows)
+            .collect()
+    }
+
+    /// One command's row: its keys, paired where two commands read as one
+    /// idea, and what it does. `None` for a command with no key.
+    fn help_row(&self, command: Command) -> Option<(String, &'static str)> {
+        let keys = self.keys_for(command);
+        if keys.is_empty() {
+            return None;
+        }
+        // Pairs read better as one row than as two, and the two separators
+        // have to differ or `↑ / k / ↓ / j` looks like four alternatives to
+        // one action.
+        let keys = match command {
+            Command::Down => pair(self.keys_for(Command::Up), keys),
+            Command::First => pair(keys, self.keys_for(Command::Last)),
+            Command::PageDown => {
+                let first = |c| self.keys_for(c).into_iter().next().unwrap_or_default();
+                pair(vec![first(Command::PageUp)], vec![first(Command::PageDown)])
+            }
+            Command::DetailDown => pair(self.keys_for(Command::DetailUp), keys),
+            Command::PrevGroup => pair(keys, self.keys_for(Command::NextGroup)),
+            Command::ViewBoard => pair(keys, self.keys_for(Command::ViewBack)),
+            // Five bindings, one row: "1…5" says it and a list of them
+            // would be the widest row in the overlay for no more meaning.
+            Command::ViewLens(_) => {
+                let bound: Vec<String> = (1..=5)
+                    .filter_map(|n| self.keys_for(Command::ViewLens(n)).into_iter().next())
+                    .collect();
+                match (bound.first(), bound.last()) {
+                    (Some(a), Some(b)) if bound.len() > 1 => format!("{a}…{b}"),
+                    _ => bound.join("/"),
+                }
+            }
+            Command::Advance => pair(self.keys_for(Command::Retreat), keys),
+            _ => keys.join("/"),
+        };
+        let describe = match command {
+            Command::Down => "move between items",
+            Command::First => "jump to the first or last",
+            Command::PageDown => "a screenful up or down",
+            Command::DetailDown => "scroll the detail pane",
+            Command::PrevGroup => "previous or next group — a column, on the board",
+            Command::ViewBoard => "the next lens, or the one before it",
+            Command::ViewLens(_) => "go straight to the first, second, … lens",
+            Command::Advance => "move it back or forward through the statuses",
+            other => other.describe(),
+        };
+        Some((keys, describe))
     }
 
     /// The short hints along the bottom of the screen, each with the command
@@ -620,6 +685,13 @@ impl Keymap {
 }
 
 /// `↑/k, ↓/j` — alternatives within a group, groups separated by a comma.
+/// One heading of the help overlay and the rows filed under it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HelpSection {
+    pub title: &'static str,
+    pub rows: Vec<(String, &'static str)>,
+}
+
 fn pair(first: Vec<String>, second: Vec<String>) -> String {
     match (first.is_empty(), second.is_empty()) {
         (true, _) => second.join("/"),
@@ -821,7 +893,7 @@ mod tests {
         let order = Command::help_order();
 
         let mut seen = Vec::new();
-        for command in order {
+        for &command in &order {
             assert!(
                 !seen.contains(&command),
                 "`{}` is in the overlay twice",

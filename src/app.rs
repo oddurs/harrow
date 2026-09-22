@@ -829,6 +829,10 @@ pub struct App {
     pub dropdown: Option<Dropdown>,
     pub confirm: Option<Confirm>,
     pub help: bool,
+    /// How far down the help overlay is scrolled. It is taller than a short
+    /// terminal, and a map with its bottom cut off is a map that lies about
+    /// where the roads end. Clamped when drawn, where the height is known.
+    pub help_scroll: u16,
     pub diagnostics: bool,
     pub mouse: bool,
 
@@ -993,6 +997,7 @@ impl App {
             dropdown: None,
             confirm: None,
             help: false,
+            help_scroll: 0,
             diagnostics: false,
             mouse: true,
             loading: true,
@@ -3983,6 +3988,29 @@ impl App {
             return Action::None;
         }
         if self.help || self.diagnostics {
+            // The keys that move move the overlay, because it can be taller
+            // than the screen; anything else puts it away, as it always did.
+            // Read through the keymap, so a rebound `j` scrolls here too.
+            if self.help {
+                let to = match self.keymap.lookup(code, mods) {
+                    Some(Command::Down | Command::DetailDown) => {
+                        Some(self.help_scroll.saturating_add(1))
+                    }
+                    Some(Command::Up | Command::DetailUp) => {
+                        Some(self.help_scroll.saturating_sub(1))
+                    }
+                    Some(Command::PageDown) => Some(self.help_scroll.saturating_add(10)),
+                    Some(Command::PageUp) => Some(self.help_scroll.saturating_sub(10)),
+                    Some(Command::First) => Some(0),
+                    // As far as it goes; the draw knows how far that is.
+                    Some(Command::Last) => Some(u16::MAX),
+                    _ => None,
+                };
+                if let Some(to) = to {
+                    self.help_scroll = to;
+                    return Action::None;
+                }
+            }
             self.help = false;
             self.diagnostics = false;
             return Action::None;
@@ -4526,7 +4554,10 @@ impl App {
             }
             Command::Reload => return Action::Reload,
             Command::Diagnostics => self.diagnostics = true,
-            Command::Help => self.help = true,
+            Command::Help => {
+                self.help = true;
+                self.help_scroll = 0;
+            }
             Command::ToggleMouse => {
                 self.mouse = !self.mouse;
                 let msg = if self.mouse {

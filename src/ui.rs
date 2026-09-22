@@ -3962,27 +3962,26 @@ fn draw_picker(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     }
 }
 
-fn draw_help(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+fn draw_help(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     // Generated from the active bindings. A help screen that lists the defaults
     // while the user runs something else is worse than no help screen.
-    let rows = app.keymap.help_rows();
+    let sections = app.keymap.help_sections();
 
-    // Two columns where there is room, because the list is now long enough to
-    // run off a short terminal and a help screen you have to scroll is one
-    // nobody finishes reading.
-    let columns = if area.width >= 100 && rows.len() > 14 {
-        2
-    } else {
-        1
-    };
-    let per_column = rows.len().div_ceil(columns);
+    // Two columns where there is room. Each section is kept whole, and they
+    // stay in order: a heading at the foot of one column with its rows at the
+    // head of the next is a heading over nothing.
+    let columns = if area.width >= 100 { 2 } else { 1 };
     let column_width = 46usize;
-    let width = ((column_width * columns + 4) as u16).min(area.width.saturating_sub(4));
-    let height = ((per_column + 4) as u16).min(area.height.saturating_sub(2));
-    let popup = centered(area, width, height);
+    let heights: Vec<usize> = sections.iter().map(|s| s.rows.len() + 1).collect();
+    let split = if columns == 2 {
+        balanced_split(&heights)
+    } else {
+        sections.len()
+    };
 
-    let key_col = rows
+    let key_col = sections
         .iter()
+        .flat_map(|s| s.rows.iter())
         .map(|(k, _)| k.chars().count())
         .max()
         .unwrap_or(8)
@@ -3990,9 +3989,6 @@ fn draw_help(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     let room = column_width.saturating_sub(key_col + 3);
 
     let cell = |(keys, description): &(String, &'static str)| {
-        if keys.is_empty() {
-            return vec![Span::raw(" ".repeat(column_width))];
-        }
         let description = truncate(description, room);
         let pad = column_width.saturating_sub(key_col + 3 + description.chars().count());
         vec![
@@ -4006,28 +4002,88 @@ fn draw_help(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
             Span::raw(" ".repeat(pad)),
         ]
     };
+    // The detail pane's own section rule, so a heading reads the same
+    // wherever harrow draws one.
+    let lay = |group: &[crate::keys::HelpSection]| -> Vec<Vec<Span<'static>>> {
+        let mut out = Vec::new();
+        for section in group {
+            out.push(section_cell(section.title, t, column_width));
+            out.extend(section.rows.iter().map(&cell));
+        }
+        out
+    };
+    let (left, right) = sections.split_at(split);
+    let (left, right) = (lay(left), lay(right));
+    let content = left.len().max(right.len());
 
-    let mut lines = vec![Line::from("")];
-    for n in 0..per_column {
-        let mut spans = cell(&rows[n]);
-        if columns == 2
-            && let Some(right) = rows.get(n + per_column)
-        {
-            spans.extend(cell(right));
+    // Borders only. The first row is a heading, which parts itself from the
+    // title the way the detail pane's first row does; the blank line that
+    // used to sit there was the one row between `:toggle-mouse` and the
+    // bottom edge at a common height.
+    const FRAME: usize = 2;
+    let width = ((column_width * columns + 4) as u16).min(area.width.saturating_sub(4));
+    let height = ((content + FRAME) as u16).min(area.height.saturating_sub(2));
+    let visible = (height as usize).saturating_sub(FRAME);
+
+    // Clamped here because here is where the height is known, the way the
+    // detail pane clamps its own.
+    let over = content.saturating_sub(visible);
+    app.help_scroll = app.help_scroll.min(over as u16);
+    let from = app.help_scroll as usize;
+
+    let blank = || vec![Span::raw(" ".repeat(column_width))];
+    let mut lines = Vec::with_capacity(visible);
+    for n in from..(from + visible).min(content) {
+        let mut spans = left.get(n).cloned().unwrap_or_else(blank);
+        if columns == 2 {
+            spans.extend(right.get(n).cloned().unwrap_or_else(blank));
         }
         lines.push(Line::from(spans));
     }
 
+    let popup = centered(area, width, height);
+    let mut block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(t.border_focus))
+        .title(Span::styled(" Keys ", Style::default().fg(t.accent).bold()));
+    // A map with more below its edge says so, with the keys that reach it.
+    if over > 0
+        && let Some(keys) = app.keymap.scroll_hint(Command::Up, Command::Down)
+    {
+        block = block.title_bottom(Span::styled(
+            format!(" {keys} scroll "),
+            Style::default().fg(t.faint),
+        ));
+    }
     f.render_widget(Clear, popup);
-    f.render_widget(
-        Paragraph::new(lines).block(
-            Block::bordered()
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(t.border_focus))
-                .title(Span::styled(" Keys ", Style::default().fg(t.accent).bold())),
-        ),
-        popup,
-    );
+    f.render_widget(Paragraph::new(lines).block(block), popup);
+}
+
+/// Where to break a run of sections into two columns, keeping each whole and
+/// the order intact: the point that leaves the taller column shortest. A tie
+/// goes to the later break, so what there is sits on the left — one section
+/// on its own is drawn in the first column, not the second beside a blank.
+fn balanced_split(heights: &[usize]) -> usize {
+    let total: usize = heights.iter().sum();
+    let mut best = (usize::MAX, 0);
+    let mut left = 0;
+    for k in 0..=heights.len() {
+        let tallest = left.max(total - left);
+        if tallest <= best.0 {
+            best = (tallest, k);
+        }
+        left += heights.get(k).copied().unwrap_or(0);
+    }
+    best.1
+}
+
+/// A section heading sized to one help column, as spans so two can sit on a
+/// line.
+fn section_cell(name: &str, t: &Theme, width: usize) -> Vec<Span<'static>> {
+    let mut spans = section(name, t, width).spans;
+    let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+    spans.push(Span::raw(" ".repeat(width.saturating_sub(used))));
+    spans
 }
 
 fn draw_diagnostics(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
@@ -4499,6 +4555,31 @@ pub fn render_frame(
 
 #[cfg(test)]
 mod tests {
+    use super::balanced_split;
+
+    /// The overlay's own sections: `Move`, `Look`, `Find`, `Read and copy`
+    /// on the left, then `Change`, `Program` and `Pointer`. Any other break
+    /// is taller, or tears a section in two.
+    #[test]
+    fn the_sections_break_where_the_taller_column_is_shortest() {
+        let heights = [6, 9, 4, 5, 16, 6, 6];
+        let at = balanced_split(&heights);
+        assert_eq!(at, 4);
+        let (left, right) = heights.split_at(at);
+        let tallest = left.iter().sum::<usize>().max(right.iter().sum());
+        for other in 0..=heights.len() {
+            let (l, r) = heights.split_at(other);
+            let t = l.iter().sum::<usize>().max(r.iter().sum());
+            assert!(tallest <= t, "breaking at {other} is shorter");
+        }
+    }
+
+    #[test]
+    fn a_lone_section_sits_in_the_first_column() {
+        assert_eq!(balanced_split(&[7]), 1);
+        assert_eq!(balanced_split(&[]), 0);
+    }
+
     use super::*;
     use crate::testkit;
 
