@@ -16,17 +16,5 @@
 │      │  V             look at it the way the projec…  x             close it, with a confirm        │a     │
 │      │  a             show everything — finished, d…  u             reopen it                       │      │
 │      │  Find ──────────────────────────────────────   n             new item                        │      │
-│      │  /             filter, in cairn's own grammar  Program ───────────────────────────────────   │────  │
-│      │  f             open the filter panel           esc           back out — one press leaves w…  │      │
-│      │  :             every command, by name          r             re-read the backlog now         │      │
-│      │  Read and copy ─────────────────────────────   ctrl-r        reload the config and theme     │      │
-│      │  ↵/o           read it in the panel, and dri…  ?             this help                       │      │
-│      │  H             how this item got the way it …  q/ctrl-c      quit                            │      │
-│      │  y             copy the item's reference       Pointer ───────────────────────────────────   │      │
-│      │  Y             copy this view as a command l…  click         a tab, a status, a row, a foo…  │      │
-│      │                                                double-click  read the item                   │      │
-│      │                                                drag          a card to another column, whi…  │      │
-│      │                                                scroll        move the pane under the point…  │      │
-│      │                                                :toggle-mouse give the pointer back to the …  │      │
-╰──────╰──────────────────────────────────────────────────────────────────────────────────────────────╯──────╯
+╰──────╰ ↑↓ scroll ───────────────────────────────────────────────────────────────────────────────────╯──────╯
  ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab lenses  ? help
