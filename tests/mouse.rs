@@ -20,7 +20,18 @@ fn at(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
     }
 }
 
+/// A click as a terminal reports one: the button going down and coming up.
+/// A list chooses on the second, the way a menu does, so a helper that sent
+/// only the first was testing half a gesture no terminal ever sends.
 fn click(app: &mut App, column: u16, row: u16) -> Action {
+    let down = app.handle_mouse(at(MouseEventKind::Down(MouseButton::Left), column, row));
+    let up = app.handle_mouse(at(MouseEventKind::Up(MouseButton::Left), column, row));
+    if down == Action::None { up } else { down }
+}
+
+/// The button going down and staying down: the start of a drag, which is not
+/// a click and must not end in one.
+fn press(app: &mut App, column: u16, row: u16) -> Action {
     app.handle_mouse(at(MouseEventKind::Down(MouseButton::Left), column, row))
 }
 
@@ -219,7 +230,7 @@ fn a_card_dragged_to_another_column_changes_its_status() {
         .first()
         .map(|i| app.items[*i].id)
         .expect("a card to drag");
-    click(&mut app, x, y);
+    press(&mut app, x, y);
     assert!(app.dragging.is_some(), "the drag has to start");
 
     let (tx, ty) = find(&app, &Hit::Column(2));
@@ -256,7 +267,7 @@ fn a_read_only_backlog_refuses_a_drag_rather_than_appearing_to_work() {
     drawn(&mut app);
 
     let (x, y) = find(&app, &Hit::Card(0, 0));
-    click(&mut app, x, y);
+    press(&mut app, x, y);
     let (tx, ty) = find(&app, &Hit::Column(2));
     let action = app.handle_mouse(at(MouseEventKind::Up(MouseButton::Left), tx, ty));
     assert_eq!(action, Action::None);
@@ -487,4 +498,35 @@ fn scrolling_the_detail_pane_moves_what_is_clickable() {
     let after = find(&app, &Hit::Link(0));
     assert_eq!(after.0, before.0);
     assert_eq!(after.1 + 1, before.1);
+}
+
+/// Pressed third in a column of three and dragged over a column of one, the
+/// cursor stays on a card that exists.
+#[test]
+fn dragging_over_a_shorter_column_keeps_the_cursor_on_a_card() {
+    let mut app = testkit::app();
+    app.pane = harrow::app::Pane::Board;
+    app.rebuild();
+    drawn(&mut app);
+    let (tall, short) = {
+        let by_len = |want: usize| app.columns.iter().position(|c| c.items.len() == want);
+        (
+            by_len(3).expect("a column of three"),
+            by_len(1).expect("a column of one"),
+        )
+    };
+    let (x, y) = find(&app, &Hit::Card(tall, 2));
+    press(&mut app, x, y);
+    let (tx, ty) = find(&app, &Hit::Column(short));
+    app.handle_mouse(at(MouseEventKind::Drag(MouseButton::Left), tx, ty));
+    assert_eq!(app.column, short);
+    assert!(
+        app.check_invariants().is_ok(),
+        "{:?}",
+        app.check_invariants()
+    );
+    assert!(
+        app.selected_item().is_some(),
+        "the detail pane has a card to show"
+    );
 }

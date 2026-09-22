@@ -126,7 +126,7 @@ Three questions decide what is on screen — which items, in what order,
 
 ## v1.0 — Stable release
 
-`###·······` 26% · 5 of 19 done · due 2027-05-01
+`###·······` 30% · 6 of 20 done · due 2027-05-01
 
 Documented, tested, and safe to depend on.
 
@@ -157,6 +157,7 @@ Documented, tested, and safe to depend on.
 - [x] `0070` The randomised suite has never pressed half the keys <sup>bug · p1 · testing</sup>
 - [x] `0095` The tree does not fold from the keyboard <sup>bug · p0 · chrome</sup>
 - [x] `0097` A map with headings, that says where it ends <sup>feature · p2 · chrome</sup>
+- [x] `0098` A dropdown you cannot click out of <sup>bug · p1 · chrome</sup>
 
 ## later — Someday
 

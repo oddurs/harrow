@@ -8,7 +8,7 @@
 //! `HARROW_FUZZ_SEEDS=100000 cargo test --release --test invariants` runs it
 //! harder. The default is small enough to belong in every test run.
 
-use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::event::{KeyCode, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
 use harrow::app::App;
 use harrow::keys::Keymap;
@@ -82,6 +82,58 @@ fn no_sequence_of_keys_leaves_the_state_inconsistent() {
                 panic!("seed {seed}: {problem}\nafter {history:?}");
             }
         }
+    }
+}
+
+/// The pointer, which had never been through this. Popovers now take it —
+/// a click outside closes one, a press highlights, a release chooses, the
+/// wheel belongs to whatever is open — and every one of those is a new way
+/// for two parts of the state to disagree. Keys are mixed in, because the
+/// keys are what open most of what the pointer then has to deal with.
+#[test]
+fn no_sequence_of_keys_and_clicks_leaves_the_state_inconsistent() {
+    const W: u16 = 100;
+    const H: u16 = 30;
+    let keys = keys();
+    let mut rng = Rng(0xc11c_0ff5_7ea5_0001);
+    // A frame per step makes this the dearest test here, so an ordinary run
+    // takes a hundred seeds. Asked for more, it takes all of them and no cap:
+    // the drag that left the board cursor past the end of a column was seed
+    // 357, and a cap like the one below would never have reached it.
+    let runs = std::env::var_os("HARROW_FUZZ_SEEDS").map_or(100, |_| seeds());
+    for seed in 0..runs {
+        let mut app = testkit::app();
+        let mut history = Vec::new();
+        for _ in 0..40 {
+            // A frame first: what is under the pointer is whatever was drawn.
+            let _ = ui::render_frame(&mut app, W, H, 0);
+            if rng.below(3) == 0 {
+                let (code, mods) = keys[rng.below(keys.len())];
+                history.push(format!("{code:?}"));
+                let _ = app.handle_key(code, mods);
+            } else {
+                let kind = match rng.below(5) {
+                    0 | 1 => MouseEventKind::Down(MouseButton::Left),
+                    2 => MouseEventKind::Up(MouseButton::Left),
+                    3 => MouseEventKind::Drag(MouseButton::Left),
+                    _ if rng.below(2) == 0 => MouseEventKind::ScrollDown,
+                    _ => MouseEventKind::ScrollUp,
+                };
+                let (column, row) = (rng.below(W as usize) as u16, rng.below(H as usize) as u16);
+                history.push(format!("{kind:?}@{column},{row}"));
+                let _ = app.handle_mouse(MouseEvent {
+                    kind,
+                    column,
+                    row,
+                    modifiers: KeyModifiers::NONE,
+                });
+            }
+            if let Err(problem) = app.check_invariants() {
+                panic!("seed {seed}: {problem}\nafter {history:?}");
+            }
+        }
+        let _ = ui::render_frame(&mut app, W, H, 0);
+        let _ = ui::render_frame(&mut app, 24, 8, 0);
     }
 }
 

@@ -160,6 +160,7 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     // Where everything clickable lands is recorded as it is drawn, so the two
     // can never disagree about what is where.
     app.hits.clear();
+    app.popover = None;
     app.screen = area;
     app.tick = tick;
     // One row of chrome, not three. The counts are a filter control and the
@@ -3618,6 +3619,16 @@ fn draw_history(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 /// a thing at the top left has lost its anchor: nothing on screen connects
 /// the list to the word it is about. Nudged left where it would run off the
 /// right edge, which is the one thing an anchor cannot be allowed to do.
+/// A popover takes the ground it is drawn on. Its whole frame is inert — a
+/// click on its border or its padding is a click on it, not on what it covers
+/// — and the app learns where it is, so a click outside it can put it away.
+/// Called where each one clears that ground, which every one of them does
+/// once, before drawing anything of its own that can be clicked.
+fn claim(app: &mut App, popup: Rect) {
+    app.hit(popup, Hit::Overlay);
+    app.popover = Some(popup);
+}
+
 fn draw_dropdown(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let Some(open) = &app.dropdown else { return };
     let widest = open
@@ -3725,7 +3736,9 @@ fn draw_dropdown(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     f.render_widget(Clear, popup);
     f.render_widget(Paragraph::new(lines).block(block), popup);
 
-    for row in 0..shown.min(open.options.len().saturating_sub(first)) {
+    let rows = shown.min(open.options.len().saturating_sub(first));
+    claim(app, popup);
+    for row in 0..rows {
         app.hit(
             Rect {
                 x: inner.x,
@@ -3853,6 +3866,7 @@ fn draw_palette(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         .take(shown)
         .map(|(command, _)| *command)
         .collect();
+    claim(app, popup);
     for (row, command) in rows.into_iter().enumerate() {
         app.hit(
             Rect {
@@ -3949,6 +3963,7 @@ fn draw_picker(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         popup,
         &mut state,
     );
+    claim(app, popup);
     for n in 0..count {
         app.hit(
             Rect {
@@ -4056,6 +4071,7 @@ fn draw_help(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         ));
     }
     f.render_widget(Clear, popup);
+    claim(app, popup);
     f.render_widget(Paragraph::new(lines).block(block), popup);
 }
 
@@ -4086,7 +4102,7 @@ fn section_cell(name: &str, t: &Theme, width: usize) -> Vec<Span<'static>> {
     spans
 }
 
-fn draw_diagnostics(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
+fn draw_diagnostics(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let width = 92u16.min(area.width.saturating_sub(4));
     let height = 26u16.min(area.height.saturating_sub(2));
     let popup = centered(area, width, height);
@@ -4216,6 +4232,7 @@ fn draw_diagnostics(f: &mut Frame, app: &App, t: &Theme, area: Rect) {
     }
 
     f.render_widget(Clear, popup);
+    claim(app, popup);
     f.render_widget(
         Paragraph::new(lines).block(
             Block::bordered()
@@ -4277,6 +4294,7 @@ fn draw_confirm(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         ]),
     ];
     f.render_widget(Clear, popup);
+    claim(app, popup);
     f.render_widget(
         Paragraph::new(lines).block(
             Block::bordered()

@@ -79,6 +79,12 @@ impl Pane {
     }
 }
 
+/// Whether a point falls inside a rectangle, edges included on the top and
+/// left and excluded on the bottom and right, as every other hit test here.
+fn contains(area: Rect, column: u16, row: u16) -> bool {
+    column >= area.x && column < area.x + area.width && row >= area.y && row < area.y + area.height
+}
+
 /// Something on screen you can click.
 ///
 /// The drawing code records where each of these ended up as it draws, and the
@@ -827,6 +833,11 @@ pub struct App {
     pub palette: Option<Palette>,
     /// A list under the toolbar segment it changes.
     pub dropdown: Option<Dropdown>,
+    /// Where the topmost popover was drawn this frame — a dropdown, a picker,
+    /// the palette, help, diagnostics, or a confirmation. Recorded by the draw,
+    /// like `hits`, so that a click can tell inside from outside without the
+    /// two ever disagreeing about where the thing is.
+    pub popover: Option<Rect>,
     pub confirm: Option<Confirm>,
     pub help: bool,
     /// How far down the help overlay is scrolled. It is taller than a short
@@ -995,6 +1006,7 @@ impl App {
             picker: None,
             palette: None,
             dropdown: None,
+            popover: None,
             confirm: None,
             help: false,
             help_scroll: 0,
@@ -3769,6 +3781,17 @@ impl App {
                     d.selected = (d.selected + len - 1) % len;
                 }
             }
+            // The ends of the list, as any list a pointer can open has.
+            KeyCode::Home => {
+                if let Some(d) = self.dropdown.as_mut() {
+                    d.selected = 0;
+                }
+            }
+            KeyCode::End => {
+                if let Some(d) = self.dropdown.as_mut() {
+                    d.selected = len.saturating_sub(1);
+                }
+            }
             KeyCode::Backspace => {
                 if let Some(d) = self.dropdown.as_mut() {
                     d.typed.pop();
@@ -4572,6 +4595,99 @@ impl App {
         Action::None
     }
 
+    /// Whether anything that takes the pointer is open. History is its own
+    /// case, handled before this is asked.
+    fn popover_open(&self) -> bool {
+        self.confirm.is_some()
+            || self.picker.is_some()
+            || self.palette.is_some()
+            || self.dropdown.is_some()
+            || self.diagnostics
+            || self.help
+    }
+
+    /// A click that landed outside the open popover.
+    fn click_outside(&mut self, column: u16, row: u16) -> Action {
+        // A menu bar: with one dropdown open, its own segment shuts it and
+        // another segment opens that one instead, in one click rather than two.
+        if let Some(open) = self.dropdown.as_ref().map(|d| d.of)
+            && let Some(Hit::Run(segment)) = self.hit_at(column, row).cloned()
+            && matches!(segment, Command::GroupBy | Command::Sort | Command::Views)
+        {
+            self.dropdown = None;
+            if segment == open {
+                return Action::None;
+            }
+            return self.run(segment);
+        }
+        self.dismiss_popover();
+        Action::None
+    }
+
+    /// Put away whatever is on top, the way `esc` would. A confirmation is
+    /// answered no, which is what any key but `y` already answers it: the stray
+    /// click is the pointer's stray key, and no is the answer that changes
+    /// nothing.
+    fn dismiss_popover(&mut self) {
+        if self.confirm.is_some() {
+            let _ = self.resolve_confirm(false);
+        } else if self.picker.is_some() {
+            let _ = self.resolve_picker(false);
+        } else if self.palette.is_some() {
+            self.palette = None;
+        } else if self.dropdown.is_some() {
+            self.dropdown = None;
+        } else if self.diagnostics {
+            self.diagnostics = false;
+        } else if self.help {
+            self.help = false;
+        }
+    }
+
+    /// Highlight a row of whichever list is open, without choosing it.
+    fn point_at_option(&mut self, n: usize) {
+        if let Some(p) = self.picker.as_mut() {
+            p.selected = n.min(p.options.len().saturating_sub(1));
+        } else if let Some(d) = self.dropdown.as_mut() {
+            d.selected = n.min(d.options.len().saturating_sub(1));
+        }
+    }
+
+    /// Move the highlight of whichever list is open by one row, as the wheel.
+    fn step_popover(&mut self, step: isize) {
+        let walk = |at: usize, len: usize| -> usize {
+            if len == 0 {
+                0
+            } else {
+                (at as isize + step).clamp(0, len as isize - 1) as usize
+            }
+        };
+        if let Some(p) = self.picker.as_mut() {
+            p.selected = walk(p.selected, p.options.len());
+        } else if let Some(p) = self.palette.as_mut() {
+            p.selected = walk(p.selected, p.matches.len());
+        } else if let Some(d) = self.dropdown.as_mut() {
+            d.selected = walk(d.selected, d.options.len());
+        }
+    }
+
+    /// The button coming up. Over an option of an open list, that is the
+    /// choice — whether it went down there or was dragged there from the
+    /// segment that opened it. Anywhere else it ends a drag, if there was one.
+    fn release(&mut self, column: u16, row: u16) -> Action {
+        match self.hit_at(column, row).cloned() {
+            Some(Hit::Choose(n)) if self.dropdown.is_some() => {
+                self.point_at_option(n);
+                self.resolve_dropdown()
+            }
+            Some(Hit::Option(n)) if self.picker.is_some() => {
+                self.point_at_option(n);
+                self.resolve_picker(true)
+            }
+            _ => self.drop(column, row),
+        }
+    }
+
     /// Record where something clickable was drawn.
     ///
     /// Clipped to the screen, because a region beyond the edge is a click on
@@ -4604,12 +4720,7 @@ impl App {
         self.hits
             .iter()
             .rev()
-            .find(|(area, _)| {
-                column >= area.x
-                    && column < area.x + area.width
-                    && row >= area.y
-                    && row < area.y + area.height
-            })
+            .find(|(area, _)| contains(*area, column, row))
             .map(|(_, what)| what)
     }
 
@@ -4652,8 +4763,15 @@ impl App {
                 }
                 return self.click(m.column, m.row, double);
             }
-            MouseEventKind::Drag(MouseButton::Left) => self.drag(m.column, m.row),
-            MouseEventKind::Up(MouseButton::Left) => return self.drop(m.column, m.row),
+            MouseEventKind::Drag(MouseButton::Left) => {
+                // Held down and moving over a list: the highlight follows, the
+                // way it does in a menu opened by pressing on its button.
+                match self.hit_at(m.column, m.row).cloned() {
+                    Some(Hit::Choose(n) | Hit::Option(n)) => self.point_at_option(n),
+                    _ => self.drag(m.column, m.row),
+                }
+            }
+            MouseEventKind::Up(MouseButton::Left) => return self.release(m.column, m.row),
             _ => {}
         }
         Action::None
@@ -4668,6 +4786,21 @@ impl App {
     /// holds the cursor: the panes are beside each other precisely so that one
     /// can be read without disturbing the other.
     fn scroll(&mut self, delta: isize, column: u16, row: u16) {
+        // While something is open the wheel is its business. Over it, it moves
+        // what that thing moves; anywhere else it does nothing, rather than
+        // scrolling a lens the reader cannot see for the popover in front.
+        if let Some(area) = self.popover.filter(|_| self.popover_open()) {
+            if !contains(area, column, row) {
+                return;
+            }
+            let step = delta.signum();
+            if self.help {
+                self.help_scroll = self.help_scroll.saturating_add_signed(delta as i16);
+            } else {
+                self.step_popover(step);
+            }
+            return;
+        }
         if let Some(history) = self.history.as_mut() {
             history.scroll = history
                 .scroll
@@ -4761,6 +4894,15 @@ impl App {
             }
             return Action::None;
         }
+        // A popover takes the pointer the way a GUI menu does: a click outside
+        // it closes it and goes no further. It used to reach straight past —
+        // a click beside an open dropdown selected the row under it, a click
+        // on a tab changed the lens behind it, and nothing closed it but a key.
+        if let Some(area) = self.popover.filter(|_| self.popover_open())
+            && !contains(area, column, row)
+        {
+            return self.click_outside(column, row);
+        }
         let Some(what) = self.hit_at(column, row).cloned() else {
             return Action::None;
         };
@@ -4820,12 +4962,11 @@ impl App {
                     self.reading = true;
                 }
             }
-            Hit::Option(index) => {
-                if let Some(picker) = self.picker.as_mut() {
-                    picker.selected = index.min(picker.options.len().saturating_sub(1));
-                }
-                return self.resolve_picker(true);
-            }
+            // Pressing on an option highlights it and releasing takes it, as a
+            // menu does — so a press can be dragged to another option, or off
+            // the list altogether, and nothing is chosen until the button
+            // comes up. See `release`.
+            Hit::Option(index) => self.point_at_option(index),
             Hit::Answer(yes) => return self.resolve_confirm(yes),
             Hit::Run(command) => {
                 // A click on a palette row is the same gesture as `↵` on it,
@@ -4833,12 +4974,7 @@ impl App {
                 self.palette = None;
                 return self.run(command);
             }
-            Hit::Choose(n) => {
-                if let Some(d) = self.dropdown.as_mut() {
-                    d.selected = n;
-                }
-                return self.resolve_dropdown();
-            }
+            Hit::Choose(n) => self.point_at_option(n),
             // Clicking a pane is how a pointer says which one it means, and it
             // is the same statement `↵` makes with a key.
             Hit::Reader => self.focus = Focus::Reader,
@@ -4868,6 +5004,13 @@ impl App {
         }
         if let Some(Hit::Card(col, _) | Hit::Column(col)) = self.hit_at(column, row).cloned() {
             self.column = col.min(self.columns.len().saturating_sub(1));
+            // Into a shorter column, the row has to come with it, the way
+            // `step_group` brings it: a card pressed third in `backlog` and
+            // dragged over a column of one left the cursor on a row that
+            // column does not have, and the detail pane empty under the drag.
+            // Found by the first randomised run that ever used a pointer.
+            let len = self.columns.get(self.column).map_or(0, |c| c.items.len());
+            self.column_row = self.column_row.min(len.saturating_sub(1));
         }
     }
 
