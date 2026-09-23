@@ -1136,6 +1136,7 @@ impl App {
                 Some(before) => {
                     before.status != item.status
                         || before.updated != item.updated
+                        || before.closed_at != item.closed_at
                         || before.assignee != item.assignee
                 }
             };
@@ -5221,7 +5222,9 @@ impl App {
 
         let mut closed_recently = [(7u32, 0usize), (30, 0), (90, 0)];
         for item in work.iter().filter(|i| i.category == Category::Done) {
-            if let Some(age) = days_ago(item.updated.as_ref()) {
+            // Old files predate recorded completion dates; retain their
+            // estimate, but never let a later edit move a known completion.
+            if let Some(age) = days_ago(item.closed_at.as_ref().or(item.updated.as_ref())) {
                 for (window, count) in closed_recently.iter_mut() {
                     if age >= 0 && age <= i64::from(*window) {
                         *count += 1;

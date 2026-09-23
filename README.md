@@ -221,6 +221,10 @@ The grammar is cairn's, because a saved view is a string the project wrote
 for cairn and harrow reads it verbatim. `harrow --doctor` parses every saved
 view in `cairn.toml` and names any it cannot evaluate.
 
+The [Cairn compatibility contract](COMPATIBILITY.md) records tested versions,
+the pinned corpus, and intentional query differences. Completion-date queries
+use `closed_at`, not `updated`: editing a finished item does not finish it again.
+
 ## Configuration
 
 Yours lives in `~/.config/harrow/config.toml`, and every key is optional. The

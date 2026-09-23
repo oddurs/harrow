@@ -24,6 +24,7 @@ usage: scripts/task <target>
   test       the full test suite
   build      compile everything, including the tests
   check      fmt:check, lint, test, build — what CI runs
+  agreement  cross-tool contract (cairn on PATH; CAIRN_PROJECT_DIR required)
 
   conformance:refresh   re-take cairn's item-format corpus
                         (CAIRN_REPO=path, defaults to ../cairn)
@@ -85,6 +86,11 @@ case "${1:-}" in
       printf '%s\n' "$why"
     } >"$dst/PROVENANCE"
     printf 'corpus refreshed from cairn %s (%s); read the diff\n' "$version" "$sha"
+    ;;
+  agreement)
+    : "${CAIRN_PROJECT_DIR:?set CAIRN_PROJECT_DIR to the pinned Cairn checkout}"
+    command -v cairn >/dev/null
+    cargo test --test agreement -- --ignored
     ;;
   -h | --help | help)
     usage

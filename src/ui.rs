@@ -1942,7 +1942,11 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
     if let Some(by) = &item.created_by {
         fields.push(("filed by".into(), by.clone(), t.person));
     }
-    for (label, value) in [("created", &item.created), ("updated", &item.updated)] {
+    for (label, value) in [
+        ("created", &item.created),
+        ("updated", &item.updated),
+        ("closed_at", &item.closed_at),
+    ] {
         if let Some(value) = value {
             fields.push((label.into(), value.clone(), t.muted));
         }

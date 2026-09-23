@@ -95,6 +95,7 @@ fn every_item_in_cairns_corpus_reads_the_way_cairn_says_it_does() {
             ("key", got.key.as_deref()),
             ("created", got.created.as_deref()),
             ("updated", got.updated.as_deref()),
+            ("closed_at", got.closed_at.as_deref()),
             ("claimed", got.claimed.as_deref()),
             ("assignee", got.assignee.as_deref()),
             ("owner", got.owner.as_deref()),

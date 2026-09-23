@@ -34,17 +34,38 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: ./scripts/task check
 
+  agreement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: oddurs/cairn
+          # v0.2.2; update deliberately with corpus provenance and agreement.
+          ref: 335a4d38336da4f38a6c216e91e940c989a3efc8
+          path: .counterparts/cairn
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      - run: cargo build --locked --manifest-path .counterparts/cairn/Cargo.toml
+      - run: |
+          export PATH="$GITHUB_WORKSPACE/.counterparts/cairn/target/debug:$PATH"
+          export CAIRN_PROJECT_DIR="$GITHUB_WORKSPACE/.counterparts/cairn"
+          scripts/task agreement
+
   # The one status check branch protection requires. It exists so that adding a
   # job never means editing a protection rule.
   required:
     name: required
     if: always()
-    needs: [check]
+    needs: [check, agreement]
     runs-on: ubuntu-latest
     steps:
       - name: Every job succeeded
         run: |
           if [ "${{ needs.check.result }}" != "success" ]; then
             echo "check: ${{ needs.check.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.agreement.result }}" != "success" ]; then
+            echo "agreement: ${{ needs.agreement.result }}"
             exit 1
           fi
