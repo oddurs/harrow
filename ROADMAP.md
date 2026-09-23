@@ -172,9 +172,9 @@ Good ideas without a date yet.
 
 ## Unscheduled
 
-`··········` 0% · 0 of 1 done
+`##########` 100% · 1 of 1 done
 
-### in progress
+### done
 
-- [ ] `0099` Keep completion dates and saved views aligned with Cairn <sup>bug · p1 · read</sup>
+- [x] `0099` Keep completion dates and saved views aligned with Cairn <sup>bug · p1 · read</sup>
 

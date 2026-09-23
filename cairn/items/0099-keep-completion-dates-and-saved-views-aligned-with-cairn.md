@@ -2,11 +2,11 @@
 id: 99
 title: Keep completion dates and saved views aligned with Cairn
 type: bug
-status: doing
+status: done
 assignee: codex
-claimed: 2026-09-23
 created: 2026-09-23
 updated: 2026-09-23
+closed_at: 2026-09-23
 priority: p1
 area: read
 ---
@@ -32,15 +32,19 @@ Refresh the upstream corpus and require a pinned cross-tool comparison in CI.
 
 ## Acceptance criteria
 
-- [ ] Completion date survives parsing, appears in details, filters correctly,
+- [x] Completion date survives parsing, appears in details, filters correctly,
   and a later edit does not move recorded completion statistics.
-- [ ] All Cairn corpus cases pass with pinned provenance.
-- [ ] Agreement tests compare machine-readable item sets for project views,
+- [x] All Cairn corpus cases pass with pinned provenance.
+- [x] Agreement tests compare machine-readable item sets for project views,
   date queries, dependencies, criteria, categories and composition.
-- [ ] Required CI runs the comparison against a pinned Cairn revision and fails
+- [x] Required CI runs the comparison against a pinned Cairn revision and fails
   if either tool or the project fixture is missing.
-- [ ] Supported versions and deliberate query differences are documented.
+- [x] Supported versions and deliberate query differences are documented.
 
 ## 2026-09-23
 
 Expanded comparison exposed and fixed readiness for active items, empty criteria, hierarchy fields, negative alternatives, range/presence semantics, and missing metadata lookup in addition to closed_at. All eight live Cairn project views and the query fixtures now agree. Recorded completion remains independent of later edits. Refreshed the unchanged upstream format corpus from Cairn 335a4d3 and documented compatibility; statistics snapshots intentionally change only ready from 2 to 3.
+
+## 2026-09-23
+
+Verified scripts/task check, all three explicit agreement tests, completion-date rendering/statistics and all 36 corpus cases. Required CI passed agreement against pinned Cairn, Linux and macOS checks in PR #93. The only recorded-screen differences are the reviewed ready count (2 to 3). The comparison fails when its required project environment is absent; no silent skips in CI.
