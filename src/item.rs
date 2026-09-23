@@ -79,6 +79,8 @@ pub struct Item {
     pub status: String,
     pub created: Option<String>,
     pub updated: Option<String>,
+    /// Recorded completion date, independent of later edits.
+    pub closed_at: Option<String>,
     pub claimed: Option<String>,
     /// Who is working on it. `cairn claim` sets this.
     pub assignee: Option<String>,
@@ -157,10 +159,10 @@ impl Item {
         self.contains.is_empty()
     }
 
-    /// Ready to start: open, and nothing unfinished in its way. The same
-    /// question `cairn next` answers.
+    /// Dependency-ready, including work already active. Assignment and project
+    /// approval are separate questions, just as in Cairn's `ready` predicate.
     pub fn ready(&self, schema: &Schema) -> bool {
-        !self.blocked && schema.category(&self.status) == Category::Open
+        !self.blocked && !schema.category(&self.status).is_closed()
     }
 
     /// Percent finished, for anything with items scheduled against it.
@@ -239,6 +241,7 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
             "key" => item.key = non_empty(value.as_str()),
             "created" => item.created = non_empty(value.as_str()),
             "updated" => item.updated = non_empty(value.as_str()),
+            "closed_at" => item.closed_at = non_empty(value.as_str()),
             "claimed" => item.claimed = non_empty(value.as_str()),
             "assignee" => item.assignee = non_empty(value.as_str()),
             "owner" => item.owner = non_empty(value.as_str()),

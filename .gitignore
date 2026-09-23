@@ -1,5 +1,6 @@
 # Build output
 /target
+.counterparts/
 
 # Worktrees created by scripts/agent live beside the repository, but a stray
 # one inside it must never be committed.

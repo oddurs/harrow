@@ -47,6 +47,7 @@ impl Op {
             ("!~", Op::NotContains),
             (">=", Op::Ge),
             ("<=", Op::Le),
+            ("==", Op::Eq),
             ("=", Op::Eq),
             ("~", Op::Contains),
             (">", Op::Gt),
@@ -223,8 +224,16 @@ impl Query {
         self.clauses.iter().all(|clause| match clause {
             Clause::Text(needle) => item.matches(needle, schema),
             Clause::Compare { field, op, values } => {
-                let actual = resolve(item, schema, field);
-                values.iter().any(|v| compare(&actual, *op, v))
+                let actual = if field == "id" && matches!(op, Op::Gt | Op::Ge | Op::Lt | Op::Le) {
+                    Field::Text(item.id.to_string())
+                } else {
+                    resolve(item, schema, field)
+                };
+                if matches!(op, Op::Ne | Op::NotContains) {
+                    values.iter().all(|v| compare(&actual, *op, v))
+                } else {
+                    values.iter().any(|v| compare(&actual, *op, v))
+                }
             }
         })
     }
@@ -260,6 +269,7 @@ pub const DERIVED: &[&str] = &[
     "claimed",
     "created",
     "updated",
+    "closed_at",
     "body",
     "owner",
     "created_by",
@@ -267,7 +277,6 @@ pub const DERIVED: &[&str] = &[
     "descendants",
     "depth",
     "leaf",
-    "container",
     "progress",
     "criteria",
     "criteria_done",
@@ -331,6 +340,15 @@ pub fn resolve(item: &Item, schema: &Schema, key: &str) -> Field {
         "stale" => Field::Text(item.claim_stale.to_string()),
         "ready" => Field::Text(item.ready(schema).to_string()),
         "blockers" => Field::List(item.blockers.iter().map(u32::to_string).collect()),
+        "contains" => Field::List(
+            item.contains
+                .iter()
+                .map(|id| schema.format_id(*id))
+                .collect(),
+        ),
+        "descendants" => Field::Text(item.scheduled.to_string()),
+        "depth" => Field::Text(item.depth.to_string()),
+        "leaf" => Field::Text(item.is_leaf().to_string()),
         "labels" => {
             if item.labels.is_empty() {
                 Field::Missing
@@ -345,6 +363,11 @@ pub fn resolve(item: &Item, schema: &Schema, key: &str) -> Field {
             .unwrap_or(Field::Missing),
         "owner" => item
             .owner
+            .clone()
+            .map(Field::Text)
+            .unwrap_or(Field::Missing),
+        "created_by" => item
+            .created_by
             .clone()
             .map(Field::Text)
             .unwrap_or(Field::Missing),
@@ -363,6 +386,11 @@ pub fn resolve(item: &Item, schema: &Schema, key: &str) -> Field {
             .clone()
             .map(Field::Text)
             .unwrap_or(Field::Missing),
+        "closed_at" => item
+            .closed_at
+            .clone()
+            .map(Field::Text)
+            .unwrap_or(Field::Missing),
         "body" => text(item.body.clone()),
         // Missing rather than zero for a leaf: an item containing nothing has
         // no progress to report, and zero would sort every one of them last.
@@ -374,7 +402,7 @@ pub fn resolve(item: &Item, schema: &Schema, key: &str) -> Field {
         "criteria_done" => Field::Text(item.criteria().0.to_string()),
         "criteria_met" => {
             let (done, total) = item.criteria();
-            Field::Text((total > 0 && done == total).to_string())
+            Field::Text((done == total).to_string())
         }
         other => match item.fields.get(other) {
             Some(crate::item::Value::One(s)) => text(s.clone()),
@@ -388,11 +416,25 @@ pub fn resolve(item: &Item, schema: &Schema, key: &str) -> Field {
 fn compare(actual: &Field, op: Op, wanted: &str) -> bool {
     // An empty value tests presence: `milestone=` has none, `milestone!=` has one.
     if wanted.is_empty() {
-        let missing = *actual == Field::Missing;
+        let missing = match actual {
+            Field::Missing => true,
+            Field::Text(s) => s.is_empty(),
+            Field::List(v) => v.is_empty(),
+        };
         return match op {
             Op::Eq => missing,
             Op::Ne => !missing,
-            _ => false,
+            Op::Contains => !missing,
+            Op::NotContains => missing,
+            _ => ordered(
+                &match actual {
+                    Field::Missing => String::new(),
+                    Field::Text(s) => s.clone(),
+                    Field::List(v) => v.join(", "),
+                },
+                op,
+                wanted,
+            ),
         };
     }
     let values: Vec<&str> = match actual {
@@ -405,7 +447,9 @@ fn compare(actual: &Field, op: Op, wanted: &str) -> bool {
         Op::Ne => !values.iter().any(|v| v.eq_ignore_ascii_case(wanted)),
         Op::Contains => values.iter().any(|v| contains(v, wanted)),
         Op::NotContains => !values.iter().any(|v| contains(v, wanted)),
-        Op::Gt | Op::Ge | Op::Lt | Op::Le => values.iter().any(|v| ordered(v, op, wanted)),
+        // Cairn orders the display value, including the empty string for a
+        // missing field. Presence must be explicit for a bounded date query.
+        Op::Gt | Op::Ge | Op::Lt | Op::Le => ordered(&values.join(", "), op, wanted),
     }
 }
 
@@ -418,7 +462,7 @@ fn contains(haystack: &str, needle: &str) -> bool {
 fn ordered(actual: &str, op: Op, wanted: &str) -> bool {
     let order = match (actual.parse::<f64>(), wanted.parse::<f64>()) {
         (Ok(a), Ok(b)) => a.partial_cmp(&b),
-        _ => Some(actual.to_lowercase().cmp(&wanted.to_lowercase())),
+        _ => Some(actual.cmp(wanted)),
     };
     let Some(order) = order else { return false };
     match op {
@@ -553,7 +597,25 @@ mod tests {
     #[test]
     fn the_dependency_graph_is_queryable() {
         assert_eq!(matching("blocked=true"), vec![4]);
-        assert_eq!(matching("ready=true"), vec![1, 5, 6]);
+        assert_eq!(matching("ready=true"), vec![1, 3, 5, 6]);
+    }
+
+    #[test]
+    fn the_shared_query_contract_is_held_locally_too() {
+        assert_eq!(matching("leaf=true"), vec![2, 3, 4, 5, 6]);
+        assert_eq!(matching("depth=0"), vec![1, 6]);
+        assert_eq!(matching("descendants>0"), vec![1]);
+        assert_eq!(matching("contains=0002"), vec![1]);
+        assert_eq!(matching("contains="), vec![2, 3, 4, 5, 6]);
+        assert_eq!(matching("criteria_met=true"), vec![1, 2, 4, 5, 6]);
+        assert_eq!(matching("priority!=p0|p1"), vec![1, 4, 6]);
+        assert_eq!(matching("status==doing"), vec![3]);
+        assert_eq!(matching("labels~"), vec![5]);
+        assert_eq!(matching("labels!~"), vec![1, 2, 3, 4, 6]);
+        assert_eq!(matching("id>2"), vec![3, 4, 5, 6]);
+        assert!(matching("id>=10").is_empty());
+        assert_eq!(matching("closed_at<2026-09-10"), vec![1, 2, 3, 4, 5, 6]);
+        assert!(matching("closed_at!=,closed_at<2026-09-10").is_empty());
     }
 
     #[test]

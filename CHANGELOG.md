@@ -11,6 +11,17 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ## [Unreleased]
 
+### Fixed
+
+- Completion dates now read, display, sort and filter as `closed_at`; a later
+  edit no longer moves a recorded completion in statistics.
+- Query agreement with Cairn includes active readiness, vacuously met empty
+  criteria, hierarchy fields, negative alternatives, presence and range
+  comparisons. An undeclared `container` filter is now reported as unknown;
+  select container types through the project's declared type names.
+- Required CI compares against pinned Cairn 0.2.2, including all of Cairn's
+  project views and the refreshed format corpus. See COMPATIBILITY.md.
+
 ### Changed
 
 - cairn format 3 is read: a type declares `groups = "one"` or `"many"` rather

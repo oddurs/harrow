@@ -11,9 +11,10 @@
 //! ids out of both.
 //!
 //! `#[ignore]`d because it needs cairn on PATH, and a test that silently
-//! stops running is worse than no test. Run it with:
+//! stops running is worse than no test. CI explicitly runs them against a
+//! pinned Cairn; local runs need its binary and a project checkout:
 //!
-//!     cargo test --test agreement -- --ignored
+//!     CAIRN_PROJECT_DIR=../cairn cargo test --test agreement -- --ignored
 
 use std::path::Path;
 
@@ -43,6 +44,26 @@ const FILTERS: &[&str] = &[
     "priority!=p3",
     "blocked=true",
     "id=3",
+    "id>2",
+    "id>=10",
+    "category=done|dropped",
+    "leaf=true",
+    "contains=0002",
+    "descendants>0",
+    "contains=",
+    "priority!=p0|p1",
+    "status==doing",
+    "labels~",
+    "labels!~",
+    "created_by=",
+    "depth=0",
+    "criteria>0",
+    "criteria_met=true",
+    "ready=true",
+    "closed_at>=2026-09-01",
+    "closed_at<2026-09-10",
+    "closed_at=",
+    "updated>=2026-09-10",
 ];
 
 fn cairn_ids(dir: &Path, filter: &str) -> Vec<u32> {
@@ -52,6 +73,7 @@ fn cairn_ids(dir: &Path, filter: &str) -> Vec<u32> {
             &dir.display().to_string(),
             "list",
             "--all",
+            "--ids",
             "-f",
             filter,
         ])
@@ -64,8 +86,7 @@ fn cairn_ids(dir: &Path, filter: &str) -> Vec<u32> {
     );
     let mut ids: Vec<u32> = String::from_utf8_lossy(&out.stdout)
         .lines()
-        .filter_map(|l| l.split_whitespace().next())
-        .filter_map(|w| w.parse().ok())
+        .map(|line| line.parse().expect("cairn --ids emits an identifier"))
         .collect();
     ids.sort_unstable();
     ids
@@ -115,6 +136,7 @@ fn harrow_ids(dir: &Path, filter: &str) -> Vec<u32> {
 #[ignore = "needs cairn on PATH"]
 fn harrow_and_cairn_select_the_same_items() {
     let dir = testkit::project();
+    std::fs::write(dir.path().join("items/0007-completed.md"), "---\nid: 7\ntitle: Completed and edited later\ntype: feature\nstatus: done\nclosed_at: 2026-09-01\nupdated: 2026-09-20\n---\n\n- [x] Finished\n").unwrap();
     let mut disagreed = Vec::new();
     for filter in FILTERS {
         let (theirs, ours) = (
@@ -132,6 +154,59 @@ fn harrow_and_cairn_select_the_same_items() {
         FILTERS.len(),
         disagreed.join("\n")
     );
+}
+
+#[test]
+#[ignore = "needs cairn on PATH and CAIRN_PROJECT_DIR"]
+fn the_cairn_projects_saved_views_agree_through_machine_output() {
+    let config = tempfile::NamedTempFile::new().unwrap();
+    let dir = std::env::var_os("CAIRN_PROJECT_DIR")
+        .expect("set CAIRN_PROJECT_DIR to the pinned Cairn checkout; never skip this gate");
+    let mut project = Project::discover(Path::new(&dir)).expect("Cairn project exists");
+    let report = project.load().unwrap();
+    assert!(
+        report.schema.views.len() >= 8,
+        "expected Cairn's configured project views"
+    );
+    for view in &report.schema.views {
+        let cairn = std::process::Command::new("cairn")
+            .arg("-C")
+            .arg(&dir)
+            .args(["list", "--view", &view.name, "--ids"])
+            .output()
+            .expect("cairn runs");
+        let harrow = std::process::Command::new(env!("CARGO_BIN_EXE_harrow"))
+            .arg("-C")
+            .arg(&dir)
+            .arg("--config")
+            .arg(config.path())
+            .args(["--view", &view.name, "--plain", "--group-by", "none"])
+            .output()
+            .expect("harrow runs");
+        assert!(
+            cairn.status.success(),
+            "{}: {}",
+            view.name,
+            String::from_utf8_lossy(&cairn.stderr)
+        );
+        assert!(
+            harrow.status.success(),
+            "{}: {}",
+            view.name,
+            String::from_utf8_lossy(&harrow.stderr)
+        );
+        let mut theirs: Vec<String> = String::from_utf8_lossy(&cairn.stdout)
+            .lines()
+            .map(str::to_owned)
+            .collect();
+        let mut ours: Vec<String> = String::from_utf8_lossy(&harrow.stdout)
+            .lines()
+            .map(|line| line.split('\t').next().unwrap().to_owned())
+            .collect();
+        theirs.sort();
+        ours.sort();
+        assert_eq!(ours, theirs, "view {}", view.name);
+    }
 }
 
 /// The other half of the contract: what cairn will not evaluate, harrow
