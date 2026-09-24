@@ -126,13 +126,9 @@ Three questions decide what is on screen — which items, in what order,
 
 ## v0.7 — Every question has a door
 
-`####······` 33% · 2 of 6 done
+`#####·····` 50% · 3 of 6 done
 
 Every question harrow can answer is answerable from a shell.
-
-### backlog
-
-- [ ] `0106` A negated status predicate does not lift the hidden default <sup>bug · p1 · filter</sup>
 
 ### planned
 
@@ -144,6 +140,7 @@ Every question harrow can answer is answerable from a shell.
 
 - [x] `0100` Give harrow a durable direction and a reconciled backlog <sup>chore · p1 · docs</sup>
 - [x] `0101` Read the record directly; change it only through cairn <sup>decision · p1 · docs</sup>
+- [x] `0106` A negated status predicate does not lift the hidden default <sup>bug · p1 · filter</sup>
 
 ## v1.0 — Stable release
 

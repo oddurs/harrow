@@ -45,6 +45,13 @@ corpus source. Do not edit an expectation to conceal a disagreement.
   does not mean unassigned or approved. Use your project's saved view.
 - `criteria_met` is true when no criteria are stated; `criteria>0` distinguishes
   an explicitly completed checklist from no checklist.
+- An ordinary listing leaves out closed work and containers. Naming the field
+  is how you ask for them back, and naming it means saying anything about it —
+  `status=done`, `status!=dropped` and `category!=dropped` all lift it, with
+  the predicate itself doing any excluding. A closed container is behind both
+  defaults and needs the type and the status. Both tools read it this way;
+  harrow once required an equality, which made `category!=dropped` differ by
+  every closed item (0106).
 - Range comparisons use the display value; missing values compare as empty
   strings. Use `closed_at!=,closed_at<2026-09-10` to exclude undated history.
 - `closed_at` is the recorded completion date, unaffected by later edits.

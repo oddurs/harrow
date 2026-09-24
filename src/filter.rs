@@ -146,6 +146,21 @@ impl Query {
         })
     }
 
+    /// Whether the expression says anything at all about this field.
+    ///
+    /// `names` asks whether a value was asked for; this asks whether the field
+    /// was spoken about, with any operator. That is the question the default
+    /// hiding turns on, and asking the narrower one made
+    /// `category!=dropped` mean *only open work* here and *everything that
+    /// still counts* in cairn — a difference of every closed item. 0106.
+    pub fn constrains(&self, field: &str) -> bool {
+        let wanted = crate::filter::canonical(field);
+        self.clauses.iter().any(|clause| match clause {
+            Clause::Compare { field, .. } => canonical(field) == wanted,
+            _ => false,
+        })
+    }
+
     /// Clauses are ANDed; alternatives within a clause are ORed.
     /// The same query with every clause on `field` taken out.
     ///

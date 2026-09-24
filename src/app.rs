@@ -1523,12 +1523,21 @@ impl App {
         if self.show_all {
             return false;
         }
+        // Naming the field is how you ask for what it hides, and *naming* it
+        // means speaking about it at all — not asking for one value of it.
+        // cairn reads it that way, and reading it the narrower way made
+        // `category!=dropped` mean every closed item there and none here.
+        let says_where_it_stands =
+            self.query.constrains("status") || self.query.constrains("category");
         if item.container {
-            return !self.query.names("type", &item.kind);
+            // Two defaults, and a closed container is behind both: the type
+            // has to be spoken about for containers to appear at all, and its
+            // being finished is the ordinary closed rule on top of that.
+            return !self.query.constrains("type")
+                || (item.category.is_closed() && !says_where_it_stands);
         }
         item.category.is_closed()
-            && !self.query.names("status", &item.status)
-            && !self.query.names("category", item.category.name())
+            && !says_where_it_stands
             // A group with no open work left has nothing but this to show.
             // Hiding it leaves a heading claiming a hundred per cent with
             // nothing under it — the claim the rows are not allowed to
@@ -2240,9 +2249,7 @@ impl App {
     /// arranged is a rule the reader cannot see. cairn returns them for
     /// either question, and so does this now.
     fn is_row(&self, item: &Item, heading_type: Option<&str>) -> bool {
-        heading_type != Some(item.kind.as_str())
-            || self.show_all
-            || self.query.names("type", &item.kind)
+        heading_type != Some(item.kind.as_str()) || self.show_all || self.query.constrains("type")
     }
 
     fn tally(&self, key: &str, heading_type: Option<&str>) -> (usize, usize, usize) {
