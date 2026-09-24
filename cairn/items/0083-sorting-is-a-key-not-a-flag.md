@@ -1,11 +1,11 @@
 ---
-id: 83
+id: 9d1e8be3-a12d-4cc6-9ffe-47a002051b99
 title: Sorting is a key, not a flag
 type: feature
 status: done
 milestone: v0.6
 depends_on:
-- 82
+- 449588bb-ac84-4170-abea-759389f5cfb1
 created: 2026-09-18
 updated: 2026-09-18
 priority: p1

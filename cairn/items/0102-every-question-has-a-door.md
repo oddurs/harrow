@@ -1,11 +1,11 @@
 ---
-id: 102
+id: 39ac484e-b657-4b46-92ce-89118076115a
 key: v0.7
 title: Every question has a door
 type: milestone
 status: done
 depends_on:
-- 81
+- 94e1551c-4e1a-4027-88dc-65dc0ef31ca2
 created: 2026-09-23
 updated: 2026-09-23
 closed_at: 2026-09-23

@@ -1,11 +1,11 @@
 ---
-id: 81
+id: 94e1551c-4e1a-4027-88dc-65dc0ef31ca2
 key: v0.6
 title: Compose a view; reach a command
 type: milestone
 status: done
 depends_on:
-- 63
+- c858d221-40e1-4530-a8ad-ce26deef0e2c
 created: 2026-09-18
 updated: 2026-09-23
 closed_at: 2026-09-23

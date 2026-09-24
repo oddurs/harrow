@@ -1,5 +1,5 @@
 ---
-id: 11
+id: 463c1472-d12e-4ef7-b8da-2839eccfb0a4
 title: Wear the terminal's own colours
 type: feature
 status: done

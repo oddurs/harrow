@@ -1,5 +1,5 @@
 ---
-id: 14
+id: b2c3ad72-bd9b-4fbf-8117-df4c17c4f2bc
 title: Document theming and configuration
 type: docs
 status: done

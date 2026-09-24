@@ -1,11 +1,11 @@
 ---
-id: 63
+id: c858d221-40e1-4530-a8ad-ce26deef0e2c
 key: v0.5
 title: The work is somebody else's; the deciding is yours
 type: milestone
 status: done
 depends_on:
-- 55
+- 565a425b-fce0-47b8-a401-9a9106ddac8f
 created: 2026-09-12
 updated: 2026-09-23
 closed_at: 2026-09-23

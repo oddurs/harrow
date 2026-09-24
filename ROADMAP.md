@@ -10,18 +10,18 @@ Enough to dogfood in a real project.
 
 ### done
 
-- [x] `0004` Adopt cairn for the roadmap <sup>feature</sup>
-- [x] `0005` Read a cairn project without shelling out <sup>feature · p0 · read</sup>
-- [x] `0006` Group the backlog the way the project is organised <sup>feature · p0 · chrome</sup>
-- [x] `0007` Triage without typing an id <sup>feature · p0 · chrome</sup>
-- [x] `0008` Hand every change to cairn rather than writing item files <sup>feature · p0 · write</sup>
-- [x] `0009` A board with the project's own columns <sup>feature · p1 · chrome</sup>
-- [x] `0010` cairn's filter grammar in the filter box <sup>feature · p1 · filter</sup>
-- [x] `0011` Wear the terminal's own colours <sup>feature · p1 · theme</sup>
-- [x] `0012` Read an item in full without leaving <sup>feature · p1 · chrome</sup>
-- [x] `0013` Snapshot the screen, so the interface cannot change by accident <sup>chore · p0 · testing</sup>
-- [x] `0014` Document theming and configuration <sup>docs · p1 · docs</sup>
-- [x] `0023` Make the wrong thing structurally impossible <sup>chore · p0 · packaging</sup>
+- [x] `02368565` Read an item in full without leaving <sup>feature · p1 · chrome</sup>
+- [x] `0c2f4900` Hand every change to cairn rather than writing item files <sup>feature · p0 · write</sup>
+- [x] `1cf5b6f1` Group the backlog the way the project is organised <sup>feature · p0 · chrome</sup>
+- [x] `3044290a` Triage without typing an id <sup>feature · p0 · chrome</sup>
+- [x] `401fbd56` Read a cairn project without shelling out <sup>feature · p0 · read</sup>
+- [x] `463c1472` Wear the terminal's own colours <sup>feature · p1 · theme</sup>
+- [x] `5e0cf43c` Snapshot the screen, so the interface cannot change by accident <sup>chore · p0 · testing</sup>
+- [x] `7faea858` Make the wrong thing structurally impossible <sup>chore · p0 · packaging</sup>
+- [x] `b2c3ad72` Document theming and configuration <sup>docs · p1 · docs</sup>
+- [x] `c79fabb3` cairn's filter grammar in the filter box <sup>feature · p1 · filter</sup>
+- [x] `cac086e1` A board with the project's own columns <sup>feature · p1 · chrome</sup>
+- [x] `dfe846e1` Adopt cairn for the roadmap <sup>feature</sup>
 
 ## v0.2 — Triage that scales past one item at a time
 
@@ -31,20 +31,20 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
 ### done
 
-- [x] `0017` Watch the directory instead of re-reading it <sup>feature · p2 · runtime</sup>
-- [x] `0018` Multi-select, for triage that is actually bulk <sup>feature · p1 · chrome</sup>
-- [x] `0019` Show what changed, from the repository's own history <sup>feature · p2 · chrome</sup>
-- [x] `0020` Answer proposals without leaving the board <sup>feature · p2 · write</sup>
-- [x] `0024` Every pane scrolls on its own <sup>feature · p1 · chrome</sup>
-- [x] `0026` An item with no id is not item zero <sup>bug · p0 · read</sup>
-- [x] `0027` Coerce the values the format says a reader must accept <sup>bug · p0 · read</sup>
-- [x] `0028` Find items the way the specification says to find them <sup>bug · p1 · read</sup>
-- [x] `0039` Hold the reader to cairn's own conformance corpus <sup>chore · p1 · testing</sup>
-- [x] `0040` Watch a change land instead of watching it vanish <sup>bug · p1 · chrome</sup>
-- [x] `0075` An overlay cannot be scrolled past its end, and answers the mouse <sup>bug · p1 · chrome</sup>
-- [x] `0076` Read a ticket in a panel, not over the backlog <sup>feature · p1 · chrome</sup>
-- [x] `0078` A filter you can see, instead of a grammar you have to know <sup>feature · p1 · chrome</sup>
-- [x] `0079` A project with no name of its own is the repository, not the folder <sup>bug · p2 · config</sup>
+- [x] `0f8f85e3` Answer proposals without leaving the board <sup>feature · p2 · write</sup>
+- [x] `2316c419` Hold the reader to cairn's own conformance corpus <sup>chore · p1 · testing</sup>
+- [x] `39beacc8` Show what changed, from the repository's own history <sup>feature · p2 · chrome</sup>
+- [x] `3dd7b26e` Watch the directory instead of re-reading it <sup>feature · p2 · runtime</sup>
+- [x] `3e7cf294` Every pane scrolls on its own <sup>feature · p1 · chrome</sup>
+- [x] `496f5beb` An item with no id is not item zero <sup>bug · p0 · read</sup>
+- [x] `54393457` A filter you can see, instead of a grammar you have to know <sup>feature · p1 · chrome</sup>
+- [x] `5624bcd6` An overlay cannot be scrolled past its end, and answers the mouse <sup>bug · p1 · chrome</sup>
+- [x] `7bbdf13c` Find items the way the specification says to find them <sup>bug · p1 · read</sup>
+- [x] `99586a98` A project with no name of its own is the repository, not the folder <sup>bug · p2 · config</sup>
+- [x] `a9760b21` Multi-select, for triage that is actually bulk <sup>feature · p1 · chrome</sup>
+- [x] `ea6bfce7` Coerce the values the format says a reader must accept <sup>bug · p0 · read</sup>
+- [x] `f29473d0` Watch a change land instead of watching it vanish <sup>bug · p1 · chrome</sup>
+- [x] `fe0d3915` Read a ticket in a panel, not over the backlog <sup>feature · p1 · chrome</sup>
 
 ## v0.3 — Read everything cairn writes, and nothing it does not
 
@@ -54,19 +54,19 @@ harrow reads cairn's files directly. That is the decision the whole program
 
 ### done
 
-- [x] `0029` Acceptance criteria are what the convention says they are <sup>bug · p1 · read</sup>
-- [x] `0030` A reference addressed by key resolves only by key <sup>bug · p2 · read</sup>
-- [x] `0031` Identifiers rendered the way the project renders them <sup>feature · p2 · read</sup>
-- [x] `0032` A project from a newer cairn opens read-only rather than being refused <sup>feature · p1 · read</sup>
-- [x] `0033` A claim that has gone stale says so <sup>feature · p2 · chrome</sup>
-- [x] `0034` A saved view brings its grouping and its columns <sup>feature · p2 · filter</sup>
-- [x] `0035` Write down why, without leaving <sup>feature · p1 · write</sup>
-- [x] `0036` Propose a change you are not the one to decide <sup>feature · p2 · write</sup>
-- [x] `0037` Hand an item back with what you learned <sup>feature · p3 · write</sup>
-- [x] `0038` Run the project's own check and show what it says <sup>feature · p2 · chrome</sup>
-- [x] `0053` Reload throws away the terminal's palette <sup>bug · p1 · theme</sup>
-- [x] `0054` The derived theme paints chrome in the warning colour <sup>bug · p2 · theme</sup>
-- [x] `0071` A filter cairn accepts must not open as an empty backlog <sup>bug · p0 · filter</sup>
+- [x] `0251954d` Acceptance criteria are what the convention says they are <sup>bug · p1 · read</sup>
+- [x] `43d17b5e` A project from a newer cairn opens read-only rather than being refused <sup>feature · p1 · read</sup>
+- [x] `70330d6e` A claim that has gone stale says so <sup>feature · p2 · chrome</sup>
+- [x] `73448bea` A saved view brings its grouping and its columns <sup>feature · p2 · filter</sup>
+- [x] `8289aa54` Reload throws away the terminal's palette <sup>bug · p1 · theme</sup>
+- [x] `8a7633b7` Identifiers rendered the way the project renders them <sup>feature · p2 · read</sup>
+- [x] `95c03e36` A reference addressed by key resolves only by key <sup>bug · p2 · read</sup>
+- [x] `9ca90591` A filter cairn accepts must not open as an empty backlog <sup>bug · p0 · filter</sup>
+- [x] `a852a84e` Write down why, without leaving <sup>feature · p1 · write</sup>
+- [x] `b340c207` Hand an item back with what you learned <sup>feature · p3 · write</sup>
+- [x] `d06609b4` Propose a change you are not the one to decide <sup>feature · p2 · write</sup>
+- [x] `d0bdf332` Run the project's own check and show what it says <sup>feature · p2 · chrome</sup>
+- [x] `f49359fc` The derived theme paints chrome in the warning colour <sup>bug · p2 · theme</sup>
 
 ## v0.4 — One backlog, three lenses
 
@@ -76,14 +76,14 @@ Three ways of looking at one backlog, that behave like one program.
 
 ### done
 
-- [x] `0056` What a lens is, and what must be true of every one <sup>spike · p1 · chrome</sup>
-- [x] `0057` The stats pane describes a backlog you are not looking at <sup>bug · p1 · chrome</sup>
-- [x] `0058` The detail follows the selection, not the list <sup>feature · p1 · chrome</sup>
-- [x] `0059` Every number in the stats pane is a door <sup>feature · p1 · chrome</sup>
-- [x] `0060` The board groups by whatever you ask it to <sup>feature · p2 · chrome</sup>
-- [x] `0061` The stats pane answers the mouse <sup>feature · p2 · chrome</sup>
-- [x] `0062` Reach a lens directly, and go back <sup>feature · p3 · chrome</sup>
-- [x] `0072` The board wastes its width and reads as unsorted <sup>bug · p1 · chrome</sup>
+- [x] `3125e8d5` Reach a lens directly, and go back <sup>feature · p3 · chrome</sup>
+- [x] `66914815` The stats pane describes a backlog you are not looking at <sup>bug · p1 · chrome</sup>
+- [x] `78f301f2` The stats pane answers the mouse <sup>feature · p2 · chrome</sup>
+- [x] `99f24193` The board groups by whatever you ask it to <sup>feature · p2 · chrome</sup>
+- [x] `adfd1844` What a lens is, and what must be true of every one <sup>spike · p1 · chrome</sup>
+- [x] `bba1126a` The board wastes its width and reads as unsorted <sup>bug · p1 · chrome</sup>
+- [x] `c37f667d` The detail follows the selection, not the list <sup>feature · p1 · chrome</sup>
+- [x] `d8a51a15` Every number in the stats pane is a door <sup>feature · p1 · chrome</sup>
 
 ## v0.5 — The work is somebody else's; the deciding is yours
 
@@ -93,15 +93,15 @@ The work is somebody else's. The deciding is yours.
 
 ### done
 
-- [x] `0064` A lens for what needs you <sup>feature · p1 · chrome</sup>
-- [x] `0065` A lens for what happened while you were away <sup>feature · p1 · chrome</sup>
-- [x] `0066` The detail reads as a thread, not a card <sup>feature · p2 · chrome</sup>
-- [x] `0067` Tick a criterion that has come true <sup>feature · p2 · write</sup>
-- [x] `0068` Whose work is whose <sup>feature · p2 · chrome</sup>
-- [x] `0069` Five lenses need a direct route <sup>feature · p3 · chrome</sup>
-- [x] `0073` A detail pane worth reading <sup>feature · p1 · chrome</sup>
-- [x] `0074` Markdown wears roles that mean something else <sup>bug · p1 · chrome</sup>
-- [x] `0080` Two parts of the screen disagree about what counts as work <sup>bug · p0 · read</sup>
+- [x] `21f23359` Tick a criterion that has come true <sup>feature · p2 · write</sup>
+- [x] `412eed4b` A lens for what needs you <sup>feature · p1 · chrome</sup>
+- [x] `5e0d183a` A lens for what happened while you were away <sup>feature · p1 · chrome</sup>
+- [x] `8431833e` The detail reads as a thread, not a card <sup>feature · p2 · chrome</sup>
+- [x] `a201b84e` A detail pane worth reading <sup>feature · p1 · chrome</sup>
+- [x] `a54e00de` Whose work is whose <sup>feature · p2 · chrome</sup>
+- [x] `c9df7fc0` Two parts of the screen disagree about what counts as work <sup>bug · p0 · read</sup>
+- [x] `e1e23d89` Markdown wears roles that mean something else <sup>bug · p1 · chrome</sup>
+- [x] `fb504ace` Five lenses need a direct route <sup>feature · p3 · chrome</sup>
 
 ## v0.6 — Compose a view; reach a command
 
@@ -111,18 +111,18 @@ Three questions decide what is on screen — which items, in what order,
 
 ### done
 
-- [x] `0082` The view says what it is, in one line <sup>feature · p1 · chrome</sup>
-- [x] `0083` Sorting is a key, not a flag <sup>feature · p1 · chrome</sup>
-- [x] `0084` One query, two ways to type it <sup>feature · p2 · filter</sup>
-- [x] `0085` Every command has a name before it has a key <sup>feature · p1 · chrome</sup>
-- [x] `0086` h and l mean what the arrows mean <sup>bug · p2 · chrome</sup>
-- [x] `0087` Reach the views the project declared <sup>feature · p2 · chrome</sup>
-- [x] `0088` A milestone with nothing left shows the work that finished it <sup>feature · p2 · chrome</sup>
-- [x] `0089` Two lines of chrome, not four <sup>feature · p1 · chrome</sup>
-- [x] `0090` One toolbar, with a dropdown under each part of it <sup>feature · p1 · chrome</sup>
-- [x] `0091` The toolbar draws a glyph the terminal has not got <sup>bug · p1 · chrome</sup>
-- [x] `0092` A milestone in progress hides the work it has finished <sup>bug · p1 · read</sup>
-- [x] `0093` Open where the work is, not at the beginning of the project <sup>feature · p1 · chrome</sup>
+- [x] `1b2ce505` Two lines of chrome, not four <sup>feature · p1 · chrome</sup>
+- [x] `3431d9b9` One toolbar, with a dropdown under each part of it <sup>feature · p1 · chrome</sup>
+- [x] `449588bb` The view says what it is, in one line <sup>feature · p1 · chrome</sup>
+- [x] `4512b061` A milestone in progress hides the work it has finished <sup>bug · p1 · read</sup>
+- [x] `45943011` One query, two ways to type it <sup>feature · p2 · filter</sup>
+- [x] `9d1e8be3` Sorting is a key, not a flag <sup>feature · p1 · chrome</sup>
+- [x] `ae6bc033` Reach the views the project declared <sup>feature · p2 · chrome</sup>
+- [x] `c3c3a3cd` Open where the work is, not at the beginning of the project <sup>feature · p1 · chrome</sup>
+- [x] `d68c565c` A milestone with nothing left shows the work that finished it <sup>feature · p2 · chrome</sup>
+- [x] `d8989454` Every command has a name before it has a key <sup>feature · p1 · chrome</sup>
+- [x] `e5fa1a5c` The toolbar draws a glyph the terminal has not got <sup>bug · p1 · chrome</sup>
+- [x] `fc3e5f20` h and l mean what the arrows mean <sup>bug · p2 · chrome</sup>
 
 ## v0.7 — Every question has a door
 
@@ -132,13 +132,13 @@ Every question harrow can answer is answerable from a shell.
 
 ### done
 
-- [x] `0077` The log reads the repository it was pointed at <sup>bug · p2 · read</sup>
-- [x] `0100` Give harrow a durable direction and a reconciled backlog <sup>chore · p1 · docs</sup>
-- [x] `0101` Read the record directly; change it only through cairn <sup>decision · p1 · docs</sup>
-- [x] `0103` Open any lens from the command line <sup>feature · p1 · cli</sup>
-- [x] `0104` Answer the needs and log questions in plain text <sup>feature · p1 · cli</sup>
-- [x] `0105` Say what each lens answers, in the help and the manual <sup>docs · p2 · docs</sup>
-- [x] `0106` A negated status predicate does not lift the hidden default <sup>bug · p1 · filter</sup>
+- [x] `03fe128b` Give harrow a durable direction and a reconciled backlog <sup>chore · p1 · docs</sup>
+- [x] `35cb07c4` Say what each lens answers, in the help and the manual <sup>docs · p2 · docs</sup>
+- [x] `782be7cf` Answer the needs and log questions in plain text <sup>feature · p1 · cli</sup>
+- [x] `87254132` Open any lens from the command line <sup>feature · p1 · cli</sup>
+- [x] `def809f0` The log reads the repository it was pointed at <sup>bug · p2 · read</sup>
+- [x] `e14f0716` Read the record directly; change it only through cairn <sup>decision · p1 · docs</sup>
+- [x] `edcd6fc4` A negated status predicate does not lift the hidden default <sup>bug · p1 · filter</sup>
 
 ## v1.0 — Stable release
 
@@ -148,31 +148,31 @@ Documented, tested, and safe to depend on.
 
 ### backlog
 
-- [ ] `0021` Package it: crates.io and a tap <sup>chore · p1 · packaging</sup>
-- [ ] `0041` Undo the last thing you did <sup>feature · p1 · write</sup>
-- [ ] `0042` A rebuild that does not slow down as the backlog grows <sup>bug · p1 · read</sup>
-- [ ] `0043` A man page, and completions for the shell you use <sup>docs · p1 · docs</sup>
-- [ ] `0044` Say what is stable, and what harrow will never be <sup>docs · p1 · docs</sup>
-- [ ] `0047` Say which platforms harrow runs on, and prove it <sup>chore · p2 · packaging</sup>
-- [ ] `0048` A terminal without the glyphs still gets the interface <sup>feature · p2 · theme</sup>
-- [ ] `0049` File an item the way the project files them <sup>feature · p2 · write</sup>
-- [ ] `0050` Suspend it, and come back to it <sup>feature · p3 · runtime</sup>
-- [ ] `0051` Select the item a cairn check finding names <sup>feature · p3 · chrome</sup>
-- [ ] `0052` A digit in a picker does not pick outright <sup>bug · p3 · chrome</sup>
-- [ ] `0096` A rebuild keeps the row number rather than the thing on it <sup>bug · p2 · read</sup>
-- [ ] `0109` Decide what the 1.0 promise covers <sup>decision · p1 · docs</sup>
+- [ ] `0e481b4c` Package it: crates.io and a tap <sup>chore · p1 · packaging</sup>
+- [ ] `23a4ee2d` Say what is stable, and what harrow will never be <sup>docs · p1 · docs</sup>
+- [ ] `405ff642` Suspend it, and come back to it <sup>feature · p3 · runtime</sup>
+- [ ] `5246d741` Decide what the 1.0 promise covers <sup>decision · p1 · docs</sup>
+- [ ] `57a80d77` A terminal without the glyphs still gets the interface <sup>feature · p2 · theme</sup>
+- [ ] `79be4b2f` Select the item a cairn check finding names <sup>feature · p3 · chrome</sup>
+- [ ] `9e1c822d` A rebuild keeps the row number rather than the thing on it <sup>bug · p2 · read</sup>
+- [ ] `acb5285e` A rebuild that does not slow down as the backlog grows <sup>bug · p1 · read</sup>
+- [ ] `b0107dd0` Undo the last thing you did <sup>feature · p1 · write</sup>
+- [ ] `c9b2da44` Say which platforms harrow runs on, and prove it <sup>chore · p2 · packaging</sup>
+- [ ] `e09f9c11` File an item the way the project files them <sup>feature · p2 · write</sup>
+- [ ] `f21342d0` A digit in a picker does not pick outright <sup>bug · p3 · chrome</sup>
+- [ ] `fb0d48a6` A man page, and completions for the shell you use <sup>docs · p1 · docs</sup>
 
 ### done
 
-- [x] `0045` Soak it against backlogs nobody wrote by hand <sup>chore · p1 · testing</sup>
-- [x] `0046` Every screen, at every size it can be given <sup>chore · p2 · testing</sup>
-- [x] `0070` The randomised suite has never pressed half the keys <sup>bug · p1 · testing</sup>
-- [x] `0094` The map is wrong in six places <sup>bug · p1 · chrome</sup>
-- [x] `0095` The tree does not fold from the keyboard <sup>bug · p0 · chrome</sup>
-- [x] `0097` A map with headings, that says where it ends <sup>feature · p2 · chrome</sup>
-- [x] `0098` A dropdown you cannot click out of <sup>bug · p1 · chrome</sup>
-- [x] `0099` Keep completion dates and saved views aligned with Cairn <sup>bug · p1 · read</sup>
-- [x] `0108` Advance the counterpart pin to Cairn 0.3.0 <sup>chore · p2 · testing</sup>
+- [x] `2e326ab7` A map with headings, that says where it ends <sup>feature · p2 · chrome</sup>
+- [x] `2e8b1e58` The tree does not fold from the keyboard <sup>bug · p0 · chrome</sup>
+- [x] `322bb169` Soak it against backlogs nobody wrote by hand <sup>chore · p1 · testing</sup>
+- [x] `51b708fa` The randomised suite has never pressed half the keys <sup>bug · p1 · testing</sup>
+- [x] `721d351a` The map is wrong in six places <sup>bug · p1 · chrome</sup>
+- [x] `9a34d78d` A dropdown you cannot click out of <sup>bug · p1 · chrome</sup>
+- [x] `b3ca3fb5` Every screen, at every size it can be given <sup>chore · p2 · testing</sup>
+- [x] `c2bc4106` Keep completion dates and saved views aligned with Cairn <sup>bug · p1 · read</sup>
+- [x] `d0634e7c` Advance the counterpart pin to Cairn 0.3.0 <sup>chore · p2 · testing</sup>
 
 ## later — Someday
 
@@ -182,14 +182,14 @@ Good ideas without a date yet.
 
 ### backlog
 
-- [ ] `0015` Every cairn project on this machine, in one list <sup>feature · p3 · cli</sup>
-- [ ] `0022` How much Markdown is worth rendering in a pane this size <sup>spike · p2 · chrome</sup>
+- [ ] `1da450b7` Every cairn project on this machine, in one list <sup>feature · p3 · cli</sup>
+- [ ] `25c1ea12` How much Markdown is worth rendering in a pane this size <sup>spike · p2 · chrome</sup>
 
 ## Unscheduled
 
-`··········` 0% · 0 of 1 done
+`##########` 100% · 1 of 1 done
 
-### in progress
+### done
 
-- [ ] `0110` Read immutable UUID identities and keep the Cairn contract <sup>feature · p1 · read</sup>
+- [x] `7dceda4a` Read immutable UUID identities and keep the Cairn contract <sup>feature · p1 · read</sup>
 

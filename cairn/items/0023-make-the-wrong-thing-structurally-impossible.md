@@ -1,5 +1,5 @@
 ---
-id: 23
+id: 7faea858-a4c6-49c1-99f1-327e945044a2
 title: Make the wrong thing structurally impossible
 type: chore
 status: done

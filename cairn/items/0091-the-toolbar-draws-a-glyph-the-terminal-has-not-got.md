@@ -1,5 +1,5 @@
 ---
-id: 91
+id: e5fa1a5c-e64c-4675-9f18-f5edb293877f
 title: The toolbar draws a glyph the terminal has not got
 type: bug
 status: done
