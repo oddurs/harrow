@@ -2,7 +2,7 @@
 id: 106
 title: A negated status predicate does not lift the hidden default
 type: bug
-status: backlog
+status: done
 milestone: v0.7
 created: 2026-09-23
 updated: 2026-09-23
@@ -53,7 +53,7 @@ suite, so the next disagreement of this shape fails a build instead of a view.
 
 ## Acceptance criteria
 
-- [ ] A negated status or category predicate lifts the default, as an equality does
-- [ ] Harrow and Cairn return the same set for all five filters in the table
-- [ ] The agreement suite gains a negated-predicate fixture
-- [ ] `-a` and an explicit predicate still compose as they do now
+- [x] A negated status or category predicate lifts the default, as an equality does
+- [x] Harrow and Cairn return the same set for all five filters in the table
+- [x] The agreement suite gains a negated-predicate fixture
+- [x] `-a` and an explicit predicate still compose as they do now

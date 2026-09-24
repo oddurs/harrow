@@ -67,16 +67,17 @@ const FILTERS: &[&str] = &[
 ];
 
 fn cairn_ids(dir: &Path, filter: &str) -> Vec<u32> {
+    cairn_ids_with(dir, filter, true)
+}
+
+fn cairn_ids_with(dir: &Path, filter: &str, all: bool) -> Vec<u32> {
+    let root = dir.display().to_string();
+    let mut args: Vec<&str> = vec!["-C", &root, "list", "--ids", "-f", filter];
+    if all {
+        args.insert(3, "--all");
+    }
     let out = std::process::Command::new("cairn")
-        .args([
-            "-C",
-            &dir.display().to_string(),
-            "list",
-            "--all",
-            "--ids",
-            "-f",
-            filter,
-        ])
+        .args(&args)
         .output()
         .expect("cairn runs");
     assert!(
@@ -93,12 +94,16 @@ fn cairn_ids(dir: &Path, filter: &str) -> Vec<u32> {
 }
 
 fn open(dir: &Path, filter: &str) -> App {
+    open_with(dir, filter, true)
+}
+
+fn open_with(dir: &Path, filter: &str, all: bool) -> App {
     let mut project = Project::discover(dir).expect("the project opens");
     let mut app = App::new();
     // `--all`, to match what cairn was asked. The list's rule about hiding
     // finished work is harrow's own and not the filter's; comparing through
     // it would be comparing two different questions.
-    app.show_all = true;
+    app.show_all = all;
     // Ungrouped, because a grouping turns containers into headings rather
     // than rows — a milestone is not a row whatever the grouping is, which
     // is deliberate and is about presentation. Comparing through it would
@@ -114,7 +119,11 @@ fn open(dir: &Path, filter: &str) -> App {
 }
 
 fn harrow_ids(dir: &Path, filter: &str) -> Vec<u32> {
-    let app = open(dir, filter);
+    harrow_ids_with(dir, filter, true)
+}
+
+fn harrow_ids_with(dir: &Path, filter: &str, all: bool) -> Vec<u32> {
+    let app = open_with(dir, filter, all);
     assert!(
         app.filter_problem().is_none(),
         "harrow refused {filter:?}: {:?}",
@@ -132,11 +141,17 @@ fn harrow_ids(dir: &Path, filter: &str) -> Vec<u32> {
     ids
 }
 
+/// One project both comparisons read, so they cannot drift apart.
+fn fixture() -> testkit::TempProject {
+    let dir = testkit::project();
+    std::fs::write(dir.path().join("items/0007-completed.md"), "---\nid: 7\ntitle: Completed and edited later\ntype: feature\nstatus: done\nclosed_at: 2026-09-01\nupdated: 2026-09-20\n---\n\n- [x] Finished\n").unwrap();
+    dir
+}
+
 #[test]
 #[ignore = "needs cairn on PATH"]
 fn harrow_and_cairn_select_the_same_items() {
-    let dir = testkit::project();
-    std::fs::write(dir.path().join("items/0007-completed.md"), "---\nid: 7\ntitle: Completed and edited later\ntype: feature\nstatus: done\nclosed_at: 2026-09-01\nupdated: 2026-09-20\n---\n\n- [x] Finished\n").unwrap();
+    let dir = fixture();
     let mut disagreed = Vec::new();
     for filter in FILTERS {
         let (theirs, ours) = (
@@ -152,6 +167,53 @@ fn harrow_and_cairn_select_the_same_items() {
         "{} of {} filters disagree:\n{}",
         disagreed.len(),
         FILTERS.len(),
+        disagreed.join("\n")
+    );
+}
+
+/// The rule about what an ordinary listing leaves out — closed work, and
+/// containers — is not harrow's own. cairn has the same rule, and a saved
+/// view's item set, as a reader sees it, goes through it.
+///
+/// Every other comparison here passes `--all` on both sides, which comes to
+/// the same thing as never testing this. It is why `category!=dropped` could
+/// mean *everything that still counts* in cairn and *only open work* here,
+/// differing by every closed item, with this suite green. 0106.
+const ORDINARY_LISTING: &[&str] = &[
+    // Constrained by an equality: the shapes that already agreed.
+    "status=done",
+    "category=done",
+    "type=bug",
+    "type=milestone",
+    "type=milestone,status=done",
+    // Constrained by a negation: the shapes that did not.
+    "status!=done",
+    "status!=dropped",
+    "category!=dropped",
+    "type!=feature",
+    "type=milestone,category!=dropped",
+    // Saying nothing about either, so both defaults stand.
+    "priority=p1",
+    "id>0",
+];
+
+#[test]
+#[ignore = "needs cairn on PATH"]
+fn the_rule_about_what_an_ordinary_listing_hides_agrees() {
+    let dir = fixture();
+    let mut disagreed = Vec::new();
+    for filter in ORDINARY_LISTING {
+        let theirs = cairn_ids_with(dir.path(), filter, false);
+        let ours = harrow_ids_with(dir.path(), filter, false);
+        if theirs != ours {
+            disagreed.push(format!("{filter:?}: cairn {theirs:?}, harrow {ours:?}"));
+        }
+    }
+    assert!(
+        disagreed.is_empty(),
+        "{} of {} ordinary listings disagree:\n{}",
+        disagreed.len(),
+        ORDINARY_LISTING.len(),
         disagreed.join("\n")
     );
 }
