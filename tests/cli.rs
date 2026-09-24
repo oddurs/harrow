@@ -16,8 +16,34 @@ fn harrow() -> PathBuf {
     path.join("harrow")
 }
 
+/// Every variable a git hook exports to what it runs.
+///
+/// `pre-push` runs this suite, and git hands a hook `GIT_DIR` and friends.
+/// A subprocess that inherits them works on *this* repository whatever
+/// directory it was pointed at — so a fixture's `git init` committed to
+/// harrow's own branch, and a fixture's log read harrow's history, which is
+/// long enough to exceed the timeout and draw the frame that says it is still
+/// asking. Both only ever failed under `pre-push`, which is the tell. 0107.
+const GIT_ENV: &[&str] = &[
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_PREFIX",
+    "GIT_COMMON_DIR",
+    "GIT_CEILING_DIRECTORIES",
+];
+
+fn without_git_env(command: &mut Command) -> &mut Command {
+    for name in GIT_ENV {
+        command.env_remove(name);
+    }
+    command
+}
+
 fn run(args: &[&str]) -> (String, String, i32) {
-    let out = Command::new(harrow())
+    let out = without_git_env(&mut Command::new(harrow()))
         .args(args)
         .output()
         .expect("harrow runs");
@@ -272,5 +298,191 @@ fn a_screenshot_of_the_log_shows_the_history_rather_than_the_asking() {
     assert!(
         out.contains("no history") || out.contains("Nothing has changed"),
         "the lens has to say something it means:\n{out}"
+    );
+}
+
+/// Every lens harrow draws has a door from outside it. The needs queue and
+/// the log had none, and they are the two that answer *what needs me* and
+/// *what changed* — the questions somebody returning to a project arrives
+/// with, and the ones an agent supervising work wants. 0103.
+#[test]
+fn every_lens_can_be_opened_by_name() {
+    let dir = testkit::project();
+    let path = dir.path().display().to_string();
+    for lens in ["needs", "list", "board", "stats", "log"] {
+        let (out, err, code) = run(&["-C", &path, "--lens", lens, "--screenshot", "90x16"]);
+        assert_eq!(code, 0, "--lens {lens}: {err}");
+        assert!(out.contains(lens), "the tab strip marks {lens}:\n{out}");
+    }
+}
+
+#[test]
+fn a_lens_nothing_answers_to_is_a_usage_error() {
+    let dir = testkit::project();
+    let (out, err, code) = run(&["-C", &dir.path().display().to_string(), "--lens", "graph"]);
+    assert_eq!(code, 2, "{out}{err}");
+    assert!(
+        err.contains("graph"),
+        "it says what it did not understand: {err}"
+    );
+    for lens in ["needs", "list", "board", "stats", "log"] {
+        assert!(err.contains(lens), "it names {lens}: {err}");
+    }
+}
+
+/// The two flags that existed before keep working. Somebody's script, and
+/// every line of documentation naming them, stays true.
+#[test]
+fn board_and_stats_still_open_their_own_lenses() {
+    let dir = testkit::project();
+    let path = dir.path().display().to_string();
+    for (flag, lens) in [("--board", "board"), ("--stats", "stats")] {
+        let (shorthand, _, _) = run(&["-C", &path, flag, "--screenshot", "90x16"]);
+        let (named, _, _) = run(&["-C", &path, "--lens", lens, "--screenshot", "90x16"]);
+        assert_eq!(shorthand, named, "{flag} and --lens {lens} draw the same");
+    }
+}
+
+/// One line per question: the item, what kind of question it is, who it is
+/// about, and its particulars. 0104.
+#[test]
+fn plain_answers_the_needs_queue() {
+    let dir = testkit::project();
+    let (out, err, code) = run(&[
+        "-C",
+        &dir.path().display().to_string(),
+        "--plain",
+        "--lens",
+        "needs",
+    ]);
+    assert_eq!(code, 0, "{err}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert!(!lines.is_empty(), "the fixture has a proposal on it");
+    assert!(
+        lines.iter().all(|l| l.matches('\t').count() == 3),
+        "four fields, tab separated:\n{out}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("0006\tproposal\tan agent\tpriority=p0")),
+        "the proposal, as the fixture wrote it:\n{out}"
+    );
+}
+
+/// Nothing needing attention is an answer, not a failure.
+#[test]
+fn an_empty_needs_queue_prints_nothing_and_succeeds() {
+    let dir = testkit::project();
+    // The proposal and the stale claim are the only two questions here.
+    std::fs::remove_file(dir.path().join("items/0006-write-the-readme.md")).unwrap();
+    std::fs::remove_file(dir.path().join("items/0003-draw-the-list.md")).unwrap();
+    let (out, err, code) = run(&[
+        "-C",
+        &dir.path().display().to_string(),
+        "--plain",
+        "--lens",
+        "needs",
+    ]);
+    assert_eq!(code, 0, "{err}");
+    assert!(out.is_empty(), "printed {out:?}");
+}
+
+/// Launched from a git hook, harrow read the hook's repository rather than the
+/// project it was pointed at: a hook exports `GIT_DIR`, and git prefers it to
+/// discovering a repository, so `-C` changed the directory and not the answer.
+/// With `--plain --lens log` there is now every reason to run harrow from a
+/// hook or a CI step, which is where this bites. 0077.
+#[test]
+fn the_log_reads_the_project_even_when_a_hook_names_another_repository() {
+    let dir = testkit::project();
+    let elsewhere = testkit::project();
+    let git = |at: &std::path::Path, args: &[&str]| {
+        without_git_env(&mut Command::new("git"))
+            .args(args)
+            .current_dir(at)
+            .env("GIT_AUTHOR_NAME", "The Project")
+            .env("GIT_AUTHOR_EMAIL", "project@example.invalid")
+            .env("GIT_COMMITTER_NAME", "The Project")
+            .env("GIT_COMMITTER_EMAIL", "project@example.invalid")
+            .output()
+            .expect("git runs");
+    };
+    for at in [dir.path(), elsewhere.path()] {
+        git(at, &["init", "-q"]);
+        git(at, &["add", "-A"]);
+        git(at, &["commit", "-qm", "file the backlog"]);
+    }
+
+    // Exactly what a hook hands its children, naming the *other* repository.
+    let out = without_git_env(&mut Command::new(harrow()))
+        .args([
+            "-C",
+            &dir.path().display().to_string(),
+            "--plain",
+            "--lens",
+            "log",
+        ])
+        .env("GIT_DIR", elsewhere.path().join(".git"))
+        .env("GIT_WORK_TREE", elsewhere.path())
+        .output()
+        .expect("harrow runs");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        !text.is_empty(),
+        "the project has history of its own:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    // Both repositories carry the same items, so the proof is that it answered
+    // at all with `GIT_DIR` pointing somewhere else — a git that honoured it
+    // would be reading a work tree the `--` pathspec does not match.
+    assert!(text.lines().all(|l| l.contains("The Project")), "{text}");
+}
+
+/// The log is the one lens whose answer is not in the item files, so `--plain`
+/// has to ask Git for it rather than print the placeholder shown while waiting.
+#[test]
+fn plain_answers_the_log_from_the_repository() {
+    let dir = testkit::project();
+    let path = dir.path().display().to_string();
+    let git = |args: &[&str]| {
+        without_git_env(&mut Command::new("git"))
+            .args(args)
+            .current_dir(dir.path())
+            .env("GIT_AUTHOR_NAME", "A Committer")
+            .env("GIT_AUTHOR_EMAIL", "committer@example.invalid")
+            .env("GIT_COMMITTER_NAME", "A Committer")
+            .env("GIT_COMMITTER_EMAIL", "committer@example.invalid")
+            .output()
+            .expect("git runs");
+    };
+    git(&["init", "-q"]);
+    assert!(
+        dir.path().join(".git").exists(),
+        "the fixture has a repository of its own, not somebody else's"
+    );
+    git(&["add", "-A"]);
+    git(&["commit", "-qm", "file the backlog"]);
+
+    let (out, err, code) = run(&["-C", &path, "--plain", "--lens", "log"]);
+    assert_eq!(code, 0, "{err}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert!(!lines.is_empty(), "one commit touched every item:\n{err}");
+    assert!(
+        lines.iter().all(|l| l.matches('\t').count() == 3),
+        "four fields, tab separated:\n{out}"
+    );
+    assert!(
+        lines.iter().all(|l| l.contains("A Committer")),
+        "who made the change:\n{out}"
+    );
+    assert!(
+        lines.iter().all(|l| l.ends_with("file the backlog")),
+        "and what it was:\n{out}"
     );
 }

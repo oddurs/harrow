@@ -2,10 +2,11 @@
 id: 105
 title: Say what each lens answers, in the help and the manual
 type: docs
-status: planned
+status: done
 milestone: v0.7
 created: 2026-09-23
 updated: 2026-09-23
+closed_at: 2026-09-23
 priority: p2
 area: docs
 effort: s
@@ -31,7 +32,11 @@ command-line contract and have to be documented as such.
 
 ## Done when
 
-- [ ] `--help` names every lens and both aliases
-- [ ] The man page and completions include the flag
-- [ ] The README says what each lens answers, in one line each
-- [ ] `harrow --doctor` still passes and the snapshots are re-recorded
+- [x] `--help` names every lens and both aliases
+- [x] The man page and completions include the flag
+- [x] The README says what each lens answers, in one line each
+- [x] `harrow --doctor` still passes and the snapshots are re-recorded
+
+## 2026-09-23
+
+Shipped. The help, the man page and the shell completions all generate from the one flag table in src/cli.rs, so naming the flag once was enough for three. The README gains a table of the five lenses and the question each answers.

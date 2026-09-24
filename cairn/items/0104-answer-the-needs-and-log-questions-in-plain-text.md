@@ -2,10 +2,11 @@
 id: 104
 title: Answer the needs and log questions in plain text
 type: feature
-status: planned
+status: done
 milestone: v0.7
 created: 2026-09-23
 updated: 2026-09-23
+closed_at: 2026-09-23
 priority: p1
 area: cli
 effort: m
@@ -45,8 +46,12 @@ lines, which is what makes it composable.
 
 ## Acceptance criteria
 
-- [ ] `--plain --lens needs` prints one tab-separated line per question
-- [ ] `--plain --lens log` prints one tab-separated line per change
-- [ ] Every question kind the needs lens computes has a printed form
-- [ ] An empty queue prints nothing and exits 0
-- [ ] The formats are covered by tests that name the behaviour
+- [x] `--plain --lens needs` prints one tab-separated line per question
+- [x] `--plain --lens log` prints one tab-separated line per change
+- [x] Every question kind the needs lens computes has a printed form
+- [x] An empty queue prints nothing and exits 0
+- [x] The formats are covered by tests that name the behaviour
+
+## 2026-09-23
+
+Shipped. Needs prints id, kind, who, detail; log prints when, who, id, what; both tab-separated. All five Asking variants have a printed form, and the match is exhaustive so a sixth cannot be added without one. The log asks Git in plain mode the same way a screenshot does, since neither has an event loop. Verified against cairn's own repository and a fixture repository built in the test.

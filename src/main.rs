@@ -80,6 +80,23 @@ fn main() -> Result<()> {
         i += 1;
     }
 
+    // Before the terminal is touched. A name nothing answers to is a usage
+    // error, and a usage error printed over an alternate screen that was set
+    // up to show it is not one anybody reads.
+    if let Some(name) = flag_value(&args, "--lens")
+        && harrow::app::Pane::from_name(&name).is_none()
+    {
+        eprintln!(
+            "harrow: no lens called {name:?}\n\nusage: harrow --lens <{}>",
+            harrow::app::Pane::ALL
+                .iter()
+                .map(|p| p.name())
+                .collect::<Vec<_>>()
+                .join("|")
+        );
+        std::process::exit(2);
+    }
+
     let startup = resolve(&args);
 
     if has(&["--doctor"]) {
@@ -147,12 +164,19 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
     app.theme = startup.theme.clone();
     app.keymap = startup.keymap.clone();
     app.show_all = startup.config.show_all || args.iter().any(|a| a == "-a" || a == "--all");
-    app.pane = if args.iter().any(|a| a == "-b" || a == "--board") {
-        harrow::app::Pane::Board
-    } else if args.iter().any(|a| a == "--stats") {
-        harrow::app::Pane::Stats
-    } else {
-        harrow::app::Pane::from_name(&startup.config.pane).unwrap_or_default()
+    // Every lens by name, and the two that had flags of their own keep them.
+    // The needs queue and the log answer *what needs me* and *what changed*,
+    // which are the questions somebody returning after a fortnight arrives
+    // with — and until this they were the only two with no way in from
+    // outside the program. The names come from `Pane` itself, so a sixth lens
+    // gets its door by existing rather than by somebody remembering a list.
+    app.pane = match flag_value(args, "--lens").and_then(|n| harrow::app::Pane::from_name(&n)) {
+        // A name nothing answers to never reaches here: it is refused before
+        // the terminal is touched.
+        Some(pane) => pane,
+        None if args.iter().any(|a| a == "-b" || a == "--board") => harrow::app::Pane::Board,
+        None if args.iter().any(|a| a == "--stats") => harrow::app::Pane::Stats,
+        None => harrow::app::Pane::from_name(&startup.config.pane).unwrap_or_default(),
     };
     // The axis of whatever is opening. The board keeps its own — a list by
     // milestone beside a board by status is the pair that sharing one would
@@ -372,6 +396,19 @@ fn plain(startup: Startup, args: &[String]) -> Result<()> {
     app.ingest(report);
     refuse_a_filter_that_does_not_parse(&app);
 
+    // Each lens answers a different question, so each prints a different
+    // shape. Tab-separated in every case, because the point of printing it at
+    // all is that something else can read it.
+    match app.pane {
+        harrow::app::Pane::Needs => plain_needs(&app),
+        harrow::app::Pane::Log => plain_log(&mut app, &startup),
+        _ => plain_items(&app),
+    }
+    Ok(())
+}
+
+/// `id`, `status`, `type`, `milestone`, `title`.
+fn plain_items(app: &App) {
     for row in &app.rows {
         let harrow::app::Row::Item(i) = row else {
             continue;
@@ -386,7 +423,71 @@ fn plain(startup: Startup, args: &[String]) -> Result<()> {
             item.title
         );
     }
-    Ok(())
+}
+
+/// `id`, what kind of question it is, who it is about, and its particulars.
+///
+/// Nothing needing attention prints nothing and exits 0: an empty queue is an
+/// answer rather than a failure, and a caller that wants to branch on it
+/// counts lines. That is what makes it composable.
+fn plain_needs(app: &App) {
+    for question in &app.questions {
+        let (kind, who, detail) = match &question.asking {
+            harrow::app::Asking::Proposal { field, to, by } => {
+                ("proposal", by.as_str(), format!("{field}={to}"))
+            }
+            harrow::app::Asking::ColdClaim { who, days } => {
+                ("cold-claim", who.as_str(), format!("{days} days"))
+            }
+            harrow::app::Asking::Finished => {
+                let ticked = app
+                    .items
+                    .iter()
+                    .find(|i| i.id == question.id)
+                    .map(|i| i.criteria())
+                    .unwrap_or((0, 0));
+                (
+                    "finished",
+                    "",
+                    format!("{} of {} ticked", ticked.0, ticked.1),
+                )
+            }
+            harrow::app::Asking::NothingUnfinished => ("nothing-unfinished", "", String::new()),
+            harrow::app::Asking::Unowned { by } => ("unowned", by.as_str(), String::new()),
+        };
+        println!(
+            "{}\t{}\t{}\t{}",
+            app.schema.format_id(question.id),
+            kind,
+            who,
+            detail
+        );
+    }
+}
+
+/// `when`, `who`, `id`, `what` — the change, as the repository recorded it.
+///
+/// The log is the one lens whose answer is not in the item files, so it has to
+/// ask Git. `plain` has no event loop, the same way a screenshot has none, so
+/// it asks here rather than rendering the placeholder shown while waiting.
+fn plain_log(app: &mut App, startup: &Startup) {
+    if let Some(Action::Activity) = app.pending() {
+        let result = activity(app, startup.config.write_timeout());
+        app.show_activity(result);
+    }
+    if let Some(Err(why)) = &app.moments {
+        eprintln!("harrow: {why}");
+        std::process::exit(1);
+    }
+    for moment in app.moments() {
+        println!(
+            "{}\t{}\t{}\t{}",
+            moment.when,
+            moment.who,
+            app.schema.format_id(moment.id),
+            moment.what
+        );
+    }
 }
 
 /// `--screenshot 120x40`. Renders one frame with no terminal at all, which is
@@ -425,8 +526,7 @@ fn screenshot(spec: &str, startup: Startup, args: &[String]) -> Result<()> {
 /// one item's history.
 fn activity(app: &App, timeout: Duration) -> Result<String, String> {
     let dir = app.schema.items_dir();
-    harrow::exec::run(
-        "git",
+    harrow::exec::git(
         &[
             "-C",
             &app.schema.root.display().to_string(),

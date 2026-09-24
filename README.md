@@ -73,7 +73,29 @@ screen you want most and the one no tracker ever shows you.
 cycles the axis. **The board** deals the same items into the columns the project
 declared. **The stats** is the backlog from a distance: how much is closed, what
 is ready, what is blocked, what is in the way of the most other things, how the
-milestones stand, and where the work is by type and priority.
+milestones stand, and where the work is by type and priority. **The log** is
+what changed, most recent first, out of the Git that is already underneath it.
+
+Five lenses, five questions, and each one has a door from the command line:
+
+| | answers | |
+| --- | --- | --- |
+| `--lens needs` | what needs me | proposals, cold claims, work finished and still open |
+| `--lens list` | which items | the backlog, grouped and filtered |
+| `--lens board` | where the work stands | the project's own columns |
+| `--lens stats` | how it stands overall | closed, ready, blocked, by type and priority |
+| `--lens log` | what changed | commits that touched the backlog |
+
+`--plain` answers any of them without drawing anything, so `needs` and `log`
+are available to a script or an agent as well as to a person:
+
+```sh
+harrow --plain --lens needs   # 0006  proposal  an agent  priority=p0
+harrow --plain --lens log     # 2026-09-23  Oddur  0106  fix(filter): …
+```
+
+Nothing needing attention prints nothing and exits 0 — an empty queue is an
+answer, not a failure.
 
 ## Everything is the project's
 
@@ -134,9 +156,11 @@ harrow -C ../other-project    # somewhere else
 harrow --view now             # open in one of the project's saved views
 harrow -f 'priority=p0'       # open filtered
 harrow --group-by area        # grouped by something other than milestone
-harrow -b                     # open on the board
-harrow --stats                # open on the statistics
+harrow --lens needs           # open on what needs you; also list, board, stats, log
+harrow -b                     # shorthand for --lens board
+harrow --stats                # shorthand for --lens stats
 harrow --plain                # one line per item, for scripts
+harrow --plain --lens needs   # one line per question waiting on somebody
 harrow --doctor               # check everything harrow depends on
 harrow --screenshot 120x40    # render one frame as text, no terminal needed
 harrow --fix-terminal         # undo a terminal left in mouse-reporting mode

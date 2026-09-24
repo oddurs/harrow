@@ -96,16 +96,22 @@ pub const FLAGS: &[Flag] = &[
         help: "show everything: finished, dropped, milestones",
     },
     Flag {
+        short: None,
+        long: "--lens",
+        takes: Takes::Value("<NAME>"),
+        help: "needs, list, board, stats, or log",
+    },
+    Flag {
         short: Some('b'),
         long: "--board",
         takes: Takes::Nothing,
-        help: "open on the board",
+        help: "open on the board (--lens board)",
     },
     Flag {
         short: None,
         long: "--stats",
         takes: Takes::Nothing,
-        help: "open on the statistics",
+        help: "open on the statistics (--lens stats)",
     },
     Flag {
         short: Some('f'),

@@ -2,10 +2,11 @@
 id: 103
 title: Open any lens from the command line
 type: feature
-status: planned
+status: done
 milestone: v0.7
 created: 2026-09-23
 updated: 2026-09-23
+closed_at: 2026-09-23
 priority: p1
 area: cli
 effort: m
@@ -41,8 +42,12 @@ its door by existing.
 
 ## Acceptance criteria
 
-- [ ] `--lens <name>` opens every lens `Pane::ALL` holds
-- [ ] `--board` and `--stats` keep working and are documented as aliases
-- [ ] An unknown lens name fails with a usage error naming the five
-- [ ] The flag takes its names from `Pane`, so a new lens needs no second list
-- [ ] `--lens` and `--view` compose
+- [x] `--lens <name>` opens every lens `Pane::ALL` holds
+- [x] `--board` and `--stats` keep working and are documented as aliases
+- [x] An unknown lens name fails with a usage error naming the five
+- [x] The flag takes its names from `Pane`, so a new lens needs no second list
+- [x] `--lens` and `--view` compose
+
+## 2026-09-23
+
+Shipped. --lens takes its names from Pane::ALL, so a sixth lens gets its door by existing. A name nothing answers to is refused before the terminal is touched, because a usage error printed over an alternate screen set up to show it is not one anybody reads. --board and --stats are kept and documented as shorthand, and a test asserts each draws the same frame as the lens it names.

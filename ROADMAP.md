@@ -126,25 +126,23 @@ Three questions decide what is on screen — which items, in what order,
 
 ## v0.7 — Every question has a door
 
-`#####·····` 50% · 3 of 6 done
+`##########` 100% · 7 of 7 done
 
 Every question harrow can answer is answerable from a shell.
 
-### planned
-
-- [ ] `0103` Open any lens from the command line <sup>feature · p1 · cli</sup>
-- [ ] `0104` Answer the needs and log questions in plain text <sup>feature · p1 · cli</sup>
-- [ ] `0105` Say what each lens answers, in the help and the manual <sup>docs · p2 · docs</sup>
-
 ### done
 
+- [x] `0077` The log reads the repository it was pointed at <sup>bug · p2 · read</sup>
 - [x] `0100` Give harrow a durable direction and a reconciled backlog <sup>chore · p1 · docs</sup>
 - [x] `0101` Read the record directly; change it only through cairn <sup>decision · p1 · docs</sup>
+- [x] `0103` Open any lens from the command line <sup>feature · p1 · cli</sup>
+- [x] `0104` Answer the needs and log questions in plain text <sup>feature · p1 · cli</sup>
+- [x] `0105` Say what each lens answers, in the help and the manual <sup>docs · p2 · docs</sup>
 - [x] `0106` A negated status predicate does not lift the hidden default <sup>bug · p1 · filter</sup>
 
 ## v1.0 — Stable release
 
-`####······` 38% · 8 of 21 done
+`####······` 40% · 8 of 20 done
 
 Documented, tested, and safe to depend on.
 
@@ -161,7 +159,6 @@ Documented, tested, and safe to depend on.
 - [ ] `0050` Suspend it, and come back to it <sup>feature · p3 · runtime</sup>
 - [ ] `0051` Select the item a cairn check finding names <sup>feature · p3 · chrome</sup>
 - [ ] `0052` A digit in a picker does not pick outright <sup>bug · p3 · chrome</sup>
-- [ ] `0077` The log reads the repository it was pointed at <sup>bug · p2 · read</sup>
 - [ ] `0096` A rebuild keeps the row number rather than the thing on it <sup>bug · p2 · read</sup>
 
 ### done

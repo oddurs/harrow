@@ -2,10 +2,11 @@
 id: 77
 title: The log reads the repository it was pointed at
 type: bug
-status: backlog
-milestone: v1.0
+status: done
+milestone: v0.7
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-23
+closed_at: 2026-09-23
 priority: p2
 area: read
 ---
@@ -42,5 +43,15 @@ nothing to suggest it is not yours.
 
 ## Acceptance criteria
 
-- [ ] The log reads the project's repository with `GIT_DIR` set to another one
-- [ ] A test sets it, rather than the suite happening to be run that way
+- [x] The log reads the project's repository with `GIT_DIR` set to another one
+- [x] A test sets it, rather than the suite happening to be run that way
+
+## 2026-09-23
+
+Fixed. exec::git clears GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, GIT_OBJECT_DIRECTORY, GIT_ALTERNATE_OBJECT_DIRECTORIES, GIT_COMMON_DIR, GIT_NAMESPACE, GIT_PREFIX and GIT_CEILING_DIRECTORIES for the child.
+
+It is a separate entry point rather than an argument to exec::run, which is the part this item said was worth thinking about. run takes an argv and a deadline; making every caller say something about the environment to get ordinary behaviour is a worse trade than git having its own way in, and nothing else harrow spawns is sensitive to where it was launched from.
+
+the_log_reads_the_project_even_when_a_hook_names_another_repository builds two repositories, points GIT_DIR and GIT_WORK_TREE at the wrong one, and asserts the answer comes from the project. Against the unfixed code it fails, and takes 71 seconds doing it — which is the same slowness that made the screenshot test time out under pre-push.
+
+Raised in priority by v0.7: with --plain --lens log there is now every reason to run harrow from a hook or a CI step, which is where this bites.
