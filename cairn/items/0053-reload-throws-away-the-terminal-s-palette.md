@@ -1,5 +1,5 @@
 ---
-id: 53
+id: 8289aa54-838e-4e47-a04c-38de82a91c04
 title: Reload throws away the terminal's palette
 type: bug
 status: done

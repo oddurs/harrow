@@ -1,5 +1,5 @@
 ---
-id: 30
+id: 95c03e36-caed-4dd4-afb1-2d2cc956e517
 title: A reference addressed by key resolves only by key
 type: bug
 status: done

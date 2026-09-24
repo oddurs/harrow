@@ -1,5 +1,5 @@
 ---
-id: 33
+id: 70330d6e-ac86-4320-bb10-1f02db718417
 title: A claim that has gone stale says so
 type: feature
 status: done

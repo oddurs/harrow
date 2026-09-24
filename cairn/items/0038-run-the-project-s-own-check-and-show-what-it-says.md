@@ -1,5 +1,5 @@
 ---
-id: 38
+id: d0bdf332-6f92-4d0f-9179-41d607e9510f
 title: Run the project's own check and show what it says
 type: feature
 status: done

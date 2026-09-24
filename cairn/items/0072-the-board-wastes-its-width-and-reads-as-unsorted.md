@@ -1,5 +1,5 @@
 ---
-id: 72
+id: bba1126a-ecd8-42fd-a364-67639d911ac0
 title: The board wastes its width and reads as unsorted
 type: bug
 status: done

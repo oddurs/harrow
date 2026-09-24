@@ -1,11 +1,11 @@
 ---
-id: 2
+id: 18bc2575-af86-4afb-be64-1f481cc26b60
 key: v1.0
 title: Stable release
 type: milestone
 status: backlog
 depends_on:
-- 102
+- 39ac484e-b657-4b46-92ce-89118076115a
 created: 2026-09-08
 updated: 2026-09-23
 ---

@@ -1,11 +1,11 @@
 ---
-id: 26
+id: 496f5beb-62f3-4d1e-a815-f9d0b37a1377
 title: An item with no id is not item zero
 type: bug
 status: done
 milestone: v0.2
 depends_on:
-- 39
+- 2316c419-f686-41e0-afee-67782d7fdb85
 created: 2026-09-12
 updated: 2026-09-12
 priority: p0

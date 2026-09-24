@@ -1,11 +1,11 @@
 ---
-id: 88
+id: d68c565c-2683-4a65-805f-fac00d618e74
 title: A milestone with nothing left shows the work that finished it
 type: feature
 status: done
 milestone: v0.6
 depends_on:
-- 82
+- 449588bb-ac84-4170-abea-759389f5cfb1
 created: 2026-09-18
 updated: 2026-09-18
 priority: p2

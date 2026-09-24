@@ -1,11 +1,11 @@
 ---
-id: 90
+id: 3431d9b9-e2b1-4da3-9c15-6896c9431f9f
 title: One toolbar, with a dropdown under each part of it
 type: feature
 status: done
 milestone: v0.6
 depends_on:
-- 89
+- 1b2ce505-8881-4f67-8e81-31187d8066e9
 created: 2026-09-18
 updated: 2026-09-18
 priority: p1

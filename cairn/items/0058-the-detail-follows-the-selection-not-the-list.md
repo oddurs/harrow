@@ -1,11 +1,11 @@
 ---
-id: 58
+id: c37f667d-162d-41f1-a609-0aa8081f3ca3
 title: The detail follows the selection, not the list
 type: feature
 status: done
 milestone: v0.4
 depends_on:
-- 56
+- adfd1844-c950-42be-94e3-9d6464da3894
 created: 2026-09-12
 updated: 2026-09-12
 priority: p1

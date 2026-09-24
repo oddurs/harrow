@@ -1,11 +1,11 @@
 ---
-id: 60
+id: 99f24193-6caa-42e1-846d-8b55e3fac5d2
 title: The board groups by whatever you ask it to
 type: feature
 status: done
 milestone: v0.4
 depends_on:
-- 56
+- adfd1844-c950-42be-94e3-9d6464da3894
 created: 2026-09-12
 updated: 2026-09-12
 priority: p2

@@ -1,11 +1,11 @@
 ---
-id: 51
+id: 79be4b2f-2dc0-491d-907e-d9991ee8164a
 title: Select the item a cairn check finding names
 type: feature
 status: backlog
 milestone: v1.0
 depends_on:
-- 38
+- d0bdf332-6f92-4d0f-9179-41d607e9510f
 created: 2026-09-12
 updated: 2026-09-12
 priority: p3

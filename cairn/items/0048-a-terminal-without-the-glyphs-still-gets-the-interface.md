@@ -1,5 +1,5 @@
 ---
-id: 48
+id: 57a80d77-d2ac-4e1b-b5a8-fbe8ff2228b5
 title: A terminal without the glyphs still gets the interface
 type: feature
 status: backlog

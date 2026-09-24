@@ -1,5 +1,5 @@
 ---
-id: 13
+id: 5e0cf43c-ffbc-497e-9511-9df228650430
 title: Snapshot the screen, so the interface cannot change by accident
 type: chore
 status: done

@@ -1,5 +1,5 @@
 ---
-id: 24
+id: 3e7cf294-f453-49ff-82cd-bc27be5448da
 title: Every pane scrolls on its own
 type: feature
 status: done
