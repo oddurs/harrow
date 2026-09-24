@@ -284,7 +284,7 @@ pub fn finished() -> crate::app::App {
 /// One item, for the tests that need a shape rather than a story.
 pub fn item(id: u32, title: &str, status: &str) -> Item {
     Item {
-        id,
+        id: id.into(),
         title: title.to_string(),
         kind: "feature".to_string(),
         status: status.to_string(),

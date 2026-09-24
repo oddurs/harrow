@@ -20,6 +20,7 @@ pub mod doctor;
 pub mod engine;
 pub mod exec;
 pub mod filter;
+pub mod identity;
 pub mod item;
 pub mod keys;
 pub mod runtime;

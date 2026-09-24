@@ -12,6 +12,8 @@
 //! sequences, and flow sequences. Anything else is kept as text rather than
 //! guessed at, so an unusual file loses a field instead of failing to open.
 
+use crate::identity::Id;
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -72,7 +74,7 @@ pub struct Proposal {
 
 #[derive(Clone, Debug, Default)]
 pub struct Item {
-    pub id: u32,
+    pub id: Id,
     pub key: Option<String>,
     pub title: String,
     pub kind: String,
@@ -90,7 +92,7 @@ pub struct Item {
     /// ordinary case and leaves no mark.
     pub created_by: Option<String>,
     pub labels: Vec<String>,
-    pub depends_on: Vec<u32>,
+    pub depends_on: Vec<Id>,
     /// Everything the schema calls a field, plus anything else the file
     /// carried. Unrecognised keys are kept: a field harrow does not know is
     /// still a field the reader wants to see.
@@ -112,13 +114,13 @@ pub struct Item {
     pub claim_stale: bool,
     /// Waiting on something unfinished.
     pub blocked: bool,
-    pub blockers: Vec<u32>,
+    pub blockers: Vec<Id>,
     /// Items naming this one in `milestone` or `part_of`, and how many of them
     /// are finished. What makes a milestone row carry a progress bar.
     pub scheduled: u32,
     pub scheduled_done: u32,
     /// The items directly under this one, by id.
-    pub contains: Vec<u32>,
+    pub contains: Vec<Id>,
     /// How far below a root of the composition graph this sits.
     pub depth: u32,
     /// Changes waiting for a person to decide.
@@ -232,7 +234,7 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
                 item.id = value
                     .as_str()
                     .parse()
-                    .map_err(|_| format!("id {:?} is not a number", value.as_str()))?;
+                    .map_err(|e| format!("id {:?}: {e}", value.as_str()))?;
                 has_id = true;
             }
             "title" => item.title = value.as_str().to_string(),
@@ -277,6 +279,53 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_else(|| format!("item {}", item.id));
+    }
+    Ok(item)
+}
+
+/// Project-aware validation keeps a partial or malformed format-4 identity
+/// from quietly disappearing from a dependency or changing the selected item.
+pub fn parse_for_schema(text: &str, path: &Path, schema: &Schema) -> Result<Item, String> {
+    let mut item = parse(text, path)?;
+    if schema.format < 4 {
+        return Ok(item);
+    }
+    let (front, _) = split(text).ok_or("no YAML frontmatter")?;
+    let values: BTreeMap<_, _> = parse_frontmatter(front).into_iter().collect();
+    let full = |raw: &str| -> Result<Id, String> {
+        match raw.parse::<Id>()? {
+            id @ Id::Uuid(_) => Ok(id),
+            _ => Err("format 4 requires a full UUIDv4 identity".into()),
+        }
+    };
+    item.id = full(
+        values
+            .get("id")
+            .ok_or("format 4 requires an explicit UUIDv4 id")?
+            .as_str(),
+    )?;
+    if let Some(value) = values.get("depends_on") {
+        item.depends_on = comma_separated(value)
+            .iter()
+            .map(|v| full(v))
+            .collect::<Result<_, _>>()?;
+    }
+    for field in &schema.fields {
+        if field.kind != crate::schema::FieldKind::Ref || field.by != crate::schema::Addressing::Id
+        {
+            continue;
+        }
+        if let Some(value) = item.fields.get_mut(&field.name) {
+            match value {
+                Value::One(raw) if !raw.is_empty() => *raw = full(raw)?.to_string(),
+                Value::Many(values) => {
+                    for raw in values {
+                        *raw = full(raw)?.to_string();
+                    }
+                }
+                _ => {}
+            }
+        }
     }
     Ok(item)
 }
@@ -388,12 +437,17 @@ pub fn criteria_at(body: &str, section: Option<&str>) -> Vec<(usize, bool, Strin
 /// is the format's rule rather than a shortcut taken here: the rendering lives
 /// in the project's configuration, and an item reader is not required to have
 /// read it.
-pub fn id_from_path(path: &Path) -> Option<u32> {
+pub fn id_from_path(path: &Path) -> Option<Id> {
     id_from_filename(path)
 }
 
-fn id_from_filename(path: &Path) -> Option<u32> {
+fn id_from_filename(path: &Path) -> Option<Id> {
     let name = path.file_stem()?.to_str()?;
+    if let Some(raw) = name.get(..36)
+        && let Ok(id @ Id::Uuid(_)) = raw.parse::<Id>()
+    {
+        return Some(id);
+    }
     let digits: String = name.chars().take_while(char::is_ascii_digit).collect();
     digits.parse().ok()
 }

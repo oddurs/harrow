@@ -13,7 +13,7 @@ fn a_later_edit_does_not_move_recorded_completion() {
     app.group_by = "none".into();
     app.filter = "id=7".into();
     app.ingest(source.load().unwrap());
-    app.select_id(7);
+    app.select_id(7.into());
     assert_eq!(
         app.selected_item().unwrap().closed_at.as_deref(),
         Some("2026-08-01")

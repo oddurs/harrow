@@ -13,7 +13,7 @@ use harrow::ui;
 
 fn app() -> App {
     let mut app = testkit::app();
-    app.select_id(3);
+    app.select_id(3.into());
     app
 }
 
@@ -122,8 +122,8 @@ fn a_status_moves_one_step_at_a_time_and_stops_at_the_ends() {
     // Item 2 is finished, so it has to be shown before it can be landed on.
     app.show_all = true;
     app.rebuild();
-    app.select_id(2);
-    assert_eq!(app.selected_item().map(|i| i.id), Some(2));
+    app.select_id(2.into());
+    assert_eq!(app.selected_item().map(|i| i.id), Some(2.into()));
     assert_eq!(press(&mut app, '>'), Action::None);
     let (message, _, _) = app.toast.as_ref().expect("and says why");
     assert!(message.contains("last status"), "{message}");
@@ -136,7 +136,7 @@ fn a_status_never_steps_into_a_column_the_project_hid() {
     let mut app = app();
     app.show_all = true;
     app.rebuild();
-    app.select_id(2);
+    app.select_id(2.into());
     assert_eq!(
         press(&mut app, '>'),
         Action::None,
@@ -255,7 +255,7 @@ fn a_saved_view_is_a_filter_the_project_wrote_down() {
     let mut app = testkit::app();
     app.view = Some("now".into());
     app.ingest(harrow::testkit::report());
-    let ids: Vec<u32> = app
+    let ids: Vec<harrow::identity::Id> = app
         .rows
         .iter()
         .filter_map(|r| match r {
@@ -448,7 +448,7 @@ fn a_history_cannot_be_scrolled_past_its_last_line() {
         .map(|n| format!("2026-09-{:02}  somebody  touched it again", (n % 28) + 1))
         .collect::<Vec<_>>()
         .join("\n");
-    app.show_history(3, Ok(long));
+    app.show_history(3.into(), Ok(long));
 
     for _ in 0..200 {
         app.handle_key(KeyCode::Down, KeyModifiers::NONE);
@@ -621,7 +621,7 @@ fn history_is_asked_of_cairn_rather_than_of_git() {
     }
 
     // The overlay takes the keys while it is open, and any other key closes it.
-    app.show_history(3, Ok("2026-09-02  somebody  created\n".into()));
+    app.show_history(3.into(), Ok("2026-09-02  somebody  created\n".into()));
     app.handle_key(KeyCode::Down, KeyModifiers::NONE);
     assert_eq!(app.history.as_ref().map(|h| h.scroll), Some(1));
     app.handle_key(KeyCode::Char('q'), KeyModifiers::NONE);
@@ -681,7 +681,7 @@ fn nothing_selected_is_not_a_crash() {
 #[test]
 fn a_proposal_is_accepted_through_cairn_and_asks_first() {
     let mut app = testkit::app();
-    app.select_id(6);
+    app.select_id(6.into());
     let item = app.selected_item().expect("item 6");
     assert_eq!(item.proposals.len(), 1, "the fixture has one");
 
@@ -707,7 +707,7 @@ fn a_proposal_is_accepted_through_cairn_and_asks_first() {
 #[test]
 fn accepting_nothing_says_so() {
     let mut app = testkit::app();
-    app.select_id(3);
+    app.select_id(3.into());
     assert_eq!(app.run(Command::Accept), Action::None);
     assert!(app.confirm.is_none());
     let (message, _, _) = app.toast.as_ref().expect("it says so");
@@ -721,25 +721,29 @@ fn the_detail_pane_scrolls_without_taking_the_list_with_it() {
 
     press(&mut app, 'J');
     press(&mut app, 'J');
-    assert_eq!(app.detail.at(3), 2);
+    assert_eq!(app.detail.at(3.into()), 2);
     assert_eq!((app.offset, app.selected), (offset, selected));
 
     press(&mut app, 'K');
-    assert_eq!(app.detail.at(3), 1);
+    assert_eq!(app.detail.at(3.into()), 1);
 }
 
 #[test]
 fn the_detail_pane_starts_at_the_top_of_whatever_is_selected() {
     let mut app = app();
     press(&mut app, 'J');
-    assert_eq!(app.detail.at(3), 1);
+    assert_eq!(app.detail.at(3.into()), 1);
 
-    app.select_id(4);
-    assert_eq!(app.detail.at(4), 0, "a different item is not part-read");
-
-    app.select_id(3);
+    app.select_id(4.into());
     assert_eq!(
-        app.detail.at(3),
+        app.detail.at(4.into()),
+        0,
+        "a different item is not part-read"
+    );
+
+    app.select_id(3.into());
+    assert_eq!(
+        app.detail.at(3.into()),
         1,
         "and the one you left is where you left"
     );
@@ -1125,9 +1129,9 @@ fn going_through_the_queue_keeps_a_selection_it_cannot_show() {
 fn moving_in_the_queue_replaces_what_you_arrived_with() {
     let mut app = app();
     app.pane = harrow::app::Pane::Needs;
-    app.select_id(3);
+    app.select_id(3.into());
     app.move_by(1);
-    assert_ne!(app.selected_item().map(|i| i.id), Some(3));
+    assert_ne!(app.selected_item().map(|i| i.id), Some(3.into()));
     assert_eq!(
         app.selected_item().map(|i| i.id),
         app.questions.get(app.question()).map(|q| q.id)
@@ -1177,7 +1181,7 @@ fn an_item_with_no_criteria_says_so() {
     let mut app = app();
     app.can_tick = true;
     // 0004 is work with a problem statement and nothing ticked out of it.
-    app.select_id(4);
+    app.select_id(4.into());
     assert_eq!(press(&mut app, 't'), Action::None);
     assert!(app.picker.is_none());
 }

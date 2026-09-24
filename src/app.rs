@@ -5,6 +5,8 @@
 //! to run. That is what lets the whole interaction layer, including every write,
 //! be driven from a test with no terminal and no repository underneath it.
 
+use crate::identity::Id;
+
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
@@ -25,7 +27,7 @@ use crate::theme::Theme;
 /// about items: a commit that moves four of them is four lines.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Moment {
-    pub id: u32,
+    pub id: Id,
     pub when: String,
     pub who: String,
     pub what: String,
@@ -212,7 +214,7 @@ pub enum Target {
     /// A URL written in the body, to be handed to the system.
     Url(String),
     /// Another item — a blocker, or a reference to one.
-    Item(u32),
+    Item(Id),
 }
 
 /// Something addressed to a person.
@@ -292,7 +294,7 @@ impl Asking {
 /// A question and the item it is about.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Question {
-    pub id: u32,
+    pub id: Id,
     pub asking: Asking,
 }
 
@@ -306,7 +308,7 @@ pub enum Door {
     /// The filter that produces the set this figure counted.
     Filter(String),
     /// One item, where the figure named one.
-    Item(u32),
+    Item(Id),
 }
 
 /// A row in the list. The board has its own geometry.
@@ -346,7 +348,7 @@ pub enum Action {
     /// Suspend the interface and open a file in the user's editor.
     Edit(std::path::PathBuf),
     /// Ask cairn how an item got the way it is.
-    History(u32),
+    History(Id),
     /// Ask cairn whether the project is valid against its own schema.
     Check,
     /// Ask the repository what has changed across the whole backlog.
@@ -523,22 +525,22 @@ pub enum FacetRole {
 #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
 pub struct DetailScroll {
     at: u16,
-    of: Option<u32>,
+    of: Option<Id>,
 }
 
 impl DetailScroll {
-    pub fn at(self, item: u32) -> u16 {
+    pub fn at(self, item: Id) -> u16 {
         if self.of == Some(item) { self.at } else { 0 }
     }
 
     /// Straight to an offset. `u16::MAX` means the bottom: the draw is the
     /// only place that knows how tall the content came out, and it clamps.
-    pub fn to(&mut self, item: u32, at: u16) {
+    pub fn to(&mut self, item: Id, at: u16) {
         self.of = Some(item);
         self.at = at;
     }
 
-    pub fn by(&mut self, item: u32, delta: isize) {
+    pub fn by(&mut self, item: Id, delta: isize) {
         let from = self.at(item);
         self.of = Some(item);
         self.at = from.saturating_add_signed(delta.clamp(-64, 64) as i16);
@@ -554,7 +556,7 @@ impl DetailScroll {
 
 /// What the repository remembers about one item.
 pub struct History {
-    pub id: u32,
+    pub id: Id,
     pub lines: Vec<String>,
     pub scroll: u16,
     /// Set when there is no history to be had rather than none recorded — not
@@ -573,7 +575,7 @@ pub struct Picker {
     pub selected: usize,
     /// The field being set. `status` is a field like any other here.
     pub field: String,
-    pub id: u32,
+    pub id: Id,
     /// What the project says a program may do with this field. Shown rather
     /// than enforced: the write goes through cairn, which decides. Showing it
     /// where the choice is made is what keeps a refusal from being a surprise.
@@ -743,11 +745,11 @@ pub struct App {
     /// through it must not lose your place the way passing through the board
     /// does not lose an item the board has no column for. Moving the cursor
     /// here is a choice and replaces it.
-    needs_anchor: Option<u32>,
+    needs_anchor: Option<Id>,
     /// Which group each item belongs to, by item index.
     group_of: Vec<usize>,
     /// id → index, so a write can find what it changed without a linear scan.
-    by_id: HashMap<u32, usize>,
+    by_id: HashMap<Id, usize>,
 
     pub selected: usize,
     pub offset: usize,
@@ -774,7 +776,7 @@ pub struct App {
     ///
     /// Triage is one keystroke per item until the same decision applies to
     /// forty of them, at which point it is one decision and forty keystrokes.
-    pub marked: HashSet<u32>,
+    pub marked: HashSet<Id>,
 
     pub filter: String,
     pub query: Query,
@@ -874,7 +876,7 @@ pub struct App {
     /// startup; an older cairn simply is not offered the gesture.
     pub can_tick: bool,
     /// The change waiting on a reason before it is proposed.
-    proposing: Option<(u32, String, String)>,
+    proposing: Option<(Id, String, String)>,
     /// What the repository says has happened, most recent first.
     ///
     /// `None` until asked, because it is a process and harrow reloads on
@@ -900,10 +902,10 @@ pub struct App {
     /// The point of running this beside something that is doing the work: a row
     /// that just moved says so for a moment, so a glance catches what happened
     /// while you were looking at the other pane.
-    pub changed: HashMap<u32, u64>,
+    pub changed: HashMap<Id, u64>,
     /// What the last rebuild put on screen, so the next one can tell what has
     /// just left rather than only what is currently there.
-    shown: HashSet<u32>,
+    shown: HashSet<Id>,
     /// Items on their way out, and when they stopped belonging.
     ///
     /// Something that leaves while you are looking at it — an item you closed,
@@ -911,7 +913,7 @@ pub struct App {
     /// landed for a moment before it goes. Answering a keystroke by making the
     /// thing you pressed it on vanish does not say what happened; it only
     /// stops saying anything.
-    leaving: HashMap<u32, u64>,
+    leaving: HashMap<Id, u64>,
     pub toast: Option<(String, ToastKind, Instant)>,
     /// Wall-clock seconds, refreshed once per frame rather than read during a
     /// render. Rendering has to be a pure function of state, or a snapshot of
@@ -1120,7 +1122,7 @@ impl App {
     /// The first reading marks nothing: everything is new the first time, and a
     /// screen that opened covered in "just changed" would be telling you about
     /// the last six months.
-    fn notice_changes(&mut self, fresh: &[Item]) -> Vec<(u32, String)> {
+    fn notice_changes(&mut self, fresh: &[Item]) -> Vec<(Id, String)> {
         if self.items.is_empty() {
             return Vec::new();
         }
@@ -1154,7 +1156,7 @@ impl App {
 
     /// Say what somebody else did. A change harrow made says so already, so
     /// this keeps quiet for a moment after a write of our own.
-    fn announce(&mut self, moved: Vec<(u32, String)>) {
+    fn announce(&mut self, moved: Vec<(Id, String)>) {
         if moved.is_empty() || self.wrote_recently() {
             return;
         }
@@ -1216,7 +1218,7 @@ impl App {
     }
 
     /// Whether an item moved recently enough to still be worth pointing at.
-    pub fn is_recent(&self, id: u32) -> bool {
+    pub fn is_recent(&self, id: Id) -> bool {
         self.changed
             .get(&id)
             .is_some_and(|at| self.now.saturating_sub(*at) <= Self::RECENT)
@@ -1379,6 +1381,9 @@ impl App {
     /// matches*. cairn is lenient at query time and strict in `check`;
     /// harrow has no check time, so it is strict here.
     pub fn filter_problem(&self) -> Option<String> {
+        if !self.query.errors.is_empty() {
+            return Some(self.query.errors.join("; "));
+        }
         let unknown = &self.query.unknown;
         match unknown.len() {
             0 => None,
@@ -1421,7 +1426,7 @@ impl App {
 
     /// Move the cursor to an item by id, wherever it now is. What keeps the
     /// selection still while a status change rearranges everything around it.
-    pub fn select_id(&mut self, id: u32) {
+    pub fn select_id(&mut self, id: Id) {
         let Some(&index) = self.by_id.get(&id) else {
             return;
         };
@@ -1619,7 +1624,7 @@ impl App {
 
     /// Whether anything is still on its way out. The board asks, so a column
     /// can be drawn to receive what is landing in it.
-    pub fn is_leaving(&self, id: u32) -> bool {
+    pub fn is_leaving(&self, id: Id) -> bool {
         self.leaving.contains_key(&id)
     }
 
@@ -1862,11 +1867,11 @@ impl App {
     /// status table, an enum's values, a milestone's due date — and alphabetical
     /// only where the project has expressed no opinion. A group for items with
     /// nothing set sorts last, because "not filled in" is not a stage of work.
-    fn group_rank(&self, key: &str) -> (u8, String, u64) {
+    fn group_rank(&self, key: &str) -> (u8, String, u128) {
         if key.is_empty() {
             return (2, String::new(), 0);
         }
-        let declared = |n: usize| (0u8, String::new(), n as u64);
+        let declared = |n: usize| (0u8, String::new(), n as u128);
         match self.group_by.as_str() {
             "status" => declared(self.schema.status_index(key)),
             "type" => declared(
@@ -1889,9 +1894,9 @@ impl App {
                 // an undated milestone is not the next thing to do.
                 if let Some(item) = self.item_named(key) {
                     let due = item.field_str("due").unwrap_or("9999-99-99").to_string();
-                    return (1, due, item.id as u64);
+                    return (1, due, item.id.rank());
                 }
-                (1, key.to_lowercase(), u64::MAX)
+                (1, key.to_lowercase(), u128::MAX)
             }
         }
     }
@@ -2110,7 +2115,7 @@ impl App {
         self.resettle();
         let heading_type = self.heading_type().map(str::to_string);
         let keys: Vec<String> = self.items.iter().map(|i| self.group_key(i)).collect();
-        let ranks: Vec<(u8, String, u64)> = keys.iter().map(|k| self.group_rank(k)).collect();
+        let ranks: Vec<(u8, String, u128)> = keys.iter().map(|k| self.group_rank(k)).collect();
         let sort = self.sort_keys();
 
         let order = |a: &usize, b: &usize| {
@@ -2828,11 +2833,11 @@ impl App {
 
     /// What the next change applies to: what is marked, or what is under the
     /// cursor. Sorted, so the command reads the way the list does.
-    pub fn targets(&self) -> Vec<u32> {
+    pub fn targets(&self) -> Vec<Id> {
         if self.marked.is_empty() {
             return self.selected_item().map(|i| i.id).into_iter().collect();
         }
-        let mut ids: Vec<u32> = self.marked.iter().copied().collect();
+        let mut ids: Vec<Id> = self.marked.iter().copied().collect();
         ids.sort_unstable();
         ids
     }
@@ -2914,7 +2919,7 @@ impl App {
         // Only the ones the change would actually move. Telling cairn to set a
         // field to what it already says is a write, a hook run and a line of
         // history for nothing.
-        let targets: Vec<u32> = self
+        let targets: Vec<Id> = self
             .targets()
             .into_iter()
             .filter(|id| {
@@ -2965,11 +2970,11 @@ impl App {
     /// `--filter` invocation instead of a list of ids: it is the same change,
     /// it is what somebody would have typed, and it stays correct if the set
     /// moves underneath between the decision and the write.
-    fn bulk_args(&self, command: &str, targets: &[u32], assignment: Option<String>) -> Vec<String> {
+    fn bulk_args(&self, command: &str, targets: &[Id], assignment: Option<String>) -> Vec<String> {
         // What the filter is *showing*, which is not the same as what passes
         // it: a milestone is the heading its items sit under rather than a row.
         let heading = self.heading_type().map(str::to_string);
-        let showing: Vec<u32> = self
+        let showing: Vec<Id> = self
             .items
             .iter()
             .filter(|i| self.visible(i))
@@ -2984,7 +2989,7 @@ impl App {
             args.push(self.filter.clone());
             args.push("--yes".into());
         } else {
-            args.extend(targets.iter().map(u32::to_string));
+            args.extend(targets.iter().map(Id::to_string));
         }
         args.extend(assignment);
         args
@@ -3050,7 +3055,7 @@ impl App {
     /// undone — `u` reopens — but because it is a declaration that something is
     /// finished, and it runs the project's hooks.
     pub fn ask_close(&mut self) {
-        let targets: Vec<u32> = self
+        let targets: Vec<Id> = self
             .targets()
             .into_iter()
             .filter(|id| {
@@ -3583,7 +3588,7 @@ impl App {
                 let Some((when, who, what)) = &head else {
                     continue;
                 };
-                let Some(id) = crate::item::id_from_path(std::path::Path::new(line.trim())) else {
+                let Some(id) = self.schema.id_from_path(std::path::Path::new(line.trim())) else {
                     continue;
                 };
                 // A commit that touches one item twice — renamed and edited
@@ -3621,7 +3626,7 @@ impl App {
     }
 
     /// Take what cairn said about an item's history.
-    pub fn show_history(&mut self, id: u32, result: Result<String, String>) {
+    pub fn show_history(&mut self, id: Id, result: Result<String, String>) {
         self.history = Some(match result {
             Ok(text) => History {
                 id,
@@ -4460,7 +4465,7 @@ impl App {
             Command::Release => return self.claim(false),
             Command::Close => self.ask_close(),
             Command::Reopen => {
-                let targets: Vec<u32> = self
+                let targets: Vec<Id> = self
                     .targets()
                     .into_iter()
                     .filter(|id| {
@@ -4525,7 +4530,11 @@ impl App {
                 let Some(item) = self.selected_item() else {
                     return Action::None;
                 };
-                return Action::Copy(self.schema.format_id(item.id));
+                return Action::Copy(if item.id.is_uuid() {
+                    item.id.to_string()
+                } else {
+                    self.schema.format_id(item.id)
+                });
             }
             // The panel, which is the discoverable way in. The box behind
             // `/` still takes an expression no checkbox can express.
@@ -5199,9 +5208,9 @@ pub struct Stats {
     /// One distribution per enum field the project marked as a column.
     pub by_field: Vec<(String, Vec<(String, usize)>)>,
     /// The open item that has been waiting longest, and for how many days.
-    pub oldest: Option<(u32, String, i64)>,
+    pub oldest: Option<(Id, String, i64)>,
     /// What the most things are waiting on.
-    pub blocking: Option<(u32, String, usize)>,
+    pub blocking: Option<(Id, String, usize)>,
 }
 
 impl App {

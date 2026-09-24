@@ -182,7 +182,7 @@ fn a_finished_milestone_that_is_still_open_is_a_question_not_an_action() {
     use harrow::app::Asking;
 
     let app = testkit::finished();
-    let asked: Vec<u32> = app
+    let asked: Vec<harrow::identity::Id> = app
         .questions
         .iter()
         .filter(|q| q.asking == Asking::NothingUnfinished)

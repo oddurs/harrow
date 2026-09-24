@@ -12,7 +12,7 @@ use harrow::ui;
 
 fn app() -> App {
     let mut app = testkit::app();
-    app.select_id(5);
+    app.select_id(5.into());
     app
 }
 
@@ -56,9 +56,9 @@ fn space_on_a_heading_still_folds_it() {
 fn one_decision_is_one_write() {
     let mut app = testkit::app();
     for id in [3, 5, 6] {
-        app.marked.insert(id);
+        app.marked.insert(id.into());
     }
-    app.select_id(3);
+    app.select_id(3.into());
 
     let action = app.run(Command::Priority);
     assert!(action == Action::None, "the picker opens first");
@@ -83,7 +83,7 @@ fn one_decision_is_one_write() {
 fn the_prompt_says_how_many() {
     let mut app = testkit::app();
     for id in [3, 5, 6] {
-        app.marked.insert(id);
+        app.marked.insert(id.into());
     }
     app.run(Command::Claim);
     let prompt = &app.confirm.as_ref().expect("it asks").prompt;
@@ -101,7 +101,7 @@ fn a_marked_set_that_is_the_whole_filter_becomes_one_filtered_change() {
         app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
     }
     app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
-    let showing: Vec<u32> = app
+    let showing: Vec<harrow::identity::Id> = app
         .rows
         .iter()
         .filter_map(|r| match r {
@@ -134,9 +134,9 @@ fn nothing_that_is_already_right_is_written_again() {
     app.show_all = true;
     app.rebuild();
     // 2 is done; 3 is not.
-    app.marked.insert(2);
-    app.marked.insert(3);
-    app.select_id(3);
+    app.marked.insert(2.into());
+    app.marked.insert(3.into());
+    app.select_id(3.into());
 
     let action = app.run(Command::Reopen);
     assert_eq!(
@@ -150,7 +150,7 @@ fn nothing_that_is_already_right_is_written_again() {
 fn esc_clears_the_marks_before_anything_else() {
     let mut app = testkit::app();
     app.filter = "p1".into();
-    app.marked.insert(3);
+    app.marked.insert(3.into());
     app.run(Command::Back);
     assert!(app.marked.is_empty());
     assert_eq!(app.filter, "p1", "the filter is still there");
@@ -162,7 +162,7 @@ fn esc_clears_the_marks_before_anything_else() {
 fn a_mark_is_visible_without_reading_a_count() {
     let mut app = testkit::app();
     let plain = ui::render_to_string(&mut app, 100, 24, 0);
-    app.marked.insert(3);
+    app.marked.insert(3.into());
     let marked = ui::render_to_string(&mut app, 100, 24, 0);
     assert_ne!(plain, marked, "marking has to change the screen");
     assert!(marked.contains('▌'), "the row carries a mark:\n{marked}");
@@ -206,8 +206,8 @@ fn the_pointer_marks_one_or_a_range() {
 fn a_read_only_backlog_refuses_a_bulk_change() {
     let mut app = testkit::app();
     app.readonly = Some(harrow::app::ReadOnly::NoCairn);
-    app.marked.insert(3);
-    app.marked.insert(5);
+    app.marked.insert(3.into());
+    app.marked.insert(5.into());
     assert_eq!(app.run(Command::Claim), Action::None);
     assert!(app.confirm.is_none(), "and does not ask about it either");
 }

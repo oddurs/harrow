@@ -70,9 +70,26 @@ fn every_item_in_cairns_corpus_reads_the_way_cairn_says_it_does() {
         )
         .expect("the expectation is JSON");
 
-        let got = harrow::item::parse(&source, &path).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let format = path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .and_then(|n| n.strip_prefix("format-"))
+            .and_then(|n| n.parse::<u32>().ok())
+            .unwrap_or(4);
+        let schema = harrow::schema::Schema::parse(
+            &format!("format = {format}\n[project]\nname = \"corpus\"\n"),
+            root.clone(),
+        )
+        .unwrap();
+        let got = harrow::item::parse_for_schema(&source, &path, &schema)
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
 
-        assert_eq!(Some(u64::from(got.id)), want["id"].as_u64(), "{name}: id");
+        assert_eq!(
+            serde_json::to_value(got.id).unwrap(),
+            want["id"],
+            "{name}: id"
+        );
         assert_eq!(
             Some(got.title.as_str()),
             text(&want["title"]),
@@ -110,14 +127,8 @@ fn every_item_in_cairns_corpus_reads_the_way_cairn_says_it_does() {
             .unwrap_or_default();
         assert_eq!(got.labels, labels, "{name}: labels");
 
-        let depends_on: Vec<u32> = expected(&want, "depends_on")
-            .and_then(Json::as_array)
-            .map(|a| {
-                a.iter()
-                    .filter_map(Json::as_u64)
-                    .map(|n| n as u32)
-                    .collect()
-            })
+        let depends_on: Vec<harrow::identity::Id> = expected(&want, "depends_on")
+            .map(|v| serde_json::from_value(v.clone()).expect("full dependency IDs"))
             .unwrap_or_default();
         assert_eq!(got.depends_on, depends_on, "{name}: depends_on");
 

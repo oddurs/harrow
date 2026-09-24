@@ -407,6 +407,15 @@ fn plain(startup: Startup, args: &[String]) -> Result<()> {
     Ok(())
 }
 
+/// Machine output never persists an abbreviation that can become ambiguous.
+fn plain_id(app: &App, id: harrow::identity::Id) -> String {
+    if id.is_uuid() {
+        id.to_string()
+    } else {
+        app.schema.format_id(id)
+    }
+}
+
 /// `id`, `status`, `type`, `milestone`, `title`.
 fn plain_items(app: &App) {
     for row in &app.rows {
@@ -416,7 +425,7 @@ fn plain_items(app: &App) {
         let item = &app.items[*i];
         println!(
             "{}\t{}\t{}\t{}\t{}",
-            app.schema.format_id(item.id),
+            plain_id(app, item.id),
             item.status,
             item.kind,
             item.milestone().unwrap_or(""),
@@ -457,7 +466,7 @@ fn plain_needs(app: &App) {
         };
         println!(
             "{}\t{}\t{}\t{}",
-            app.schema.format_id(question.id),
+            plain_id(app, question.id),
             kind,
             who,
             detail
@@ -484,7 +493,7 @@ fn plain_log(app: &mut App, startup: &Startup) {
             "{}\t{}\t{}\t{}",
             moment.when,
             moment.who,
-            app.schema.format_id(moment.id),
+            plain_id(app, moment.id),
             moment.what
         );
     }

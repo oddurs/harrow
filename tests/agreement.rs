@@ -66,13 +66,13 @@ const FILTERS: &[&str] = &[
     "updated>=2026-09-10",
 ];
 
-fn cairn_ids(dir: &Path, filter: &str) -> Vec<u32> {
+fn cairn_ids(dir: &Path, filter: &str) -> Vec<harrow::identity::Id> {
     cairn_ids_with(dir, filter, true)
 }
 
-fn cairn_ids_with(dir: &Path, filter: &str, all: bool) -> Vec<u32> {
+fn cairn_ids_with(dir: &Path, filter: &str, all: bool) -> Vec<harrow::identity::Id> {
     let root = dir.display().to_string();
-    let mut args: Vec<&str> = vec!["-C", &root, "list", "--ids", "-f", filter];
+    let mut args: Vec<&str> = vec!["-C", &root, "list", "--json", "-f", filter];
     if all {
         args.insert(3, "--all");
     }
@@ -85,9 +85,12 @@ fn cairn_ids_with(dir: &Path, filter: &str, all: bool) -> Vec<u32> {
         "cairn refused {filter:?}: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    let mut ids: Vec<u32> = String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .map(|line| line.parse().expect("cairn --ids emits an identifier"))
+    let items: serde_json::Value = serde_json::from_slice(&out.stdout).expect("item JSON");
+    let mut ids: Vec<harrow::identity::Id> = items
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| serde_json::from_value(item["id"].clone()).expect("full identity"))
         .collect();
     ids.sort_unstable();
     ids
@@ -118,18 +121,18 @@ fn open_with(dir: &Path, filter: &str, all: bool) -> App {
     app
 }
 
-fn harrow_ids(dir: &Path, filter: &str) -> Vec<u32> {
+fn harrow_ids(dir: &Path, filter: &str) -> Vec<harrow::identity::Id> {
     harrow_ids_with(dir, filter, true)
 }
 
-fn harrow_ids_with(dir: &Path, filter: &str, all: bool) -> Vec<u32> {
+fn harrow_ids_with(dir: &Path, filter: &str, all: bool) -> Vec<harrow::identity::Id> {
     let app = open_with(dir, filter, all);
     assert!(
         app.filter_problem().is_none(),
         "harrow refused {filter:?}: {:?}",
         app.filter_problem()
     );
-    let mut ids: Vec<u32> = app
+    let mut ids: Vec<harrow::identity::Id> = app
         .rows
         .iter()
         .filter_map(|r| match r {
@@ -234,7 +237,7 @@ fn the_cairn_projects_saved_views_agree_through_machine_output() {
         let cairn = std::process::Command::new("cairn")
             .arg("-C")
             .arg(&dir)
-            .args(["list", "--view", &view.name, "--ids"])
+            .args(["list", "--view", &view.name, "--json"])
             .output()
             .expect("cairn runs");
         let harrow = std::process::Command::new(env!("CARGO_BIN_EXE_harrow"))
@@ -257,9 +260,18 @@ fn the_cairn_projects_saved_views_agree_through_machine_output() {
             view.name,
             String::from_utf8_lossy(&harrow.stderr)
         );
-        let mut theirs: Vec<String> = String::from_utf8_lossy(&cairn.stdout)
-            .lines()
-            .map(str::to_owned)
+        let values: serde_json::Value = serde_json::from_slice(&cairn.stdout).unwrap();
+        let mut theirs: Vec<String> = values
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| {
+                if item["id"].is_string() {
+                    item["id"].as_str().unwrap().to_owned()
+                } else {
+                    item["ref"].as_str().unwrap().to_owned()
+                }
+            })
             .collect();
         let mut ours: Vec<String> = String::from_utf8_lossy(&harrow.stdout)
             .lines()
@@ -286,4 +298,50 @@ fn a_field_neither_tool_declares_is_refused_here() {
     // this item decided to keep: cairn is strict in `check`, harrow has no
     // check time and so is strict at query time.
     assert!(cairn_ids(dir.path(), "nonsense=x").is_empty());
+}
+
+#[test]
+#[ignore = "needs format-4 Cairn on PATH"]
+fn migrated_aliases_and_native_uuid_queries_agree() {
+    let dir = testkit::project();
+    // The ordinary reader fixture intentionally has a dangling dependency.
+    // Supply its target before asking the writer to validate a migration.
+    std::fs::write(
+        dir.path().join("items/0999-target.md"),
+        "---\nid: 999\ntitle: Target\ntype: feature\nstatus: done\n---\n",
+    )
+    .unwrap();
+    let migrate = std::process::Command::new("cairn")
+        .args(["-C", &dir.path().display().to_string(), "migrate"])
+        .env("CAIRN_NO_HOOKS", "1")
+        .output()
+        .unwrap();
+    assert!(
+        migrate.status.success(),
+        "{}",
+        String::from_utf8_lossy(&migrate.stderr)
+    );
+    for filter in FILTERS {
+        assert_eq!(
+            cairn_ids(dir.path(), filter),
+            harrow_ids(dir.path(), filter),
+            "{filter}"
+        );
+    }
+    let mut project = Project::discover(dir.path()).unwrap();
+    let report = project.load().unwrap();
+    for item in &report.items {
+        let full = item.id.to_string();
+        let short = report.schema.format_id(item.id);
+        for field in ["id", "depends_on", "part_of", "contains", "blockers"] {
+            for value in [&full, &short] {
+                let filter = format!("{field}={value}");
+                assert_eq!(
+                    cairn_ids(dir.path(), &filter),
+                    harrow_ids(dir.path(), &filter),
+                    "{filter}"
+                );
+            }
+        }
+    }
 }

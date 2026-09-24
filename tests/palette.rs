@@ -85,7 +85,7 @@ fn running_one_does_what_the_key_does() {
 #[test]
 fn a_command_that_writes_returns_the_action_it_would_have() {
     let mut app = testkit::app();
-    app.select_id(3);
+    app.select_id(3.into());
     open(&mut app, "copy-view");
     let action = app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
     assert!(matches!(action, Action::Copy(_)), "{action:?}");

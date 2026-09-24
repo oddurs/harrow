@@ -29,7 +29,7 @@ fn the_board() {
 fn a_board_wide_enough_for_the_detail() {
     let mut app = support::app();
     app.pane = harrow::app::Pane::Board;
-    app.select_id(3);
+    app.select_id(3.into());
     support::assert_snapshot("board-detail", &ui::render_to_string(&mut app, 140, 22, 0));
 }
 
@@ -77,7 +77,7 @@ fn a_heading_under_the_cursor() {
 #[test]
 fn reading_an_item() {
     let mut app = support::app();
-    app.select_id(3);
+    app.select_id(3.into());
     app.reading = true;
     support::assert_snapshot("reader", &ui::render_to_string(&mut app, 110, 24, 0));
 }
@@ -86,8 +86,8 @@ fn reading_an_item() {
 #[test]
 fn the_detail_pane_scrolled_into_a_long_item() {
     let mut app = support::app();
-    app.select_id(3);
-    app.detail.by(3, 6);
+    app.select_id(3.into());
+    app.detail.by(3.into(), 6);
     support::assert_snapshot(
         "detail-scrolled",
         &ui::render_to_string(&mut app, 110, 22, 0),
@@ -123,7 +123,7 @@ fn the_help_overlay() {
 #[test]
 fn the_status_picker() {
     let mut app = support::app();
-    app.select_id(3);
+    app.select_id(3.into());
     app.open_picker("status");
     support::assert_snapshot("picker", &ui::render_to_string(&mut app, 110, 20, 0));
 }
@@ -181,7 +181,7 @@ fn the_selected_row_is_a_lift_of_the_page_rather_than_an_inversion() {
     app.theme = Theme::resolve("ghostty:gotham")
         .or_else(|_| Theme::resolve("night"))
         .expect("a derived theme");
-    app.select_id(3);
+    app.select_id(3.into());
 
     let buffer = ui::render_frame(&mut app, 100, 24, 0);
     // The list pane only. The detail pane carries the same title, and finding
@@ -230,7 +230,7 @@ fn an_empty_project_is_not_an_empty_screen() {
 #[test]
 fn an_item_too_long_for_its_frame_says_which_keys_move_it() {
     let mut app = support::app();
-    app.select_id(3);
+    app.select_id(3.into());
     let long = (1..=40)
         .map(|n| format!("Paragraph {n} of a proposal nobody will finish reading."))
         .collect::<Vec<_>>()
@@ -248,7 +248,7 @@ fn an_item_too_long_for_its_frame_says_which_keys_move_it() {
 #[test]
 fn reading_beside_the_backlog() {
     let mut app = support::app();
-    app.select_id(3);
+    app.select_id(3.into());
     app.reading = true;
     support::assert_snapshot("reader-panel", &ui::render_to_string(&mut app, 140, 30, 0));
 }
@@ -258,7 +258,7 @@ fn reading_beside_the_backlog() {
 #[test]
 fn reading_when_there_is_no_room_to_browse_as_well() {
     let mut app = support::app();
-    app.select_id(3);
+    app.select_id(3.into());
     app.reading = true;
     support::assert_snapshot("reader-narrow", &ui::render_to_string(&mut app, 84, 24, 0));
 }
@@ -267,7 +267,7 @@ fn reading_when_there_is_no_room_to_browse_as_well() {
 #[test]
 fn the_filter_panel() {
     let mut app = support::app();
-    app.select_id(3);
+    app.select_id(3.into());
     app.filtering = true;
     app.rebuild();
     support::assert_snapshot("filter-panel", &ui::render_to_string(&mut app, 140, 28, 0));
@@ -278,7 +278,7 @@ fn the_filter_panel() {
 #[test]
 fn the_filter_panel_without_room_for_the_detail() {
     let mut app = support::app();
-    app.select_id(3);
+    app.select_id(3.into());
     app.filtering = true;
     app.rebuild();
     support::assert_snapshot("filter-narrow", &ui::render_to_string(&mut app, 96, 20, 0));
@@ -287,9 +287,9 @@ fn the_filter_panel_without_room_for_the_detail() {
 #[test]
 fn the_history_of_one_item() {
     let mut app = support::app();
-    app.select_id(3);
+    app.select_id(3.into());
     app.show_history(
-        3,
+        3.into(),
         Ok("2026-09-02  Oddur Sigurdsson  created\n\
             2026-09-03  Oddur Sigurdsson  status backlog -> doing\n\
             2026-09-03  an agent          priority p2 -> p1\n"
@@ -304,8 +304,8 @@ fn the_history_of_one_item() {
 #[test]
 fn a_project_without_a_repository_says_so() {
     let mut app = support::app();
-    app.select_id(3);
-    app.show_history(3, Err("not a git repository".into()));
+    app.select_id(3.into());
+    app.show_history(3.into(), Err("not a git repository".into()));
     let text = ui::render_to_string(&mut app, 100, 20, 0);
     assert!(text.contains("not a git repository"), "{text}");
     assert!(text.contains("the repository's"), "and why: {text}");
@@ -314,7 +314,7 @@ fn a_project_without_a_repository_says_so() {
 #[test]
 fn an_item_with_a_proposal_is_visible_as_such() {
     let mut app = support::app();
-    app.select_id(6);
+    app.select_id(6.into());
     let text = ui::render_to_string(&mut app, 100, 24, 0);
     assert!(text.contains(" ?"), "the row says so:\n{text}");
     assert!(
@@ -373,7 +373,7 @@ fn two_actors_on_one_backlog() {
         item.owner = Some("oddur".into());
     }
     app.rebuild();
-    app.select_id(5);
+    app.select_id(5.into());
     support::assert_snapshot("actors", &ui::render_to_string(&mut app, 110, 16, 0));
 }
 
@@ -390,7 +390,7 @@ fn an_item_with_a_thread_on_it() {
         );
     }
     app.rebuild();
-    app.select_id(3);
+    app.select_id(3.into());
     support::assert_snapshot("thread", &ui::render_to_string(&mut app, 110, 20, 0));
 }
 

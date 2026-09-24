@@ -43,7 +43,7 @@ fn it_opens_on_the_order_in_force() {
     assert_eq!(app.input, "-priority");
 }
 
-fn ids(app: &App) -> Vec<u32> {
+fn ids(app: &App) -> Vec<harrow::identity::Id> {
     app.rows
         .iter()
         .filter_map(|r| match r {
@@ -90,7 +90,7 @@ fn sorting_does_not_lose_your_place() {
     let mut app = testkit::app();
     app.group_by = "none".into();
     app.rebuild();
-    app.select_id(4);
+    app.select_id(4.into());
     let before = app.selected_item().map(|i| i.id);
     type_sort(&mut app, "-id");
     assert_eq!(app.selected_item().map(|i| i.id), before);

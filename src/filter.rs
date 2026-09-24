@@ -9,6 +9,8 @@
 //! One addition. A clause with no operator in it is a free-text search, so `/`
 //! is useful before you have learned any of this.
 
+use crate::identity::Id;
+
 use crate::item::Item;
 use crate::schema::Schema;
 
@@ -86,6 +88,7 @@ pub struct Query {
     /// Fields named in the expression that the project does not have. Reported
     /// in the box rather than silently matching nothing.
     pub unknown: Vec<String>,
+    pub errors: Vec<String>,
 }
 
 impl Query {
@@ -99,12 +102,27 @@ impl Query {
             match Op::parse(clause) {
                 Some((start, end, op)) if start > 0 => {
                     let field = clause[..start].trim().to_lowercase();
-                    let values: Vec<String> = clause[end..]
+                    let mut values: Vec<String> = clause[end..]
                         .split('|')
                         .map(|v| v.trim().to_string())
                         .collect();
                     if !known_field(&field, schema) {
                         query.unknown.push(field.clone());
+                    }
+                    let identity = matches!(
+                        canonical(&field),
+                        "id" | "blockers" | "contains" | "depends_on"
+                    ) || schema.field(canonical(&field)).is_some_and(|f| {
+                        f.kind == crate::schema::FieldKind::Ref
+                            && f.by == crate::schema::Addressing::Id
+                    });
+                    if identity && matches!(op, Op::Eq | Op::Ne) {
+                        for value in values.iter_mut().filter(|v| !v.is_empty()) {
+                            match schema.parse_id(value) {
+                                Ok(id) => *value = id.to_string(),
+                                Err(e) => query.errors.push(e),
+                            }
+                        }
                     }
                     query.clauses.push(Clause::Compare { field, op, values });
                 }
@@ -177,6 +195,7 @@ impl Query {
                 .cloned()
                 .collect(),
             unknown: self.unknown.clone(),
+            errors: self.errors.clone(),
         }
     }
 
@@ -236,6 +255,9 @@ impl Query {
     }
 
     pub fn matches(&self, item: &Item, schema: &Schema) -> bool {
+        if !self.errors.is_empty() {
+            return false;
+        }
         self.clauses.iter().all(|clause| match clause {
             Clause::Text(needle) => item.matches(needle, schema),
             Clause::Compare { field, op, values } => {
@@ -354,13 +376,9 @@ pub fn resolve(item: &Item, schema: &Schema, key: &str) -> Field {
         // The pile that needs a conversation, selectable in one clause.
         "stale" => Field::Text(item.claim_stale.to_string()),
         "ready" => Field::Text(item.ready(schema).to_string()),
-        "blockers" => Field::List(item.blockers.iter().map(u32::to_string).collect()),
-        "contains" => Field::List(
-            item.contains
-                .iter()
-                .map(|id| schema.format_id(*id))
-                .collect(),
-        ),
+        "blockers" => Field::List(item.blockers.iter().map(Id::to_string).collect()),
+        "depends_on" => Field::List(item.depends_on.iter().map(Id::to_string).collect()),
+        "contains" => Field::List(item.contains.iter().map(ToString::to_string).collect()),
         "descendants" => Field::Text(item.scheduled.to_string()),
         "depth" => Field::Text(item.depth.to_string()),
         "leaf" => Field::Text(item.is_leaf().to_string()),
@@ -517,19 +535,19 @@ pub fn parse_sort(spec: &str) -> Vec<SortKey> {
 /// A comparable rendering of one key for one item. Status sorts by the declared
 /// order and enums by their declared values, so `p0` comes before `p1` because
 /// the schema says so rather than because it happens to sort that way.
-pub fn sort_value(item: &Item, schema: &Schema, key: &str) -> (u8, u64, String) {
+pub fn sort_value(item: &Item, schema: &Schema, key: &str) -> (u8, u128, String) {
     // The leading flag is the "empty sorts last" rank; nothing else needs to
     // know about it.
     match key {
-        "id" => (0, item.id as u64, String::new()),
-        "status" => (0, schema.status_index(&item.status) as u64, String::new()),
+        "id" => (0, item.id.rank(), String::new()),
+        "status" => (0, schema.status_index(&item.status) as u128, String::new()),
         "type" => (
             0,
             schema
                 .types
                 .iter()
                 .position(|t| t.name == item.kind)
-                .unwrap_or(usize::MAX) as u64,
+                .unwrap_or(usize::MAX) as u128,
             String::new(),
         ),
         _ => {
@@ -537,13 +555,13 @@ pub fn sort_value(item: &Item, schema: &Schema, key: &str) -> (u8, u64, String) 
                 && !field.values.is_empty()
             {
                 return match item.field_str(key) {
-                    Some(v) => (0, field.rank(v) as u64, String::new()),
-                    None => (1, u64::MAX, String::new()),
+                    Some(v) => (0, field.rank(v) as u128, String::new()),
+                    None => (1, u128::MAX, String::new()),
                 };
             }
             match resolve(item, schema, key) {
-                Field::Missing => (1, u64::MAX, String::new()),
-                Field::Text(s) => match s.parse::<u64>() {
+                Field::Missing => (1, u128::MAX, String::new()),
+                Field::Text(s) => match s.parse::<u128>() {
                     Ok(n) => (0, n, String::new()),
                     Err(_) => (0, 0, s.to_lowercase()),
                 },
@@ -558,7 +576,7 @@ mod tests {
     use super::*;
     use crate::testkit;
 
-    fn matching(expr: &str) -> Vec<u32> {
+    fn matching(expr: &str) -> Vec<Id> {
         let report = testkit::report();
         let query = Query::parse(expr, &report.schema);
         report
