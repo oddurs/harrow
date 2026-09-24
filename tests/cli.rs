@@ -486,3 +486,59 @@ fn plain_answers_the_log_from_the_repository() {
         "and what it was:\n{out}"
     );
 }
+
+#[test]
+fn every_plain_lens_preserves_the_full_uuid() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = "a47c3bd2-0000-4000-8000-000000000001";
+    std::fs::write(
+        dir.path().join("cairn.toml"),
+        testkit::CAIRN_TOML.replace("format = 3", "format = 4"),
+    )
+    .unwrap();
+    std::fs::create_dir(dir.path().join("items")).unwrap();
+    std::fs::write(
+        dir.path().join(format!("items/{id}-finished.md")),
+        format!("---\nid: {id}\ntitle: Finished criteria\ntype: feature\nstatus: doing\n---\n\n- [x] Verified\n"),
+    )
+    .unwrap();
+    for args in [
+        vec!["init", "-q"],
+        vec!["add", "-A"],
+        vec!["commit", "-qm", "record work"],
+    ] {
+        let out = without_git_env(&mut Command::new("git"))
+            .args(args)
+            .current_dir(dir.path())
+            .env("GIT_AUTHOR_NAME", "A Committer")
+            .env("GIT_AUTHOR_EMAIL", "committer@example.invalid")
+            .env("GIT_COMMITTER_NAME", "A Committer")
+            .env("GIT_COMMITTER_EMAIL", "committer@example.invalid")
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+    for lens in ["list", "board", "stats", "needs", "log"] {
+        let (out, err, code) = run(&[
+            "-C",
+            &dir.path().display().to_string(),
+            "--plain",
+            "--lens",
+            lens,
+            "--group-by",
+            "none",
+        ]);
+        assert_eq!(code, 0, "{lens}: {err}");
+        let field = if lens == "log" { 2 } else { 0 };
+        assert!(!out.is_empty(), "{lens} must show the fixture");
+        assert!(
+            out.lines()
+                .all(|line| line.split('\t').nth(field) == Some(id)),
+            "{lens}: {out}"
+        );
+    }
+}

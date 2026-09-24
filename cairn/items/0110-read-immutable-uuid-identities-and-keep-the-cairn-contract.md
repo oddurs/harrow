@@ -22,8 +22,8 @@ Read canonical UUID identities and declared ID references directly; display unam
 
 ## Acceptance criteria
 
-- [ ] Format 4 and historical formats read correctly, including frozen numeric aliases and ambiguous prefixes.
-- [ ] Every write, history request and undo carries full immutable identity; selection and marks survive reloads.
+- [x] Format 4 and historical formats read correctly, including frozen numeric aliases and ambiguous prefixes.
+- [x] Every write, history request and undo carries full immutable identity; selection and marks survive reloads.
 - [ ] Conformance, agreement, snapshots and the full project checks pass.
 - [ ] The project backlog is migrated in a dedicated history-preserving commit and the installed pair works together.
 
@@ -34,3 +34,7 @@ Direct-reader and state changes are underway: full UUID identities now key items
 ## 2026-09-23
 
 All standalone checks passed, including the 49-case format corpus and seven UUID identity regressions. Four explicit paired agreement tests passed against Cairn format 4. Existing legacy UI snapshots are unchanged. Before the live migration, integrate newer main work and advance the reciprocal exact CI pins.
+
+## 2026-09-23
+
+Integrated newer main, retaining the new lens entry points and ordinary-listing semantics. The pre-migration integer collision on 0107 was repaired to 0110 before UUID conversion; no references to this new item existed. All five cross-tool agreement cases pass. Every plain-output lens now has a full-UUID regression. The counterpart pin and unmodified 49-case corpus identify the committed Cairn alpha revision, and refresh now refuses dirty upstream trees.

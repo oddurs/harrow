@@ -1,4 +1,4 @@
-cairn v0.3.0 (ec982f8)
+cairn 1.0.0-alpha.1 (ec982f881ddf717c58e83d90fcfc0efdf07240ce)
 taken 2026-09-23
 
 Vendored from cairn's own `tests/golden`, unmodified. Refresh with:
