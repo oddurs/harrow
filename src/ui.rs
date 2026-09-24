@@ -4334,7 +4334,12 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             Span::styled(app.input.clone(), Style::default().fg(t.text)),
             Span::styled("▏", Style::default().fg(t.accent)),
         ];
-        if editing == &Editing::Filter && !app.query.unknown.is_empty() {
+        if editing == &Editing::Filter && !app.query.errors.is_empty() {
+            spans.push(Span::styled(
+                format!("   {}", app.query.errors.join("; ")),
+                Style::default().fg(t.warn),
+            ));
+        } else if editing == &Editing::Filter && !app.query.unknown.is_empty() {
             spans.push(Span::styled(
                 format!("   no such field: {}", app.query.unknown.join(", ")),
                 Style::default().fg(t.warn),
@@ -4987,7 +4992,7 @@ five six",
         let before = render_to_string(&mut app, 100, 24, 0);
         assert!(!before.contains(" •"), "nothing has moved yet");
 
-        app.changed.insert(3, app.now);
+        app.changed.insert(3.into(), app.now);
         let after = render_to_string(&mut app, 100, 24, 0);
         assert!(after.contains(" •"), "a change has to be visible:\n{after}");
     }

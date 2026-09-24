@@ -70,8 +70,13 @@ case "${1:-}" in
       printf 'scripts/task: no corpus at %s; set CAIRN_REPO\n' "$src" >&2
       exit 1
     }
-    version=$(git -C "${CAIRN_REPO:-../cairn}" describe --tags --abbrev=0 2>/dev/null || echo unknown)
-    sha=$(git -C "${CAIRN_REPO:-../cairn}" rev-parse --short HEAD 2>/dev/null || echo unknown)
+    upstream=${CAIRN_REPO:-../cairn}
+    [ -z "$(git -C "$upstream" status --porcelain)" ] || {
+      printf 'scripts/task: refresh from a clean, committed Cairn revision\n' >&2
+      exit 1
+    }
+    version=$(sed -n 's/^version = "\(.*\)"/\1/p' "$upstream/Cargo.toml" | head -1)
+    sha=$(git -C "$upstream" rev-parse HEAD)
     # The note says where the corpus came from and why it is here. The first
     # two lines are the part that goes stale, so they are rewritten and the
     # rest is kept — otherwise refreshing would silently drop the reason.

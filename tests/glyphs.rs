@@ -83,7 +83,7 @@ fn states() -> Vec<State> {
             // to be asked for on a row that is an item.
             "with something marked",
             build(|app| {
-                app.select_id(3);
+                app.select_id(3.into());
                 app.run(Command::ToggleGroup);
             }),
         ),

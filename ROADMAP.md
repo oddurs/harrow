@@ -185,3 +185,11 @@ Good ideas without a date yet.
 - [ ] `0015` Every cairn project on this machine, in one list <sup>feature · p3 · cli</sup>
 - [ ] `0022` How much Markdown is worth rendering in a pane this size <sup>spike · p2 · chrome</sup>
 
+## Unscheduled
+
+`··········` 0% · 0 of 1 done
+
+### in progress
+
+- [ ] `0110` Read immutable UUID identities and keep the Cairn contract <sup>feature · p1 · read</sup>
+

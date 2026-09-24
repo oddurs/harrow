@@ -33,7 +33,7 @@ fn h_and_l_do_what_the_arrows_do() {
 #[test]
 fn l_no_longer_writes_to_the_backlog() {
     let mut app = testkit::app();
-    app.select_id(5);
+    app.select_id(5.into());
     // Item 5 itself, not whatever is under the cursor afterwards: `l` moves
     // the cursor, so comparing the selection compared two different things.
     let status_of = |app: &App| {

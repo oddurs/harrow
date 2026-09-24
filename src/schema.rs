@@ -13,6 +13,10 @@
 //! Unknown keys are ignored on purpose. cairn's format grows, and a project
 //! written for a newer cairn must still open here.
 
+use crate::identity::Id;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
+
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -24,7 +28,7 @@ use crate::diag;
 /// The on-disk format harrow knows how to read. A project written in a later
 /// one still opens — every key harrow does not know is skipped — but it says so,
 /// because a silently half-read backlog is worse than a warning.
-pub const KNOWN_FORMAT: u32 = 3;
+pub const KNOWN_FORMAT: u32 = 4;
 
 /// What a project allows a tool to do with a field or a status.
 ///
@@ -255,10 +259,11 @@ impl IdFormat {
     /// screen shows, and a person has no reason to prefer one.
     pub fn parse(&self, text: &str) -> Option<u32> {
         let s = text.trim().trim_start_matches('#').trim();
+        let s = s.to_ascii_lowercase();
         let bare = s
-            .strip_prefix(self.prefix.as_str())
-            .and_then(|r| r.strip_suffix(self.suffix.as_str()))
-            .unwrap_or(s);
+            .strip_prefix(self.prefix.to_ascii_lowercase().as_str())
+            .and_then(|r| r.strip_suffix(self.suffix.to_ascii_lowercase().as_str()))
+            .unwrap_or(&s);
         bare.parse().ok()
     }
 }
@@ -320,6 +325,48 @@ pub struct View {
     pub description: Option<String>,
 }
 
+#[derive(Clone, Debug, Default)]
+struct IdentityIndex {
+    ids: BTreeSet<Id>,
+    legacy: Option<LegacyMap>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyMap {
+    version: u32,
+    id_format: String,
+    ids: BTreeMap<String, Id>,
+}
+
+impl LegacyMap {
+    fn validate(&self) -> Result<(), String> {
+        if self.version != 1 {
+            return Err("unsupported legacy identity map version".into());
+        }
+        IdFormat::compile(&self.id_format)?;
+        let mut targets = BTreeSet::new();
+        for (key, id) in &self.ids {
+            let n = key
+                .parse::<u32>()
+                .map_err(|_| "invalid legacy identity map key")?;
+            if n.to_string() != *key || !id.is_uuid() || !targets.insert(*id) {
+                return Err(
+                    "legacy identity map must map canonical numbers to distinct UUIDv4 identities"
+                        .into(),
+                );
+            }
+            // Serde's UUID parser accepts other versions; the format does not.
+            id.to_string().parse::<Id>()?;
+        }
+        Ok(())
+    }
+    fn resolve(&self, raw: &str) -> Option<Id> {
+        let n = IdFormat::compile(&self.id_format).ok()?.parse(raw)?;
+        self.ids.get(&n.to_string()).copied()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Schema {
     /// The directory holding `cairn.toml`.
@@ -329,6 +376,7 @@ pub struct Schema {
     /// Where item files live, relative to the root.
     pub dir: PathBuf,
     pub id_format: IdFormat,
+    identities: RefCell<IdentityIndex>,
     /// The heading acceptance criteria live under, where the project keeps
     /// them somewhere specific. Absent, every box in a body counts.
     pub criteria_section: Option<String>,
@@ -369,7 +417,26 @@ impl Schema {
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."));
-        Schema::parse(&body, root)
+        let schema = Schema::parse(&body, root)?;
+        let map_path = schema.items_dir().join("_legacy-ids.toml");
+        match std::fs::read_to_string(&map_path) {
+            Ok(text) => {
+                let map: LegacyMap = toml::from_str(&text).map_err(|e| SchemaError::Parse {
+                    detail: format!("{}: {e}", map_path.display()),
+                })?;
+                map.validate()
+                    .map_err(|detail| SchemaError::Parse { detail })?;
+                schema.identities.borrow_mut().legacy = Some(map);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                return Err(SchemaError::Io {
+                    path: map_path,
+                    detail: e.to_string(),
+                });
+            }
+        }
+        Ok(schema)
     }
 
     pub fn parse(body: &str, root: PathBuf) -> Result<Schema, SchemaError> {
@@ -508,6 +575,7 @@ impl Schema {
             description: project.description,
             dir: PathBuf::from(project.dir.unwrap_or_else(|| "items".to_string())),
             id_format,
+            identities: RefCell::new(IdentityIndex::default()),
             criteria_section: project.criteria_section.filter(|s| !s.trim().is_empty()),
             claim_stale_after: project.claim_stale_after.filter(|d| *d > 0),
             url: project.url,
@@ -605,8 +673,96 @@ impl Schema {
     }
 
     /// `0042`, as the filenames and the printed references spell it.
-    pub fn format_id(&self, id: u32) -> String {
-        self.id_format.render(id)
+    pub fn format_id(&self, id: impl Into<Id>) -> String {
+        let id = id.into();
+        let Id::Uuid(_) = id else {
+            let Id::Legacy(n) = id else { unreachable!() };
+            return self.id_format.render(n);
+        };
+        let compact = id.compact();
+        let index = self.identities.borrow();
+        for width in 8..=32 {
+            let prefix = &compact[..width];
+            if !index
+                .ids
+                .iter()
+                .any(|other| *other != id && other.compact().starts_with(prefix))
+                && index
+                    .legacy
+                    .as_ref()
+                    .and_then(|m| m.resolve(prefix))
+                    .is_none_or(|other| other == id)
+            {
+                return prefix.to_owned();
+            }
+        }
+        id.to_string()
+    }
+
+    pub fn remember_ids(&self, ids: impl IntoIterator<Item = Id>) {
+        self.identities.borrow_mut().ids = ids.into_iter().collect();
+    }
+
+    /// Git activity names paths, including the filenames retained by migration.
+    pub fn id_from_path(&self, path: &Path) -> Option<Id> {
+        if let Some(id) = crate::item::id_from_path(path) {
+            if id.is_uuid() || self.format < 4 {
+                return Some(id);
+            }
+            return self
+                .identities
+                .borrow()
+                .legacy
+                .as_ref()?
+                .ids
+                .get(&id.to_string())
+                .copied();
+        }
+        let name = path.file_stem()?.to_str()?;
+        for (at, _) in name.char_indices().filter(|(_, c)| *c == '-') {
+            if let Ok(id) = self.parse_id(&name[..at]) {
+                return Some(id);
+            }
+        }
+        None
+    }
+
+    pub fn parse_id(&self, raw: &str) -> Result<Id, String> {
+        if self.format < 4 {
+            return self
+                .id_format
+                .parse(raw)
+                .map(Id::Legacy)
+                .ok_or_else(|| format!("invalid item id: {raw}"));
+        }
+        let raw = raw.trim().trim_start_matches('#').trim();
+        if let Ok(id @ Id::Uuid(_)) = raw.parse::<Id>() {
+            return Ok(id);
+        }
+        let index = self.identities.borrow();
+        let mut matches = BTreeSet::new();
+        if let Some(id) = index.legacy.as_ref().and_then(|map| map.resolve(raw)) {
+            matches.insert(id);
+        }
+        if (8..=32).contains(&raw.len()) && raw.bytes().all(|b| b.is_ascii_hexdigit()) {
+            let prefix = raw.to_ascii_lowercase();
+            matches.extend(
+                index
+                    .ids
+                    .iter()
+                    .filter(|id| id.is_uuid() && id.compact().starts_with(&prefix))
+                    .copied(),
+            );
+        }
+        match matches.len() {
+            1 => Ok(*matches.first().unwrap()),
+            0 => Err(format!(
+                "unknown item id {raw}; use a full UUID or an unambiguous prefix of at least 8 hex digits"
+            )),
+            _ => Err(format!(
+                "ambiguous item id {raw}; use a longer prefix or full UUID"
+            )),
+        }
     }
 
     /// Fields worth offering as a grouping axis: the enums and the references,

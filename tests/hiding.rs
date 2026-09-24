@@ -19,7 +19,7 @@ use harrow::testkit;
 
 /// The fixture has a milestone (1), one finished item (2), and four open
 /// ones (3–6).
-fn listed(filter: &str) -> Vec<u32> {
+fn listed(filter: &str) -> Vec<harrow::identity::Id> {
     let dir = testkit::project();
     let mut project = Project::discover(dir.path()).expect("the project opens");
     let mut app = App::new();
@@ -33,7 +33,7 @@ fn listed(filter: &str) -> Vec<u32> {
         "harrow refused {filter:?}: {:?}",
         app.filter_problem()
     );
-    let mut ids: Vec<u32> = app
+    let mut ids: Vec<harrow::identity::Id> = app
         .rows
         .iter()
         .filter_map(|r| match r {
@@ -80,7 +80,7 @@ fn naming_the_type_asks_for_containers_with_either_operator() {
 /// questions to reach it.
 #[test]
 fn a_finished_container_needs_the_type_and_the_status() {
-    assert!(!listed("type=milestone").contains(&2));
+    assert!(!listed("type=milestone").contains(&2.into()));
     let both = listed("type=milestone,category!=dropped");
-    assert!(both.contains(&1), "{both:?}");
+    assert!(both.contains(&1.into()), "{both:?}");
 }

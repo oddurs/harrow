@@ -78,7 +78,10 @@ fn screens() -> Vec<Screen> {
     out.push(overlay(
         "the history",
         Box::new(|a: &mut App| {
-            a.show_history(3, Ok("2026-09-11  somebody  status doing → done\n".into()))
+            a.show_history(
+                3.into(),
+                Ok("2026-09-11  somebody  status doing → done\n".into()),
+            )
         }),
     ));
     out.push(overlay(
@@ -125,7 +128,7 @@ fn ready(setup: &dyn Fn(&mut App)) -> App {
          items/0003-draw-the-list.md\n"
             .into(),
     ));
-    app.select_id(3);
+    app.select_id(3.into());
     setup(&mut app);
     app
 }
@@ -215,7 +218,7 @@ fn the_lens_keeps_a_column_beside_the_reader_only_when_it_can_use_one() {
         for (width, both) in [(splits_at - 1, false), (splits_at, true)] {
             let mut app = testkit::app();
             app.pane = lens;
-            app.select_id(3);
+            app.select_id(3.into());
             app.reading = true;
             let _ = ui::render_frame(&mut app, width, 24, 0);
 
@@ -245,7 +248,7 @@ fn the_lens_keeps_a_column_beside_the_reader_only_when_it_can_use_one() {
 #[test]
 fn the_detail_pane_is_not_drawn_beside_the_reader() {
     let mut app = testkit::app();
-    app.select_id(3);
+    app.select_id(3.into());
     let _ = ui::render_frame(&mut app, 140, 30, 0);
     assert!(
         app.hits.iter().any(|(_, hit)| *hit == Hit::Detail),
@@ -271,7 +274,7 @@ fn the_filter_panel_is_placed_by_the_room_it_has() {
         (68, true, false, false),
     ] {
         let mut app = testkit::app();
-        app.select_id(3);
+        app.select_id(3.into());
         app.filtering = true;
         app.rebuild();
         let _ = ui::render_frame(&mut app, width, 24, 0);

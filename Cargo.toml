@@ -1,6 +1,6 @@
 [package]
 name = "harrow"
-version = "0.1.0"
+version = "0.2.0-alpha.1"
 description = "Work a cairn backlog from the terminal"
 edition = "2024"
 rust-version = "1.98"
@@ -25,6 +25,7 @@ notify = "8.2.0"
 ratatui = "0.30.2"
 serde = { version = "1.0.229", features = ["derive"] }
 toml = "1.1.5"
+uuid = { version = "1.26.1", features = ["serde"] }
 
 [profile.release]
 opt-level = "s"

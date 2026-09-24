@@ -124,14 +124,14 @@ fn pressing_a_shows_what_is_finished() {
 fn the_cursor_stays_on_the_same_item_when_the_backlog_is_re_read() {
     let dir = testkit::project();
     let mut app = app_for(dir.path());
-    app.select_id(5);
-    assert_eq!(app.selected_item().map(|i| i.id), Some(5));
+    app.select_id(5.into());
+    assert_eq!(app.selected_item().map(|i| i.id), Some(5.into()));
 
     let mut project = Project::discover(dir.path()).expect("found");
     app.ingest(project.load().expect("loads"));
     assert_eq!(
         app.selected_item().map(|i| i.id),
-        Some(5),
+        Some(5.into()),
         "a refresh must not move the cursor"
     );
 }
@@ -146,7 +146,7 @@ fn a_collapsed_milestone_still_has_an_item_behind_it() {
     assert!(matches!(app.rows[app.selected], Row::Group(_)));
     assert_eq!(
         app.selected_item().map(|i| i.id),
-        Some(1),
+        Some(1.into()),
         "the heading names the milestone, so that is what is selected"
     );
 }
@@ -193,7 +193,7 @@ fn the_board_deals_what_the_project_gave_a_column_rather_than_what_the_list_show
         "the list hides finished work and the board has a column for it"
     );
 
-    let done: Vec<u32> = app
+    let done: Vec<harrow::identity::Id> = app
         .columns
         .iter()
         .find(|c| c.value == "done")
@@ -243,7 +243,7 @@ fn a_filter_narrows_both_views_the_same_way() {
     }
     app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
 
-    let listed: Vec<u32> = app
+    let listed: Vec<harrow::identity::Id> = app
         .rows
         .iter()
         .filter_map(|r| match r {
@@ -310,7 +310,7 @@ fn a_read_only_backlog_says_so_rather_than_appearing_to_work() {
     let dir = testkit::project();
     let mut app = app_for(dir.path());
     app.readonly = Some(harrow::app::ReadOnly::NoCairn);
-    app.select_id(3);
+    app.select_id(3.into());
     assert_eq!(
         app.run(harrow::keys::Command::Claim),
         Action::None,
@@ -327,7 +327,7 @@ fn a_read_only_backlog_says_so_rather_than_appearing_to_work() {
 fn an_item_closed_under_you_is_watched_out_rather_than_deleted() {
     let dir = testkit::project();
     let mut app = app_for(dir.path());
-    let ids = |app: &App| -> Vec<u32> {
+    let ids = |app: &App| -> Vec<harrow::identity::Id> {
         app.rows
             .iter()
             .filter_map(|r| match r {
@@ -336,7 +336,7 @@ fn an_item_closed_under_you_is_watched_out_rather_than_deleted() {
             })
             .collect()
     };
-    assert!(ids(&app).contains(&3), "0003 starts on screen");
+    assert!(ids(&app).contains(&3.into()), "0003 starts on screen");
 
     // What `cairn set 3 status=done` leaves behind, read back the way the
     // watcher would read it.
@@ -349,7 +349,7 @@ fn an_item_closed_under_you_is_watched_out_rather_than_deleted() {
     let item = app.items.iter().find(|i| i.id == 3).expect("0003");
     assert!(item.category.is_closed(), "it is done now");
     assert!(
-        ids(&app).contains(&3),
+        ids(&app).contains(&3.into()),
         "and still on screen, so the change can be seen happening"
     );
     assert!(
@@ -363,7 +363,7 @@ fn an_item_closed_under_you_is_watched_out_rather_than_deleted() {
     // And then it goes, without waiting for a keystroke to notice.
     app.now += App::SETTLING + 1;
     assert!(app.settle(), "the moment is up");
-    assert!(!ids(&app).contains(&3), "so it leaves");
+    assert!(!ids(&app).contains(&3.into()), "so it leaves");
     assert!(app.check_invariants().is_ok());
 }
 
@@ -481,7 +481,7 @@ fn a_reference_addressed_by_key_resolves_only_by_key() {
 
     let scheduled = app.items.iter().find(|i| i.id == 1).expect("the milestone");
     assert!(
-        !scheduled.contains.contains(&97),
+        !scheduled.contains.contains(&97.into()),
         "so nothing was filed under it by number"
     );
 }
@@ -505,12 +505,12 @@ fn an_id_addressed_reference_resolves_only_by_id() {
     let app = app_for(dir.path());
     let three = app.items.iter().find(|i| i.id == 3).expect("0003");
     assert!(
-        three.contains.contains(&96),
+        three.contains.contains(&96.into()),
         "a leading # is how references are printed, so it is how they are pasted back"
     );
     let milestone = app.items.iter().find(|i| i.id == 1).expect("0001");
     assert!(
-        !milestone.contains.contains(&95),
+        !milestone.contains.contains(&95.into()),
         "an id-addressed field does not fall back to a key"
     );
 }
@@ -543,7 +543,7 @@ fn a_project_that_renders_its_identifiers_its_own_way_is_obeyed() {
             app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
         }
         app.handle_key(KeyCode::Enter, KeyModifiers::NONE);
-        let ids: Vec<u32> = app
+        let ids: Vec<harrow::identity::Id> = app
             .rows
             .iter()
             .filter_map(|r| match r {
@@ -557,52 +557,26 @@ fn a_project_that_renders_its_identifiers_its_own_way_is_obeyed() {
     }
 }
 
-/// No format bump has ever changed what a key in an item means — each changed
-/// only how the configuration says what it says — so a project from a newer
-/// cairn is one harrow can read. What it must not do is write to it, because
-/// cairn will refuse that itself until the project is migrated.
+/// A reader cannot assume that a future format merely adds configuration.
 #[test]
-fn a_project_from_a_newer_cairn_reads_but_does_not_write() {
+fn a_future_format_is_refused_rather_than_misread() {
     let dir = testkit::project();
     let cfg = dir.path().join("cairn.toml");
-    let text = std::fs::read_to_string(&cfg).expect("the fixture config");
+    let text = std::fs::read_to_string(&cfg).unwrap();
     let ahead = harrow::schema::KNOWN_FORMAT + 1;
     std::fs::write(
         &cfg,
         text.replace("format = 3", &format!("format = {ahead}")),
     )
-    .expect("write a newer format");
-
-    let mut app = app_for(dir.path());
-    assert_eq!(app.items.len(), 6, "every item still reads");
-    assert!(!app.rows.is_empty(), "and lists");
-
-    assert_eq!(
-        app.readonly,
-        Some(harrow::app::ReadOnly::Format(ahead)),
-        "and says why it will not write"
-    );
-    app.select_id(3);
-    assert_eq!(
-        app.run(harrow::keys::Command::Claim),
-        Action::None,
-        "so a write is refused here rather than by cairn confusingly"
-    );
-    let said = app
-        .toast
-        .as_ref()
-        .map(|(m, _, _)| m.clone())
-        .unwrap_or_default();
-    assert!(said.contains("cairn migrate"), "naming the remedy: {said}");
-
-    // And once the toast has gone, the footer is still saying it — which is
-    // the difference between being told and being able to check.
-    app.toast = None;
-    let screen = harrow::ui::render_to_string(&mut app, 110, 26, 0);
-    assert!(
-        screen.contains(&format!("read-only · format {ahead}")),
-        "the footer says which read-only"
-    );
+    .unwrap();
+    let mut project = Project::discover(dir.path()).unwrap();
+    let error = match project.load() {
+        Ok(_) => panic!("a future format was read approximately"),
+        Err(e) => e,
+    };
+    assert!(!error.transient);
+    assert!(error.detail.contains("upgrade Harrow"));
+    assert!(error.detail.contains(&ahead.to_string()));
 }
 
 /// Stale means visible, never revoked. Nothing is released automatically —
@@ -920,7 +894,7 @@ fn the_queue_collects_every_question_addressed_to_a_person() {
     app.now = 1_789_084_800; // 2026-09-11, past the fixture's claim
     app.rebuild();
 
-    let kinds: Vec<(&u32, &str)> = app
+    let kinds: Vec<(&harrow::identity::Id, &str)> = app
         .questions
         .iter()
         .map(|q| {

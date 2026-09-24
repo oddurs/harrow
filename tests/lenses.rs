@@ -56,7 +56,7 @@ fn app_on(lens: Pane) -> App {
     app.rebuild();
     app.pane = lens;
     app.show_activity(Ok(HISTORY.to_string()));
-    app.select_id(3);
+    app.select_id(3.into());
     app
 }
 

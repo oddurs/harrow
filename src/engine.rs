@@ -5,6 +5,8 @@
 //! — all of that is a property of the *set*, and is derived here, once, when the
 //! set is read.
 
+use crate::identity::Id;
+
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -88,6 +90,18 @@ impl Source for Project {
         let schema = Schema::load(&self.config)?;
         let mut warnings = schema.problems();
         let dir = schema.items_dir();
+        if schema.format > crate::schema::KNOWN_FORMAT {
+            return Err(LoadError {
+                detail: format!("unsupported Cairn format {}; upgrade Harrow", schema.format),
+                transient: false,
+            });
+        }
+        if dir.join(".identity-migration.json").exists() {
+            return Err(LoadError {
+                detail: "identity migration is incomplete; resume with cairn migrate".into(),
+                transient: true,
+            });
+        }
 
         // Fail on the items directory itself, but never on a subdirectory
         // inside it: half a backlog read as the whole backlog is worse than a
@@ -114,7 +128,7 @@ impl Source for Project {
                     continue;
                 }
             };
-            match crate::item::parse(&text, &path) {
+            match crate::item::parse_for_schema(&text, &path, &schema) {
                 Ok(item) => items.push(item),
                 Err(e) => warnings.push(format!("{}: {e}", name_of(&path))),
             }
@@ -178,6 +192,7 @@ fn name_of(path: &Path) -> String {
 /// what is blocked by what, and how much of each larger piece of work is done.
 pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
     items.sort_by_key(|i| i.id);
+    schema.remember_ids(items.iter().map(|i| i.id));
 
     let section = schema.criteria_section.as_deref();
     for item in items.iter_mut() {
@@ -186,8 +201,8 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
         item.criteria_total = total;
     }
 
-    let mut duplicates: Vec<u32> = Vec::new();
-    let mut known: HashSet<u32> = HashSet::new();
+    let mut duplicates: Vec<Id> = Vec::new();
+    let mut known: HashSet<Id> = HashSet::new();
     for i in items.iter() {
         if !known.insert(i.id) {
             duplicates.push(i.id);
@@ -195,16 +210,16 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
     }
     duplicates.dedup();
     for id in duplicates {
-        // cairn has `renumber` for exactly this, so point at it rather than
-        // silently showing one of the two.
-        warnings.push(format!(
-            "id {id} is used by more than one item — `cairn renumber` repairs it"
-        ));
+        warnings.push(if id.is_uuid() {
+            format!("id {id} is used by more than one item — reconcile the duplicate copies; immutable IDs must not be renumbered")
+        } else {
+            format!("id {id} is used by more than one item — repair with the legacy Cairn version before migrating")
+        });
     }
 
-    let mut closed: HashSet<u32> = HashSet::new();
-    let mut by_key: HashMap<String, u32> = HashMap::new();
-    let mut kind_of: HashMap<u32, String> = HashMap::new();
+    let mut closed: HashSet<Id> = HashSet::new();
+    let mut by_key: HashMap<String, Id> = HashMap::new();
+    let mut kind_of: HashMap<Id, String> = HashMap::new();
     for item in items.iter_mut() {
         item.category = schema.category(&item.status);
         if item.category.is_closed() {
@@ -219,7 +234,7 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
     // A reference may declare what it points at, and one that does does not
     // point at anything else: `milestone: v0.1` names a milestone, and a
     // feature that happened to take the key `v0.1` is not one.
-    let of_target = |field: &crate::schema::Field, id: u32| match field.target.as_deref() {
+    let of_target = |field: &crate::schema::Field, id: Id| match field.target.as_deref() {
         None | Some("*") => true,
         Some(want) => kind_of.get(&id).is_some_and(|k| k == want),
     };
@@ -246,8 +261,8 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
         .filter(|f| matches!(f.kind, crate::schema::FieldKind::Ref) && f.rollup)
         .collect();
 
-    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
-    let mut parents: HashMap<u32, Vec<u32>> = HashMap::new();
+    let mut children: HashMap<Id, Vec<Id>> = HashMap::new();
+    let mut parents: HashMap<Id, Vec<Id>> = HashMap::new();
     for item in items.iter() {
         for field in &rollups {
             let Some(value) = item.fields.get(&field.name) else {
@@ -270,7 +285,7 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
                         .filter(|id| of_target(field, *id)),
                     crate::schema::Addressing::Id => raw
                         .trim_start_matches('#')
-                        .parse::<u32>()
+                        .parse::<Id>()
                         .ok()
                         .filter(|id| known.contains(id) && of_target(field, *id)),
                 };
@@ -284,7 +299,7 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
         }
     }
 
-    let mut counts: BTreeMap<u32, (u32, u32)> = BTreeMap::new();
+    let mut counts: BTreeMap<Id, (u32, u32)> = BTreeMap::new();
     for &parent in children.keys() {
         counts.insert(
             parent,
@@ -293,7 +308,7 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
     }
     // Depth is a fact about the graph rather than a label somebody maintains,
     // so it is derived here and cannot go stale.
-    let mut depth: HashMap<u32, u32> = HashMap::new();
+    let mut depth: HashMap<Id, u32> = HashMap::new();
     for id in known.iter().copied() {
         depth.insert(id, depth_of(id, &parents, &mut HashSet::new()));
     }
@@ -315,7 +330,7 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
 
 /// How far below a root an item sits. The visited set makes a cycle finite
 /// rather than fatal, for the same reason `beneath` has one.
-fn depth_of(id: u32, parents: &HashMap<u32, Vec<u32>>, seen: &mut HashSet<u32>) -> u32 {
+fn depth_of(id: Id, parents: &HashMap<Id, Vec<Id>>, seen: &mut HashSet<Id>) -> u32 {
     if !seen.insert(id) {
         return 0;
     }
@@ -332,10 +347,10 @@ fn depth_of(id: u32, parents: &HashMap<u32, Vec<u32>>, seen: &mut HashSet<u32>) 
 /// makes a cycle finite rather than fatal; cairn's `acyclic = true` means it
 /// should never happen, and a hand-edited file means it sometimes does.
 fn beneath(
-    id: u32,
-    children: &HashMap<u32, Vec<u32>>,
-    closed: &HashSet<u32>,
-    seen: &mut HashSet<u32>,
+    id: Id,
+    children: &HashMap<Id, Vec<Id>>,
+    closed: &HashSet<Id>,
+    seen: &mut HashSet<Id>,
 ) -> (u32, u32) {
     if !seen.insert(id) {
         return (0, 0);
@@ -499,7 +514,7 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_ids_are_reported_with_the_command_that_repairs_them() {
+    fn duplicate_legacy_ids_name_the_legacy_repair_path() {
         let schema = testkit::schema();
         let mut items = vec![
             testkit::item(1, "a", "backlog"),
@@ -508,7 +523,7 @@ mod tests {
         let mut warnings = Vec::new();
         derive(&mut items, &schema, &mut warnings);
         assert!(
-            warnings.iter().any(|w| w.contains("renumber")),
+            warnings.iter().any(|w| w.contains("legacy Cairn")),
             "{warnings:?}"
         );
     }

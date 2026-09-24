@@ -73,7 +73,7 @@ fn a_status_in_the_strip_filters_by_itself_and_clicking_again_clears_it() {
     let (x, y) = find(&app, &Hit::Status("doing".into()));
     click(&mut app, x, y);
     assert_eq!(app.filter, "status=doing");
-    let ids: Vec<u32> = app
+    let ids: Vec<harrow::identity::Id> = app
         .rows
         .iter()
         .filter_map(|r| match r {
@@ -135,7 +135,7 @@ fn clicking_the_list_while_reading_moves_what_the_panel_shows() {
 #[test]
 fn the_wheel_scrolls_the_panel_or_the_list_by_where_it_is() {
     let mut app = testkit::app();
-    app.select_id(3);
+    app.select_id(3.into());
     app.reading = true;
     let long = (1..=80)
         .map(|n| format!("Paragraph {n} of a proposal nobody will finish reading."))
@@ -192,8 +192,8 @@ fn clicking_a_value_in_the_filter_panel_ticks_it() {
 #[test]
 fn a_click_outside_the_history_closes_it() {
     let mut app = testkit::app();
-    app.select_id(3);
-    app.show_history(3, Ok("2026-09-02  somebody  created\n".into()));
+    app.select_id(3.into());
+    app.show_history(3.into(), Ok("2026-09-02  somebody  created\n".into()));
     drawn(&mut app);
     find(&app, &Hit::Overlay);
 
@@ -278,7 +278,7 @@ fn a_read_only_backlog_refuses_a_drag_rather_than_appearing_to_work() {
 #[test]
 fn the_picker_and_the_confirmation_are_clickable() {
     let mut app = testkit::app();
-    app.select_id(3);
+    app.select_id(3.into());
     app.open_picker("status");
     drawn(&mut app);
 
@@ -288,7 +288,7 @@ fn the_picker_and_the_confirmation_are_clickable() {
         other => panic!("expected a status change, got {other:?}"),
     }
 
-    app.select_id(3);
+    app.select_id(3.into());
     app.ask_close();
     drawn(&mut app);
     let (x, y) = find(&app, &Hit::Answer(false));
@@ -353,7 +353,7 @@ fn a_click_on_nothing_does_nothing() {
 #[test]
 fn an_overlay_takes_the_click_rather_than_the_list_behind_it() {
     let mut app = testkit::app();
-    app.select_id(3);
+    app.select_id(3.into());
     app.open_picker("priority");
     drawn(&mut app);
 
@@ -367,14 +367,17 @@ fn an_overlay_takes_the_click_rather_than_the_list_behind_it() {
 #[test]
 fn the_wheel_moves_the_pane_under_the_pointer_rather_than_the_one_with_the_cursor() {
     let mut app = testkit::app();
-    app.select_id(3);
+    app.select_id(3.into());
     drawn(&mut app);
 
     let (offset, selected) = (app.offset, app.selected);
     let (x, y) = find(&app, &Hit::Detail);
     app.handle_mouse(at(MouseEventKind::ScrollDown, x + 2, y + 2));
 
-    assert!(app.detail.at(3) > 0, "the detail pane has to have moved");
+    assert!(
+        app.detail.at(3.into()) > 0,
+        "the detail pane has to have moved"
+    );
     assert_eq!(app.offset, offset, "and the list stayed where it was");
     assert_eq!(app.selected, selected, "along with the cursor in it");
 }
@@ -445,7 +448,7 @@ fn a_figure_on_the_stats_pane_is_clickable() {
 #[test]
 fn a_link_in_the_body_opens_when_it_is_clicked() {
     let mut app = testkit::app();
-    app.select_id(5);
+    app.select_id(5.into());
     drawn(&mut app);
 
     let (x, y) = find(&app, &Hit::Link(0));
@@ -473,12 +476,12 @@ fn a_link_in_the_body_opens_when_it_is_clicked() {
 #[test]
 fn a_blocker_is_clickable() {
     let mut app = testkit::app();
-    app.select_id(4);
+    app.select_id(4.into());
     drawn(&mut app);
 
     let (x, y) = find(&app, &Hit::Link(0));
     click(&mut app, x, y);
-    assert_eq!(app.selected_item().map(|i| i.id), Some(3));
+    assert_eq!(app.selected_item().map(|i| i.id), Some(3.into()));
 }
 
 /// Registered against where they were drawn, so scrolling moves the targets
@@ -486,7 +489,7 @@ fn a_blocker_is_clickable() {
 #[test]
 fn scrolling_the_detail_pane_moves_what_is_clickable() {
     let mut app = testkit::app();
-    app.select_id(5);
+    app.select_id(5.into());
     // Short enough that the pane holds more than it shows; a pane with
     // nothing to scroll would pass this without meaning anything. One row
     // taller than it used to be, because the view line now takes one.

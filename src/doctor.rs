@@ -83,6 +83,9 @@ pub fn run(config: &Config, config_path: Option<&Path>, theme: &Theme, start: &P
                     .filter_map(|view| {
                         let filter = view.filter.as_deref()?;
                         let query = crate::filter::Query::parse(filter, &report.schema);
+                        if !query.errors.is_empty() {
+                            return Some(format!("{}: {}", view.name, query.errors.join("; ")));
+                        }
                         (!query.unknown.is_empty()).then(|| {
                             format!("{}: no such field {}", view.name, query.unknown.join(", "))
                         })

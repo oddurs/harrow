@@ -8,7 +8,7 @@
 use harrow::app::{App, Asking, Row};
 use harrow::{testkit, ui};
 
-fn listed(app: &App) -> Vec<u32> {
+fn listed(app: &App) -> Vec<harrow::identity::Id> {
     app.rows
         .iter()
         .filter_map(|r| match r {
@@ -53,7 +53,7 @@ fn a_group_with_open_work_still_hides_its_finished() {
 #[test]
 fn it_is_the_same_condition_the_needs_queue_asks_about() {
     let app = testkit::finished();
-    let asked: Vec<u32> = app
+    let asked: Vec<harrow::identity::Id> = app
         .questions
         .iter()
         .filter(|q| q.asking == Asking::NothingUnfinished)

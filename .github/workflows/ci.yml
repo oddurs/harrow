@@ -41,8 +41,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: oddurs/cairn
-          # v0.3.0; update deliberately with corpus provenance and agreement.
-          ref: 80443135bfae0f2d2804e60f2636005d1590e7ca
+          # Format-4 development contract; update with corpus and agreement.
+          ref: ec982f881ddf717c58e83d90fcfc0efdf07240ce
           path: .counterparts/cairn
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
       - run: cargo build --locked --manifest-path .counterparts/cairn/Cargo.toml
