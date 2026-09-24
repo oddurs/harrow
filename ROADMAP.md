@@ -142,7 +142,7 @@ Every question harrow can answer is answerable from a shell.
 
 ## v1.0 — Stable release
 
-`####······` 40% · 8 of 20 done
+`#####·····` 43% · 9 of 21 done
 
 Documented, tested, and safe to depend on.
 
@@ -171,6 +171,7 @@ Documented, tested, and safe to depend on.
 - [x] `0097` A map with headings, that says where it ends <sup>feature · p2 · chrome</sup>
 - [x] `0098` A dropdown you cannot click out of <sup>bug · p1 · chrome</sup>
 - [x] `0099` Keep completion dates and saved views aligned with Cairn <sup>bug · p1 · read</sup>
+- [x] `0108` Advance the counterpart pin to Cairn 0.3.0 <sup>chore · p2 · testing</sup>
 
 ## later — Someday
 

@@ -4,11 +4,13 @@ Cairn owns the format and every write. Harrow independently reads that format
 and supplies the human interface. Neither needs a shared runtime library or a
 Cairn process on each read.
 
-The contract work in item 0099 is tested against Cairn **0.2.2**, revision
-`335a4d38336da4f38a6c216e91e940c989a3efc8`. It reads formats 1–3; the frozen
-older corpora stay in the suite. Cairn 0.3 adds explicit view selection without
-changing format 3. Older Harrow 0.1.0 binaries may reject `closed_at` queries;
-use a revision including 0099 until a companion release includes it.
+Harrow is tested against Cairn **0.3.0**, revision
+`80443135bfae0f2d2804e60f2636005d1590e7ca`. It reads formats 1–3; the frozen
+older corpora stay in the suite. Format 3 is unchanged between 0.2.2 and
+0.3.0, and the vendored corpus is byte-identical across the two: advancing the
+pin moved `PROVENANCE` and nothing else. Older Harrow 0.1.0 binaries may
+reject `closed_at` queries; use a revision including 0099 until a companion
+release includes it.
 
 ## The gate
 
@@ -30,6 +32,13 @@ To advance the pin, inspect Cairn's format/CLI changes, refresh the corpus with
 `CAIRN_REPO=/path/to/cairn scripts/task conformance:refresh`, review every diff,
 update CI's exact revision, and run both suites. `PROVENANCE` identifies the
 corpus source. Do not edit an expectation to conceal a disagreement.
+
+Refresh from a **clean checkout of the release being pinned**, not from a
+working copy. A sibling checkout is somebody's desk: ours held uncommitted
+work toward a later version, and refreshing from it would have vendored an
+unreleased corpus under a released version's name. Clone the tag, and check
+that the tree is clean and `cairn --version` is the version you mean —
+`target/debug/cairn` in a dirty checkout is not the release it is beside.
 
 ## Deliberate differences and shared semantics
 
