@@ -45,8 +45,49 @@ fn first_line(s: &str) -> &str {
 /// Run a command, returning stdout. Non-zero exits are tolerated as long as
 /// something came back on stdout: a tool that reports what it managed to do
 /// before failing is more use than an error with the report thrown away.
+/// Everything a git hook exports to what it runs.
+///
+/// A hook's child inherits `GIT_DIR`, and git reads it in preference to
+/// discovering a repository — so `git -C <project> log` run from a hook
+/// answers about the *hook's* repository. `-C` changes the directory, not the
+/// discovery. Harrow launched from a hook showed another project's history
+/// on its log lens for exactly that reason. 0077.
+const GIT_ENV: &[&str] = &[
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+    "GIT_PREFIX",
+    "GIT_CEILING_DIRECTORIES",
+];
+
+/// `git`, asked about the repository the arguments name and no other.
+///
+/// Separate from `run` rather than an argument to it: `run` takes an argv and
+/// a deadline, and every caller having to say something about the environment
+/// to get the ordinary behaviour is a worse trade than git having its own way
+/// in. Nothing else harrow spawns is sensitive to where it was launched from.
+pub fn git(args: &[&str], timeout: Duration) -> Result<String, ExecError> {
+    run_with(("git", GIT_ENV), args, timeout)
+}
+
 pub fn run(program: &str, args: &[&str], timeout: Duration) -> Result<String, ExecError> {
-    let mut child = Command::new(program)
+    run_with((program, &[]), args, timeout)
+}
+
+fn run_with(
+    (program, without): (&str, &[&str]),
+    args: &[&str],
+    timeout: Duration,
+) -> Result<String, ExecError> {
+    let mut command = Command::new(program);
+    for name in without {
+        command.env_remove(name);
+    }
+    let mut child = command
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
