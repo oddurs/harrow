@@ -58,6 +58,32 @@ template = """
 name = "chore"
 icon = "~"
 color = "gray"
+template = """
+## Why now
+
+## What changes
+
+## Done when
+
+- [ ]
+"""
+
+# Not work, and deliberately not a feature: the answer to a question that
+# would otherwise be reargued every few months. It records what was decided,
+# what it cost, and what evidence would reopen it.
+[[type]]
+name = "decision"
+icon = "="
+color = "magenta"
+template = """
+## Context
+
+## Options and tradeoffs
+
+## Decision
+
+## Revisit when
+"""
 
 [[type]]
 name = "spike"
@@ -82,6 +108,15 @@ template = """
 name = "docs"
 icon = "*"
 color = "blue"
+template = """
+## What a reader needs
+
+## Where it goes
+
+## Done when
+
+- [ ]
+"""
 
 # ─── Statuses ────────────────────────────────────────────────────────────────
 # Order matters: it is the column order on the board and the sort order in
@@ -188,21 +223,55 @@ description = "Subsystem this touches"
 
 [[view]]
 name = "now"
-description = "What is actually being worked on"
+description = "Claimed and under way"
 filter = "category=active"
 sort = "priority,id"
 
+# The approved queue. Anything here has been looked at and agreed as the next
+# thing worth doing; everything else is a backlog entry, however good. Keeping
+# it short is the point — a queue of twenty is a backlog with a nicer name.
 [[view]]
 name = "next"
-description = "Planned work for the nearest milestone"
+description = "Approved to start, in order"
 filter = "status=planned"
-sort = "priority,milestone"
+sort = "priority,id"
 
 [[view]]
+name = "waiting"
+description = "Open, and stopped on something outside this repository"
+filter = "status=blocked"
+sort = "priority,id"
+
+# Open work nobody has sized. Effort has no default, so this fires on exactly
+# the items that have never been weighed.
+[[view]]
 name = "triage"
-description = "Items that still need a milestone or a priority"
-filter = "milestone=,category!=done"
+description = "Open work nobody has weighed yet"
+filter = "category!=done,category!=dropped,effort="
 columns = ["id", "type", "title", "created"]
+sort = "id"
+
+# A decision is worth most after it is settled, so this has to name a category
+# explicitly: a filter that mentions neither status nor category shows open
+# work only, and a closed decision would vanish from the one view that exists
+# to keep it findable.
+[[view]]
+name = "decisions"
+description = "What was settled, and what would reopen it"
+filter = "type=decision,category!=dropped"
+sort = "-updated"
+
+# Most of this project's finished work predates closing through cairn and has
+# no completion date. Requiring one here would show a single item and imply
+# the rest never happened; inventing one would be worse. So this orders by
+# last change, which every item has, and shows the completion date in a
+# column — blank wherever the record does not hold one. 0100 records why.
+[[view]]
+name = "history"
+description = "Finished work, most recently closed first"
+filter = "status=done"
+sort = "-updated"
+columns = ["id", "type", "title", "closed_at"]
 
 # ─── Hooks ───────────────────────────────────────────────────────────────────
 # cairn does not embed a scripting language; it runs yours. A hook takes one of

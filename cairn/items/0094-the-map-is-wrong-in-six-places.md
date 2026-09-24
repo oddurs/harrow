@@ -2,10 +2,11 @@
 id: 94
 title: The map is wrong in six places
 type: bug
-status: doing
+status: done
 milestone: v1.0
 created: 2026-09-20
-updated: 2026-09-20
+updated: 2026-09-23
+closed_at: 2026-09-23
 priority: p1
 area: chrome
 ---
@@ -98,3 +99,11 @@ the complaint here is that the trap is unposted, not that it exists.
   none is named twice.
 - Paging has a row, and no row is wider than the column it is drawn in.
 - `tests/snapshots/help.txt` re-recorded, diff read.
+
+## 2026-09-23
+
+Shipped 2026-09-20 in PR #89, merged as d2f2921, and left open by mistake: the status was set to doing in the file and never moved when the work landed. It was the only item the now view showed, and it had no assignee or claim date, so the project appeared to have one thing in flight and did not.
+
+All six defects are fixed and covered: the duplicate sort-by row, the footer saying views where it meant lenses, paging bound to four keys and named in no row, ctrl-r undocumented beside r, :toggle-mouse reachable from the overlay, and a row wider than the column it is drawn in. Two tests in src/keys.rs hold the overlay to Command::ALL and to the column width.
+
+Closed on the reconciliation date. The record now carries a completion date because it was closed through cairn rather than by editing the file — which is the boundary this project asserts and, for most of its history, did not follow. 0100 records that gap.

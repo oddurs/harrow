@@ -3,13 +3,13 @@ id: 25
 key: v0.3
 title: Read everything cairn writes, and nothing it does not
 type: milestone
-status: backlog
+status: done
 depends_on:
 - 16
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-23
+closed_at: 2026-09-23
 priority: p2
-due: 2027-02-15
 ---
 
 harrow reads cairn's files directly. That is the decision the whole program
@@ -40,3 +40,7 @@ what the project declares.
 The order matters. The reader bugs lose information and belong in v0.2; what
 follows them here is the part where harrow stops inventing defaults for
 questions the project has already answered.
+
+## 2026-09-23
+
+Reconciled 2026-09-23. All thirteen items are done: the schema reader, project-declared types, statuses, fields and views, reference fields, rollups, and the conformance corpus that holds harrow to cairn's own golden files. Closed on the reconciliation date.

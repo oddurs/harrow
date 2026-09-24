@@ -3,6 +3,7 @@ id: 99
 title: Keep completion dates and saved views aligned with Cairn
 type: bug
 status: done
+milestone: v1.0
 assignee: codex
 created: 2026-09-23
 updated: 2026-09-23

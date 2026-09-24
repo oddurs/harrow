@@ -3,13 +3,13 @@ id: 63
 key: v0.5
 title: The work is somebody else's; the deciding is yours
 type: milestone
-status: backlog
+status: done
 depends_on:
 - 55
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-23
+closed_at: 2026-09-23
 priority: p2
-due: 2027-04-01
 ---
 
 The work is somebody else's. The deciding is yours.
@@ -78,3 +78,7 @@ PROMISE.md draws cairn's line and a TUI inherits it. No view across
 repositories, no notifications, nothing that runs when you do not. *What
 happened while I was away* means what this clone's git can tell me when I
 ask it — which is bounded, and is enough.
+
+## 2026-09-23
+
+Reconciled 2026-09-23. All nine items are done: claims, proposals, the needs-you queue, actors, and the history view — the parts that let a person supervise work somebody else is doing. Closed on the reconciliation date.

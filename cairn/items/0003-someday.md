@@ -7,6 +7,7 @@ status: backlog
 depends_on:
 - 2
 created: 2026-09-08
+updated: 2026-09-23
 ---
 
 Good ideas without a date yet.
