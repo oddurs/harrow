@@ -3,13 +3,13 @@ id: 81
 key: v0.6
 title: Compose a view; reach a command
 type: milestone
-status: backlog
+status: done
 depends_on:
 - 63
 created: 2026-09-18
-updated: 2026-09-18
+updated: 2026-09-23
+closed_at: 2026-09-23
 priority: p2
-due: 2027-04-15
 ---
 
 Three questions decide what is on screen — which items, in what order,
@@ -86,13 +86,30 @@ exist.
 
 ## Acceptance criteria
 
-- [ ] All three questions — which, in what order, grouped how — are askable without restarting
-- [ ] The view in force is stated on screen, in the grammar that would reproduce it
-- [ ] Every command is reachable by name, and the rare ones no longer hold letters
-- [ ] The keymap is settled, so 0044 can promise it
+- [x] All three questions — which, in what order, grouped how — are askable without restarting
+- [x] The view in force is stated on screen, in the grammar that would reproduce it
+- [x] Every command is reachable by name, and the rare ones no longer hold letters
+- [x] The keymap is settled, so 0044 can promise it
 
 ## 2026-09-18
 
 Planned from a written proposal rather than straight into items, because the argument is about the shape of the whole interface and the items only make sense against it: https://claude.ai/artifact/7hJNAvQQgeM7x5rTHuwSRr
 
 The counts in the body are read from src/keys.rs and src/app.rs at 51c8135 — 48 commands, 58 bindings, 41 letters spent — and they are the reason this is a milestone rather than four loose items. Any one of these on its own is a feature; together they are the difference between a keymap that has run out and one that can absorb the next five years of features.
+
+## 2026-09-23
+
+Reconciled 2026-09-23. All twelve items are done: the toolbar and its dropdowns, saved views reachable by name, the command palette, the view line, and sorting as a key rather than a flag. Closed on the reconciliation date.
+
+## 2026-09-23
+
+Reconciled 2026-09-23. All twelve items are done: the toolbar and its dropdowns, saved views reachable by name, the command palette, the view line, and sorting as a key rather than a flag.
+
+Criteria verified against the shipped binary rather than ticked to clear the gate:
+
+1. Which / in what order / grouped how are all askable without restarting — `f` and `/` edit the query, `S` and `ctrl-s` the order, `v` and `ctrl-v` the grouping; all six are bound in src/keys.rs.
+2. The toolbar states the view in force, and `Y` (copy-view) yields the command line that reproduces it.
+3. Frontier, Diagnostics, Check and ToggleMouse hold no letters and are reached by name through the palette; src/keys.rs holds that list in a test.
+4. The keymap is settled: action names round-trip in a test, and `l` no longer writes to the backlog. 0044 stays open because making the promise publicly is its own work, not this milestone's.
+
+Closed on the reconciliation date.

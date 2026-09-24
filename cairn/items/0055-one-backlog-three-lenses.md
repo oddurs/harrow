@@ -3,13 +3,13 @@ id: 55
 key: v0.4
 title: One backlog, three lenses
 type: milestone
-status: backlog
+status: done
 depends_on:
 - 25
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-23
+closed_at: 2026-09-23
 priority: p2
-due: 2027-03-15
 ---
 
 Three ways of looking at one backlog, that behave like one program.
@@ -59,3 +59,7 @@ is the only thing that changes.
 
 0056 writes down what a lens owes the reader and holds it with a test, so the
 drift cannot happen again quietly. The rest pay off what has already drifted.
+
+## 2026-09-23
+
+Reconciled 2026-09-23. All eight items are done: the board, the statistics lens, and the lens contract in tests/lenses.rs that holds every lens to the same capabilities. Closed on the reconciliation date.

@@ -4,7 +4,7 @@
 
 ## v0.1 — First usable version
 
-`##########` 100% · 12 of 12 done · due 2026-12-01
+`##########` 100% · 12 of 12 done
 
 Enough to dogfood in a real project.
 
@@ -25,7 +25,7 @@ Enough to dogfood in a real project.
 
 ## v0.2 — Triage that scales past one item at a time
 
-`##########` 100% · 14 of 14 done · due 2027-01-15
+`##########` 100% · 14 of 14 done
 
 Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
@@ -48,7 +48,7 @@ Everything that makes harrow useful on a backlog somebody else wrote: bulk
 
 ## v0.3 — Read everything cairn writes, and nothing it does not
 
-`##########` 100% · 13 of 13 done · due 2027-02-15
+`##########` 100% · 13 of 13 done
 
 harrow reads cairn's files directly. That is the decision the whole program
 
@@ -70,7 +70,7 @@ harrow reads cairn's files directly. That is the decision the whole program
 
 ## v0.4 — One backlog, three lenses
 
-`##########` 100% · 8 of 8 done · due 2027-03-15
+`##########` 100% · 8 of 8 done
 
 Three ways of looking at one backlog, that behave like one program.
 
@@ -87,7 +87,7 @@ Three ways of looking at one backlog, that behave like one program.
 
 ## v0.5 — The work is somebody else's; the deciding is yours
 
-`##########` 100% · 9 of 9 done · due 2027-04-01
+`##########` 100% · 9 of 9 done
 
 The work is somebody else's. The deciding is yours.
 
@@ -105,7 +105,7 @@ The work is somebody else's. The deciding is yours.
 
 ## v0.6 — Compose a view; reach a command
 
-`##########` 100% · 12 of 12 done · due 2027-04-15
+`##########` 100% · 12 of 12 done
 
 Three questions decide what is on screen — which items, in what order,
 
@@ -124,9 +124,30 @@ Three questions decide what is on screen — which items, in what order,
 - [x] `0092` A milestone in progress hides the work it has finished <sup>bug · p1 · read</sup>
 - [x] `0093` Open where the work is, not at the beginning of the project <sup>feature · p1 · chrome</sup>
 
+## v0.7 — Every question has a door
+
+`####······` 33% · 2 of 6 done
+
+Every question harrow can answer is answerable from a shell.
+
+### backlog
+
+- [ ] `0106` A negated status predicate does not lift the hidden default <sup>bug · p1 · filter</sup>
+
+### planned
+
+- [ ] `0103` Open any lens from the command line <sup>feature · p1 · cli</sup>
+- [ ] `0104` Answer the needs and log questions in plain text <sup>feature · p1 · cli</sup>
+- [ ] `0105` Say what each lens answers, in the help and the manual <sup>docs · p2 · docs</sup>
+
+### done
+
+- [x] `0100` Give harrow a durable direction and a reconciled backlog <sup>chore · p1 · docs</sup>
+- [x] `0101` Read the record directly; change it only through cairn <sup>decision · p1 · docs</sup>
+
 ## v1.0 — Stable release
 
-`###·······` 30% · 6 of 20 done · due 2027-05-01
+`####······` 38% · 8 of 21 done
 
 Documented, tested, and safe to depend on.
 
@@ -146,18 +167,16 @@ Documented, tested, and safe to depend on.
 - [ ] `0077` The log reads the repository it was pointed at <sup>bug · p2 · read</sup>
 - [ ] `0096` A rebuild keeps the row number rather than the thing on it <sup>bug · p2 · read</sup>
 
-### in progress
-
-- [ ] `0094` The map is wrong in six places <sup>bug · p1 · chrome</sup>
-
 ### done
 
 - [x] `0045` Soak it against backlogs nobody wrote by hand <sup>chore · p1 · testing</sup>
 - [x] `0046` Every screen, at every size it can be given <sup>chore · p2 · testing</sup>
 - [x] `0070` The randomised suite has never pressed half the keys <sup>bug · p1 · testing</sup>
+- [x] `0094` The map is wrong in six places <sup>bug · p1 · chrome</sup>
 - [x] `0095` The tree does not fold from the keyboard <sup>bug · p0 · chrome</sup>
 - [x] `0097` A map with headings, that says where it ends <sup>feature · p2 · chrome</sup>
 - [x] `0098` A dropdown you cannot click out of <sup>bug · p1 · chrome</sup>
+- [x] `0099` Keep completion dates and saved views aligned with Cairn <sup>bug · p1 · read</sup>
 
 ## later — Someday
 
@@ -169,12 +188,4 @@ Good ideas without a date yet.
 
 - [ ] `0015` Every cairn project on this machine, in one list <sup>feature · p3 · cli</sup>
 - [ ] `0022` How much Markdown is worth rendering in a pane this size <sup>spike · p2 · chrome</sup>
-
-## Unscheduled
-
-`##########` 100% · 1 of 1 done
-
-### done
-
-- [x] `0099` Keep completion dates and saved views aligned with Cairn <sup>bug · p1 · read</sup>
 
