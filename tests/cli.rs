@@ -336,9 +336,38 @@ fn a_lens_nothing_answers_to_is_a_usage_error() {
 fn board_and_stats_still_open_their_own_lenses() {
     let dir = testkit::project();
     let path = dir.path().display().to_string();
+    // This compares lens selection, not the host's writer availability. Two
+    // independent version probes can time out differently on a loaded host,
+    // changing the read-only footer despite selecting exactly the same lens.
+    let config = dir.path().join("harrow.toml");
+    std::fs::write(
+        &config,
+        format!("cairn = '{}'\n", dir.path().join("absent-cairn").display()),
+    )
+    .unwrap();
+    let config = config.display().to_string();
     for (flag, lens) in [("--board", "board"), ("--stats", "stats")] {
-        let (shorthand, _, _) = run(&["-C", &path, flag, "--screenshot", "90x16"]);
-        let (named, _, _) = run(&["-C", &path, "--lens", lens, "--screenshot", "90x16"]);
+        let (shorthand, err, code) = run(&[
+            "-C",
+            &path,
+            "--config",
+            &config,
+            flag,
+            "--screenshot",
+            "90x16",
+        ]);
+        assert_eq!(code, 0, "{err}");
+        let (named, err, code) = run(&[
+            "-C",
+            &path,
+            "--config",
+            &config,
+            "--lens",
+            lens,
+            "--screenshot",
+            "90x16",
+        ]);
+        assert_eq!(code, 0, "{err}");
         assert_eq!(shorthand, named, "{flag} and --lens {lens} draw the same");
     }
 }

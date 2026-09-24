@@ -38,3 +38,7 @@ All standalone checks passed, including the 49-case format corpus and seven UUID
 ## 2026-09-23
 
 Integrated newer main, retaining the new lens entry points and ordinary-listing semantics. The pre-migration integer collision on 0107 was repaired to 0110 before UUID conversion; no references to this new item existed. All five cross-tool agreement cases pass. Every plain-output lens now has a full-UUID regression. The counterpart pin and unmodified 49-case corpus identify the committed Cairn alpha revision, and refresh now refuses dirty upstream trees.
+
+## 2026-09-23
+
+Live migration verified all 110 bodies byte-for-byte and every non-reference metadata value unchanged. Historical lookup, full-UUID references and all five agreement tests pass; doctor agrees with Cairn on all 110 records and six views. Pre-push exposed a lens-alias screenshot flake: only the read-only footer differed because one host Cairn version probe timed out. The equivalence test now fixes writer availability using an explicitly absent executable and asserts both exit codes; the complete screenshot comparison is unchanged.
