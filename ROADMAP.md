@@ -187,9 +187,9 @@ Good ideas without a date yet.
 
 ## Unscheduled
 
-`··········` 0% · 0 of 1 done
+`##########` 100% · 1 of 1 done
 
-### in progress
+### done
 
-- [ ] `7dceda4a` Read immutable UUID identities and keep the Cairn contract <sup>feature · p1 · read</sup>
+- [x] `7dceda4a` Read immutable UUID identities and keep the Cairn contract <sup>feature · p1 · read</sup>
 
