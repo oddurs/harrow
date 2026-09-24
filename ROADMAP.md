@@ -142,7 +142,7 @@ Every question harrow can answer is answerable from a shell.
 
 ## v1.0 — Stable release
 
-`#####·····` 43% · 9 of 21 done
+`#####·····` 41% · 9 of 22 done
 
 Documented, tested, and safe to depend on.
 
@@ -160,6 +160,7 @@ Documented, tested, and safe to depend on.
 - [ ] `0051` Select the item a cairn check finding names <sup>feature · p3 · chrome</sup>
 - [ ] `0052` A digit in a picker does not pick outright <sup>bug · p3 · chrome</sup>
 - [ ] `0096` A rebuild keeps the row number rather than the thing on it <sup>bug · p2 · read</sup>
+- [ ] `0109` Decide what the 1.0 promise covers <sup>decision · p1 · docs</sup>
 
 ### done
 

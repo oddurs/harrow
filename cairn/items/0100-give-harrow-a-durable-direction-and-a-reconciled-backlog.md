@@ -189,3 +189,13 @@ Configuring the decisions view surfaced a cross-tool disagreement that the asses
 ## 2026-09-23
 
 Every milestone carried an invented due date between 2026-12-01 and 2027-05-01, six of them on work that had already shipped. They are cleared. Removing them exposed what the dates had been standing in for: cairn orders milestone groups by the dependency graph first, then due, then id, and with no dates and no graph the roadmap fell into identifier order. The milestones now declare the sequence they actually happened in, which is true, orders the roadmap correctly, and commits nobody to a date.
+
+## 2026-09-23
+
+Closing state, 2026-09-23. 108 items, zero warnings. Seven milestones closed; v1.0 and later remain open.
+
+The approved queue is empty on purpose. v0.7 consumed it, and this assessment says not to select a fourth item because an implementation slot opened before there is new evidence. The next thing is not engineering: it is 0109, deciding what the 1.0 promise covers, which needs the project owner and which v1.0 cannot be scoped without. It is filed with an owner and left unapproved rather than claimed.
+
+Shipped since this assessment: 0106 (a negated predicate now lifts the hidden default, so harrow and cairn agree on every filter shape tested), v0.7 in full (0102–0105), 0077 (the log reads the project rather than a hook's GIT_DIR), and 0108 (the counterpart pin advanced to Cairn 0.3.0).
+
+One correction to this item's own verification section: the local agreement runs it reports were pointed at ../cairn/target/debug/cairn, which reports 1.0.0-alpha.1 rather than 0.3.0, because that checkout holds uncommitted work. CI gated every merge against the pinned revision and the doctor runs used the installed 0.3.0, so those results stand; the local agreement claim did not, and 0108 re-ran it against a clean clone of the tag.
