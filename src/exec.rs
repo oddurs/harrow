@@ -52,7 +52,7 @@ fn first_line(s: &str) -> &str {
 /// answers about the *hook's* repository. `-C` changes the directory, not the
 /// discovery. Harrow launched from a hook showed another project's history
 /// on its log lens for exactly that reason. 0077.
-const GIT_ENV: &[&str] = &[
+pub(crate) const GIT_ENV: &[&str] = &[
     "GIT_DIR",
     "GIT_WORK_TREE",
     "GIT_INDEX_FILE",

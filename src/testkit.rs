@@ -163,6 +163,69 @@ pub fn project() -> TempProject {
     TempProject { dir }
 }
 
+/// The sample project as a git repository, and a second worktree of it on
+/// `branch` — where an agent would be working.
+pub fn with_worktree(branch: &str) -> (TempProject, TempProject) {
+    let main = project();
+    let name = format!(
+        "{}-{}",
+        main.dir.file_name().expect("named").to_string_lossy(),
+        branch.replace('/', "-")
+    );
+    let there = TempProject {
+        dir: main.dir.with_file_name(name),
+    };
+    let _ = std::fs::remove_dir_all(&there.dir);
+    git(main.path(), &["init", "-q", "-b", "main"]);
+    commit(main.path(), "the sample");
+    git(
+        main.path(),
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            branch,
+            &there.dir.to_string_lossy(),
+        ],
+    );
+    (main, there)
+}
+
+/// Commit everything in a checkout, as nobody in particular.
+pub fn commit(dir: &std::path::Path, message: &str) {
+    git(dir, &["add", "-A"]);
+    git(dir, &["commit", "-q", "-m", message]);
+}
+
+/// `git` in a fixture, isolated from whatever repository and configuration
+/// the tests happen to run inside — a hook runs them with `GIT_DIR` set.
+pub fn git(dir: &std::path::Path, args: &[&str]) {
+    let mut command = std::process::Command::new("git");
+    for name in crate::exec::GIT_ENV {
+        command.env_remove(name);
+    }
+    let status = command
+        .arg("-C")
+        .arg(dir)
+        .args([
+            "-c",
+            "user.name=harrow",
+            "-c",
+            "user.email=harrow@example.org",
+        ])
+        .args([
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+        ])
+        .args(args)
+        .status()
+        .expect("git runs");
+    assert!(status.success(), "git {args:?} in {}", dir.display());
+}
+
 /// The sample schema, with no directory behind it.
 pub fn schema() -> Schema {
     Schema::parse(CAIRN_TOML, PathBuf::from("/tmp/sample")).expect("the fixture parses")

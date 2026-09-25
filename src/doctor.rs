@@ -70,6 +70,34 @@ pub fn run(config: &Config, config_path: Option<&Path>, theme: &Theme, start: &P
                     },
                 });
 
+                // Only where there is something to say: a project with one
+                // checkout is the ordinary case, not a finding.
+                if !report.elsewhere.is_empty() {
+                    let underway = report
+                        .items
+                        .iter()
+                        .filter(|i| i.active_elsewhere().is_some())
+                        .count();
+                    let changed = report
+                        .items
+                        .iter()
+                        .filter(|i| !i.elsewhere.is_empty())
+                        .count();
+                    checks.push(Check {
+                        name: "worktrees",
+                        ok: true,
+                        detail: {
+                            let others = report.elsewhere.len();
+                            format!(
+                                "{others} other{} — {changed} item{} changed there, {underway} under way",
+                                if others == 1 { "" } else { "s" },
+                                if changed == 1 { "" } else { "s" },
+                            )
+                        },
+                        fatal: false,
+                    });
+                }
+
                 // Every saved view, parsed. These filters are strings the
                 // project wrote for cairn and harrow reads verbatim, so a
                 // grammar difference between the two shows up as a view

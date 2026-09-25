@@ -144,11 +144,22 @@ fn emit(tx: &SyncSender<Msg>, msg: Msg) -> bool {
     }
 }
 
-/// Enough of a reading to tell whether it is worth sending: what was there, and
-/// when it last changed. Deliberately not a hash of the contents — a change
-/// harrow cannot see this way is one `r` will pick up regardless.
-fn fingerprint(report: &Report) -> (usize, Option<SystemTime>) {
-    (report.items.len(), report.stamp)
+/// Enough of a reading to tell whether it is worth sending: what was there,
+/// when it last changed, and what is happening to it elsewhere. Deliberately
+/// not a hash of the contents — a change harrow cannot see this way is one
+/// `r` will pick up regardless. What other worktrees are doing is the
+/// exception, because a claim there changes no file here: without it, the
+/// watcher would wake for the claim and the reading would be thrown away.
+type Fingerprint = (usize, Option<SystemTime>, u64);
+
+fn fingerprint(report: &Report) -> Fingerprint {
+    use std::hash::{Hash, Hasher};
+    let mut elsewhere = std::collections::hash_map::DefaultHasher::new();
+    for item in report.items.iter().filter(|i| !i.elsewhere.is_empty()) {
+        item.id.hash(&mut elsewhere);
+        item.elsewhere.hash(&mut elsewhere);
+    }
+    (report.items.len(), report.stamp, elsewhere.finish())
 }
 
 /// What is being watched, and the watcher doing it.
@@ -159,11 +170,11 @@ fn fingerprint(report: &Report) -> (usize, Option<SystemTime>) {
 #[derive(Default)]
 struct Watching {
     watcher: Option<notify::RecommendedWatcher>,
-    paths: Vec<PathBuf>,
+    paths: Vec<(PathBuf, RecursiveMode)>,
 }
 
 impl Watching {
-    fn follow(&mut self, wanted: Vec<PathBuf>, wake: &Sender<()>) {
+    fn follow(&mut self, wanted: Vec<(PathBuf, RecursiveMode)>, wake: &Sender<()>) {
         if wanted == self.paths && self.watcher.is_some() {
             return;
         }
@@ -176,11 +187,48 @@ impl Watching {
     }
 }
 
+/// Everything a reading depended on.
+///
+/// Item directories recursively, because items may be filed in
+/// subdirectories and a change below the top level would otherwise wait for
+/// the poll — the watcher exists precisely so that it does not. git's
+/// registry of worktrees is the exception: only a worktree arriving or
+/// leaving matters there, and below it is an index that every `git status` in
+/// every worktree rewrites.
+fn watched(report: &Report, config: PathBuf) -> Vec<(PathBuf, RecursiveMode)> {
+    let mut paths = vec![
+        (report.schema.items_dir(), RecursiveMode::Recursive),
+        (config, RecursiveMode::NonRecursive),
+    ];
+    paths.extend(
+        report
+            .elsewhere
+            .iter()
+            .map(|dir| (dir.clone(), RecursiveMode::Recursive)),
+    );
+    // A repository that has never had a second worktree has no registry
+    // yet, so what is watched is the directory it will appear in. That one is
+    // noisier — git rewrites its index there — and is only watched until the
+    // first worktree gives it something quieter to watch.
+    let registry = report.registry.as_ref().and_then(|dir| {
+        if dir.is_dir() {
+            Some(dir.clone())
+        } else {
+            dir.parent().filter(|p| p.is_dir()).map(Path::to_path_buf)
+        }
+    });
+    paths.extend(registry.map(|dir| (dir, RecursiveMode::NonRecursive)));
+    paths
+}
+
 /// Watch the directories a project lives in, waking the loop when they change.
 ///
 /// Returns `None` where the platform cannot: a watcher that could not be
 /// created is a reason to keep polling, not a reason to stop.
-fn watch(paths: &[PathBuf], wake: Sender<()>) -> Option<notify::RecommendedWatcher> {
+fn watch(
+    paths: &[(PathBuf, RecursiveMode)],
+    wake: Sender<()>,
+) -> Option<notify::RecommendedWatcher> {
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
         // Anything that changed the directory is worth a look. Deciding which
         // events matter means encoding one platform's idea of a write, and the
@@ -193,16 +241,8 @@ fn watch(paths: &[PathBuf], wake: Sender<()>) -> Option<notify::RecommendedWatch
     .ok()?;
 
     let mut watching = 0;
-    for path in paths {
-        // Recursive, because items may be filed in subdirectories and a
-        // change below the top level would otherwise wait for the poll — the
-        // watcher exists precisely so that it does not.
-        let mode = if path.is_dir() {
-            RecursiveMode::Recursive
-        } else {
-            RecursiveMode::NonRecursive
-        };
-        match watcher.watch(path, mode) {
+    for (path, mode) in paths {
+        match watcher.watch(path, *mode) {
             Ok(()) => watching += 1,
             Err(e) => diag::warn("watch", format!("{}: {e}", path.display())),
         }
@@ -226,7 +266,7 @@ fn run(
     let mut consecutive_failures = 0u32;
     let (wake_tx, wake_rx) = mpsc::channel::<()>();
     let mut watching = Watching::default();
-    let mut last: Option<(usize, Option<SystemTime>)> = None;
+    let mut last: Option<Fingerprint> = None;
     // Set by an explicit `r`: the answer goes to the screen whether or not it
     // differs, because the user asked and silence would read as a broken key.
     let mut forced = true;
@@ -250,10 +290,7 @@ fn run(
                 // The paths are only known once something has been read, and
                 // they change if the project's `dir` does.
                 if settings.watch {
-                    watching.follow(
-                        vec![report.schema.items_dir(), source.config_path()],
-                        &wake_tx,
-                    );
+                    watching.follow(watched(&report, source.config_path()), &wake_tx);
                 }
 
                 let print = fingerprint(&report);
@@ -495,6 +532,80 @@ mod tests {
             started.elapsed()
         );
         handle.shutdown();
+    }
+
+    /// Being told about a change made in another worktree: that is the point of
+    /// watching one. Nothing in this checkout changes, and the poll is a
+    /// minute, so only the watcher can explain the claim arriving.
+    #[test]
+    fn a_claim_in_another_worktree_arrives_without_being_asked_for() {
+        let (main, agent) = testkit::with_worktree("feat/0004-board");
+        let (mut handle, rx) = watching(main.path());
+        claim(agent.path());
+        assert_arrives(&rx);
+        handle.shutdown();
+    }
+
+    /// And a worktree made after harrow opened, which it was not watching yet.
+    #[test]
+    fn a_worktree_made_after_opening_is_watched_from_its_first_write() {
+        let dir = testkit::project();
+        testkit::git(dir.path(), &["init", "-q", "-b", "main"]);
+        testkit::commit(dir.path(), "the sample");
+        let (mut handle, rx) = watching(dir.path());
+
+        let later = dir.path().with_extension("later");
+        let _ = std::fs::remove_dir_all(&later);
+        testkit::git(
+            dir.path(),
+            &[
+                "worktree",
+                "add",
+                "-q",
+                "-b",
+                "later",
+                &later.to_string_lossy(),
+            ],
+        );
+        claim(&later);
+        assert_arrives(&rx);
+        handle.shutdown();
+        let _ = std::fs::remove_dir_all(&later);
+    }
+
+    fn watching(dir: &Path) -> (Handle, Receiver<Msg>) {
+        let source = Box::new(crate::engine::Project::discover(dir).expect("found"));
+        let (handle, rx) = spawn(
+            source,
+            Settings {
+                auto_refresh: Duration::from_secs(60),
+                watch: true,
+            },
+        );
+        drain_until(&rx, |m| m.iter().any(|m| matches!(m, Msg::Loaded(_))));
+        (handle, rx)
+    }
+
+    fn claim(checkout: &Path) {
+        let path = checkout.join("items/0004-draw-the-board.md");
+        let text = std::fs::read_to_string(&path).expect("read");
+        std::fs::write(&path, text.replacen("status: backlog", "status: doing", 1))
+            .expect("claim it");
+    }
+
+    fn assert_arrives(rx: &Receiver<Msg>) {
+        let under_way = |m: &Msg| {
+            matches!(m, Msg::Loaded(r)
+                if r.items.iter().any(|i| i.active_elsewhere().is_some()))
+        };
+        let started = Instant::now();
+        let msgs = drain_until(rx, |m| m.iter().any(under_way));
+        assert!(msgs.iter().any(under_way), "the claim never arrived");
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "took {:?}, which means the poll found it rather than the watcher",
+            started.elapsed()
+        );
     }
 
     /// And where there is no watcher — a network mount, a platform that will

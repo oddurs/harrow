@@ -43,6 +43,8 @@ fn report(with_collision: bool) -> Report {
         items,
         warnings,
         stamp: None,
+        elsewhere: Vec::new(),
+        registry: None,
     }
 }
 

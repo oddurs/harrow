@@ -29,3 +29,4 @@ pub mod term;
 pub mod testkit;
 pub mod theme;
 pub mod ui;
+pub mod worktree;
