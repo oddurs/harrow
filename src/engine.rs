@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use crate::diag;
-use crate::item::Item;
+use crate::item::{Elsewhere, Item};
 use crate::schema::{Schema, SchemaError};
 
 /// One reading of the backlog.
@@ -25,6 +25,11 @@ pub struct Report {
     /// The newest modification time seen, so the watcher can tell whether
     /// anything has changed without re-reading every file.
     pub stamp: Option<SystemTime>,
+    /// Other worktrees' copies of the items directory, watched like ours so
+    /// that a claim made in one arrives when it is written.
+    pub elsewhere: Vec<PathBuf>,
+    /// Where git registers worktrees, watched for a new one.
+    pub registry: Option<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -135,6 +140,8 @@ impl Source for Project {
         }
 
         derive(&mut items, &schema, &mut warnings);
+        let survey = crate::worktree::survey(&schema);
+        sight(&mut items, &schema, &survey.others);
         for w in &warnings {
             diag::warn("backlog", w.clone());
         }
@@ -143,6 +150,8 @@ impl Source for Project {
             items,
             warnings,
             stamp,
+            elsewhere: survey.others.into_iter().map(|o| o.items).collect(),
+            registry: survey.registry,
         })
     }
 }
@@ -161,12 +170,12 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>, warnings: &mut Vec<String>) -> std::
         let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
-        if name.starts_with('.') || name.starts_with('_') || name == "README.md" {
+        if skipped(name) {
             continue;
         }
         match entry.file_type() {
             Ok(t) if t.is_dir() => subdirectories.push(path),
-            _ if path.extension().and_then(|e| e.to_str()) == Some("md") => out.push(path),
+            _ if is_item_file(&path) => out.push(path),
             _ => {}
         }
     }
@@ -180,6 +189,57 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>, warnings: &mut Vec<String>) -> std::
     }
     out.sort();
     Ok(())
+}
+
+fn skipped(name: &str) -> bool {
+    name.starts_with('.') || name.starts_with('_') || name == "README.md"
+}
+
+/// Whether a path is somewhere the format keeps an item, by its name alone.
+pub fn is_item_file(path: &Path) -> bool {
+    path.extension().and_then(|e| e.to_str()) == Some("md")
+        && path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| !skipped(n))
+}
+
+/// Attach what other worktrees have done to each item, beside the record.
+///
+/// Only where their copy says something ours does not. A worktree that
+/// rewrote an item into what it already is here has changed nothing a reader
+/// needs to hear about. A copy of an item this checkout does not have is left
+/// out: it is somebody's plan, not somebody picking up work, and there is no
+/// row here to carry it.
+pub fn sight(items: &mut [Item], schema: &Schema, others: &[crate::worktree::Other]) {
+    let at: HashMap<Id, usize> = items.iter().enumerate().map(|(n, i)| (i.id, n)).collect();
+    for other in others {
+        for theirs in &other.copies {
+            let Some(ours) = at.get(&theirs.id).map(|n| &mut items[*n]) else {
+                continue;
+            };
+            if theirs.status == ours.status
+                && theirs.assignee == ours.assignee
+                && theirs.body == ours.body
+            {
+                continue;
+            }
+            let latest = crate::item::latest_entry(&theirs.body)
+                .filter(|l| crate::item::latest_entry(&ours.body).as_ref() != Some(l));
+            ours.elsewhere.push(Elsewhere {
+                branch: other.branch.clone(),
+                status: theirs.status.clone(),
+                category: schema.category(&theirs.status),
+                assignee: theirs.assignee.clone(),
+                latest,
+            });
+        }
+    }
+    // Where the work is under way first: that is the one a reader came for.
+    for item in items.iter_mut() {
+        item.elsewhere
+            .sort_by_key(|e| e.category != crate::schema::Category::Active);
+    }
 }
 
 fn name_of(path: &Path) -> String {
@@ -389,6 +449,8 @@ impl Source for Static {
             items,
             warnings,
             stamp: None,
+            elsewhere: Vec::new(),
+            registry: None,
         })
     }
 }

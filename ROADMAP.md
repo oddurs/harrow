@@ -187,9 +187,10 @@ Good ideas without a date yet.
 
 ## Unscheduled
 
-`##########` 100% · 1 of 1 done
+`##########` 100% · 2 of 2 done
 
 ### done
 
 - [x] `7dceda4a` Read immutable UUID identities and keep the Cairn contract <sup>feature · p1 · read</sup>
+- [x] `fcf9b803` Show work under way in other worktrees as it happens <sup>feature · p1 · read</sup>
 
