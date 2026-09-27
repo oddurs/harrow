@@ -344,6 +344,14 @@ behaviour, which still works.
   declines to tell anybody. Either way the reading is only sent on when
   something actually changed, so a screen you leave open does not flicker.
   `harrow --doctor` says which of the two a project is running on.
+- **Work in another worktree shows up too.** An agent on its own branch
+  claims an item in its own copy, and nothing reaches this checkout until the
+  branch merges. So harrow asks git which items each other worktree has
+  changed since it diverged from this one, and watches those worktrees like
+  its own. That work turns as work under way here does, the detail pane names
+  the branch and what it did, and the claim is announced when it is made.
+  The record is never overwritten. Statuses, filters, the board's columns and
+  every write stay this checkout's, and agree with `cairn`.
 
 ## Cost
 

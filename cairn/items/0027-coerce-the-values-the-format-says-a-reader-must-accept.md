@@ -1,11 +1,11 @@
 ---
-id: 27
+id: ea6bfce7-d0f3-4aa9-b6a0-e9923f7af88a
 title: Coerce the values the format says a reader must accept
 type: bug
 status: done
 milestone: v0.2
 depends_on:
-- 39
+- 2316c419-f686-41e0-afee-67782d7fdb85
 created: 2026-09-12
 updated: 2026-09-12
 priority: p0

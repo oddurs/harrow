@@ -58,7 +58,7 @@ impl Agent {
 
 /// What a status *means*, as opposed to what a project calls it. The only part
 /// of the status table anything reasons about.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Category {
     #[default]

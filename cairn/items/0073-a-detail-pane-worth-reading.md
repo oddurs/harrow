@@ -1,5 +1,5 @@
 ---
-id: 73
+id: a201b84e-8f39-46fc-beda-ea9cface9a54
 title: A detail pane worth reading
 type: feature
 status: done

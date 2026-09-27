@@ -1,5 +1,5 @@
 ---
-id: 43
+id: fb0d48a6-4930-4598-ae7b-7ebc3fcb0ee6
 title: A man page, and completions for the shell you use
 type: docs
 status: backlog
