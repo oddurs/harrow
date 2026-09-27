@@ -349,16 +349,37 @@ fn what_happened() {
     let mut app = support::app();
     app.pane = harrow::app::Pane::Log;
     app.me = "Oddur".into();
-    app.show_activity(Ok(
-        "abc123\u{1f}Oddur\u{1f}2026-09-10T09:00:00Z\u{1f}close the reader\n\
-         items/0003-draw-the-list.md\n\
-         items/0005-the-detail-pane-scrolls-past-its-pane.md\n\
-         \n\
-         def456\u{1f}an agent\u{1f}2026-09-09T17:00:00Z\u{1f}file the readme\n\
-         items/0006-write-the-readme.md\n"
-            .into(),
-    ));
+    app.show_activity(Ok(ACTIVITY.into()));
     support::assert_snapshot("log", &ui::render_to_string(&mut app, 110, 16, 0));
+}
+
+/// Two commits, one of them yours, as `git log` hands them to the log lens.
+const ACTIVITY: &str = "abc123\u{1f}Oddur\u{1f}2026-09-10T09:00:00Z\u{1f}close the reader\n\
+     items/0003-draw-the-list.md\n\
+     items/0005-the-detail-pane-scrolls-past-its-pane.md\n\
+     \n\
+     def456\u{1f}an agent\u{1f}2026-09-09T17:00:00Z\u{1f}file the readme\n\
+     items/0006-write-the-readme.md\n";
+
+/// Every lens once in the Nerd set: the review surface for the icons. The
+/// Unicode screens above are the other half of the claim — they did not move
+/// when the icons arrived, so nobody who has not chosen them sees a change.
+#[test]
+fn every_lens_drawn_with_nerd_font_icons() {
+    for pane in harrow::app::Pane::ALL {
+        let mut app = support::app();
+        app.glyphs = &harrow::glyphs::NERD;
+        app.pane = pane;
+        if pane == harrow::app::Pane::Log {
+            app.me = "Oddur".into();
+            app.show_activity(Ok(ACTIVITY.into()));
+        }
+        app.rebuild();
+        support::assert_snapshot(
+            &format!("{}-nerd", pane.name()),
+            &ui::render_to_string(&mut app, 110, 22, 0),
+        );
+    }
 }
 
 /// Whose work is whose, on a backlog shared with a program: yours is `@`,

@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use crate::config::Config;
 use crate::engine::{Project, Source};
 use crate::exec;
+use crate::glyphs::Glyphs;
 use crate::theme::Theme;
 
 pub struct Check {
@@ -17,7 +18,13 @@ pub struct Check {
     pub fatal: bool,
 }
 
-pub fn run(config: &Config, config_path: Option<&Path>, theme: &Theme, start: &Path) -> Vec<Check> {
+pub fn run(
+    config: &Config,
+    config_path: Option<&Path>,
+    theme: &Theme,
+    glyphs: (&Glyphs, &str),
+    start: &Path,
+) -> Vec<Check> {
     let mut checks = Vec::new();
 
     let project = match Project::discover(start) {
@@ -233,6 +240,25 @@ pub fn run(config: &Config, config_path: Option<&Path>, theme: &Theme, start: &P
         name: "theme",
         ok: true,
         detail: format!("{} ({})", theme.name, theme.source.label()),
+        fatal: false,
+    });
+
+    // A sample, because this is the one check harrow cannot make: whether
+    // the font draws them is visible only to whoever is reading this line.
+    let (set, why) = glyphs;
+    checks.push(Check {
+        name: "glyphs",
+        ok: true,
+        detail: format!(
+            "{} — {why} — {} {} {} {} {} {}",
+            set.name,
+            set.open,
+            set.active,
+            set.done,
+            set.dropped,
+            set.blocked,
+            set.bar(60, 5),
+        ),
         fatal: false,
     });
 

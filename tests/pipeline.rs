@@ -1105,10 +1105,16 @@ fn the_doctor_parses_every_saved_view() {
     let views = |app_dir: &std::path::Path| -> harrow::doctor::Check {
         let config = harrow::config::Config::default();
         let theme = harrow::theme::Theme::auto(true);
-        harrow::doctor::run(&config, None, &theme, app_dir)
-            .into_iter()
-            .find(|c| c.name == "views")
-            .expect("the doctor checks the views")
+        harrow::doctor::run(
+            &config,
+            None,
+            &theme,
+            (&harrow::glyphs::UNICODE, "asked for"),
+            app_dir,
+        )
+        .into_iter()
+        .find(|c| c.name == "views")
+        .expect("the doctor checks the views")
     };
 
     let good = views(dir.path());

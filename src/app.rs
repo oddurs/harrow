@@ -923,6 +923,9 @@ pub struct App {
     /// the screen is not reproducible.
     pub now: u64,
     pub theme: Theme,
+    /// What the screen is drawn with. Chosen by the shell, which can see the
+    /// terminal; the core only ever draws with what it was given.
+    pub glyphs: &'static crate::glyphs::Glyphs,
     pub keymap: Keymap,
     /// Where everything clickable ended up, in the order it was drawn. Later
     /// entries win, so an overlay covers what is beneath it.
@@ -1038,6 +1041,7 @@ impl App {
             touched: 0,
             now: unix_seconds(),
             theme: Theme::auto(true),
+            glyphs: &crate::glyphs::UNICODE,
             keymap: Keymap::default(),
             hits: Vec::new(),
             doors: Vec::new(),

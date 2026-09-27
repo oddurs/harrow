@@ -19,12 +19,11 @@ use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Padd
 
 use crate::app::{App, Door, Hit, Pane, ReadOnly, Row, Target, ToastKind};
 use crate::diag;
+use crate::glyphs::{Glyphs, adorn};
 use crate::item::Item;
 use crate::keys::Command;
 use crate::schema::{Category, Schema};
 use crate::theme::Theme;
-
-const SPINNER: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"];
 
 /// Below this, the detail pane costs the list more than it gives. A right-hand
 /// pane beside an editor is usually sixty columns, and two panes in sixty is
@@ -73,45 +72,6 @@ const READER_MEASURE: u16 = 76;
 /// useful and a wider column of prose is not.
 const READER_PANEL: u16 = READER_MEASURE + 6;
 
-/// One glyph per state, so the screen still says everything it needs to when
-/// there is no colour at all — `mono`, `NO_COLOR`, or a reader who cannot tell
-/// the green from the red.
-pub fn glyph(item: &Item) -> &'static str {
-    if item.blocked && !item.category.is_closed() {
-        return "⊘";
-    }
-    category_glyph(item.category)
-}
-
-/// The same, turning where the work is under way.
-///
-/// Work being done is the only thing on a backlog that is *happening*, and it
-/// should be the only thing moving. A quarter turn per frame, on the tick the
-/// spinner already runs on, so it animates in every terminal and still
-/// snapshots — a recorded screen is taken at tick 0, where this is `◐`.
-///
-/// Not the terminal's blink attribute: half the terminals harrow runs in
-/// ignore it, and the ones that honour it blink the whole cell.
-///
-/// Work under way in another worktree turns too, because it is just as
-/// much under way — it is only the record here that has not heard yet.
-pub fn turning(item: &Item, tick: usize) -> &'static str {
-    const TURN: [&str; 4] = ["◐", "◓", "◑", "◒"];
-    if (item.category == Category::Active && !item.blocked) || item.active_elsewhere().is_some() {
-        return TURN[(tick / 2) % TURN.len()];
-    }
-    glyph(item)
-}
-
-pub fn category_glyph(category: Category) -> &'static str {
-    match category {
-        Category::Open => "○",
-        Category::Active => "◐",
-        Category::Done => "✓",
-        Category::Dropped => "×",
-    }
-}
-
 /// How somebody's name is drawn.
 ///
 /// Two groups: yours, and everybody else's. That is the first-order question
@@ -127,16 +87,17 @@ pub fn category_glyph(category: Category) -> &'static str {
 ///
 /// A stale claim outranks both, because *this is not moving* matters more
 /// than *whose it is*. And with no colour at all the glyph carries it, the
-/// way the state column does: yours is `@name`, somebody else's is `·name`.
+/// way the state column does: yours is `@name`, somebody else's is `·name`,
+/// or a filled figure and an outlined one where the font has them.
 fn actor_style(app: &App, who: &str, stale: bool, t: &Theme) -> (String, Style) {
     // `·` only where there is a *you* for it to mean *not you*. Where harrow
     // cannot tell — no `CAIRN_USER`, no git name — everybody is `@`, because
     // marking a distinction that cannot be drawn is worse than not drawing
     // it. The colours still separate the cast either way.
     let mark = if app.me.is_empty() || app.is_me(who) {
-        "@"
+        app.glyphs.you
     } else {
-        "·"
+        app.glyphs.other
     };
     let colour = if stale {
         t.warn
@@ -294,7 +255,7 @@ fn draw_header(f: &mut Frame, app: &mut App, t: &Theme, area: Rect, tick: usize)
             .sum::<u16>();
     for pane in Pane::ALL {
         let active = pane == app.pane;
-        let label = format!(" {} ", pane.name());
+        let label = format!(" {}{} ", adorn(app.glyphs.lens(pane)), pane.name());
         let width = label.chars().count() as u16;
         tabs.push((
             Rect {
@@ -323,7 +284,7 @@ fn draw_header(f: &mut Frame, app: &mut App, t: &Theme, area: Rect, tick: usize)
     if needs > 0 && roomy {
         left.push(Span::raw("   "));
         left.push(Span::styled(
-            format!("{needs} needs you"),
+            format!("{}{needs} needs you", adorn(app.glyphs.icons.attention)),
             Style::default().fg(t.accent),
         ));
     }
@@ -344,12 +305,13 @@ fn draw_header(f: &mut Frame, app: &mut App, t: &Theme, area: Rect, tick: usize)
     // re-reads on any change, so "just now" was true essentially always — and
     // a fact that never varies is one nobody reads, which is exactly the
     // argument the needs counter already makes for itself two lines up.
+    let g = app.glyphs;
     let right = if let Some(fail) = &app.failure {
-        format!("⚠ cannot read the backlog ({}×) ", fail.count)
+        format!("{} cannot read the backlog ({}×) ", g.warning, fail.count)
     } else if !app.watcher_alive {
-        "⚠ watcher stopped ".to_string()
+        format!("{} watcher stopped ", g.warning)
     } else if app.loading {
-        format!("{} reading ", SPINNER[tick % SPINNER.len()])
+        format!("{} reading ", g.spinner(tick))
     } else {
         match app.last_load {
             Some(at) if at.elapsed().as_secs() >= STALE_AFTER => {
@@ -400,7 +362,7 @@ fn status_counts(
         if status.category == Category::Dropped && !app.show_all {
             continue;
         }
-        let cell = format!("{} {count}", category_glyph(status.category));
+        let cell = format!("{} {count}", app.glyphs.category(status.category));
         let gap = usize::from(used > 0) * 2;
         // Dropped from the right, so the leftmost — what is active — is what
         // survives a narrow pane.
@@ -418,7 +380,7 @@ fn status_counts(
         ));
         used += cell.chars().count();
         spans.push(Span::styled(
-            format!("{} ", category_glyph(status.category)),
+            format!("{} ", app.glyphs.category(status.category)),
             Style::default().fg(t.status(Some(status))),
         ));
         spans.push(Span::styled(
@@ -434,7 +396,10 @@ fn status_counts(
         .count();
     if blocked > 0 && used + 6 <= room {
         spans.push(Span::raw("  "));
-        spans.push(Span::styled("⊘ ", Style::default().fg(t.blocked)));
+        spans.push(Span::styled(
+            format!("{} ", app.glyphs.blocked),
+            Style::default().fg(t.blocked),
+        ));
         spans.push(Span::styled(
             blocked.to_string(),
             Style::default().fg(t.blocked).bold(),
@@ -479,10 +444,12 @@ fn draw_toolbar(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 
     // Which list is open, so the segment it came from can say so.
     let open = app.dropdown.as_ref().map(|d| d.of);
+    let g = app.glyphs;
 
     let segment = |spans: &mut Vec<Span<'static>>,
                    used: &mut usize,
                    command: Command,
+                   icon: &str,
                    text: &str,
                    chosen: bool,
                    colour: Color,
@@ -502,10 +469,13 @@ fn draw_toolbar(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         // the list and the word it came from are visibly one control.
         let here = open == Some(command);
         let tail = match (opens, here) {
-            (true, true) => " ▴",
-            (true, false) => " ▾",
-            (false, _) => "",
+            (true, true) => format!(" {}", g.opened),
+            (true, false) => format!(" {}", g.opens),
+            (false, _) => String::new(),
         };
+        // The icon says what the control is for, and outlasts the key when
+        // room runs short: it is part of the word, not an extra on it.
+        let text = format!("{}{text}", adorn(icon));
         let width = lead.chars().count() + text.chars().count() + tail.chars().count();
         let bare = text.chars().count() + tail.chars().count();
         let gap = usize::from(*used > 1) * 2;
@@ -539,14 +509,14 @@ fn draw_toolbar(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             spans.push(Span::styled(lead, Style::default().bg(ground).fg(t.faint)));
         }
         spans.push(Span::styled(
-            text.to_string(),
+            text,
             Style::default()
                 .bg(ground)
                 .fg(if chosen { colour } else { t.muted }),
         ));
         if !tail.is_empty() {
             spans.push(Span::styled(
-                tail.to_string(),
+                tail,
                 Style::default()
                     .bg(ground)
                     .fg(if here { t.accent } else { t.faint }),
@@ -570,6 +540,7 @@ fn draw_toolbar(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         // Keyed to the panel rather than the box: the caret promises a
         // chooser, and the panel is the chooser. `/` still types one.
         Command::Facets,
+        g.icons.filter,
         &truncate(&filter, room / 3),
         filtered,
         t.accent,
@@ -582,6 +553,7 @@ fn draw_toolbar(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             &mut used,
             // A toggle, not a chooser, so no caret to promise one.
             Command::ToggleAll,
+            g.icons.everything,
             "+finished",
             true,
             t.done,
@@ -593,6 +565,7 @@ fn draw_toolbar(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         &mut spans,
         &mut used,
         Command::Sort,
+        g.icons.sort,
         &view.sort.replace(',', " "),
         !view.sort_is_default,
         t.label,
@@ -603,6 +576,7 @@ fn draw_toolbar(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         &mut spans,
         &mut used,
         Command::GroupBy,
+        g.icons.group,
         match view.group_by.as_str() {
             "none" | "" => "flat",
             other => other,
@@ -654,7 +628,7 @@ fn draw_list(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     // Just the name. The grouping used to be here because there was nowhere
     // else to put it; the view line says it now, beside the other two things
     // that decide what is on screen.
-    let title = " Backlog ".to_string();
+    let title = format!(" {}Backlog ", adorn(app.glyphs.icons.list));
     // The focused pane is the one the keys are driving, and the border is where
     // that gets said. Without it, `↵` moves the keyboard somewhere the screen
     // does not admit to.
@@ -835,7 +809,14 @@ fn finished_line(app: &App, t: &Theme, idx: usize, width: usize) -> ListItem<'st
     ListItem::new(Line::from(vec![
         Span::raw("  "),
         Span::styled(
-            if open { "▾ " } else { "✓ " },
+            format!(
+                "{} ",
+                if open {
+                    app.glyphs.unfolded
+                } else {
+                    app.glyphs.done
+                }
+            ),
             Style::default().fg(if open { t.faint } else { t.done }),
         ),
         Span::styled(said, Style::default().fg(t.muted)),
@@ -857,10 +838,41 @@ fn group_name_style(app: &App, t: &Theme, g: &crate::app::Group) -> Style {
     }
 }
 
+/// What a heading is a heading of, where the set labels things: the state a
+/// status stands for, or a milestone. Nothing for any other axis, because a
+/// field harrow knows nothing about has no picture that would be true of it.
+fn group_icon(app: &App, t: &Theme, g: &crate::app::Group) -> (&'static str, Style) {
+    let glyphs = app.glyphs;
+    if g.key.is_empty() {
+        return ("", Style::default());
+    }
+    match app.group_by.as_str() {
+        "status" => match app.schema.status(&g.key) {
+            Some(status) => (
+                glyphs.label(glyphs.category(status.category)),
+                Style::default().fg(t.status(Some(status))),
+            ),
+            None => ("", Style::default()),
+        },
+        "milestone" => (glyphs.icons.milestone, Style::default().fg(t.milestone)),
+        _ => ("", Style::default()),
+    }
+}
+
 fn group_line(app: &App, t: &Theme, idx: usize, width: usize) -> ListItem<'static> {
     let g = &app.groups[idx];
     let collapsed = app.collapsed.contains(&g.key);
-    let marker = if collapsed { " ▸ " } else { " ▾ " };
+    let glyphs = app.glyphs;
+    let marker = format!(
+        " {} ",
+        if collapsed {
+            glyphs.folded
+        } else {
+            glyphs.unfolded
+        }
+    );
+    let (icon, icon_style) = group_icon(app, t, g);
+    let icon = adorn(icon);
 
     let percent = g.percent(&app.items);
     // What is left, not what is listed: "2 of 30" beside "93%" reads as two of
@@ -875,8 +887,8 @@ fn group_line(app: &App, t: &Theme, idx: usize, width: usize) -> ListItem<'stati
     // Degrade in a defined order — the bar, then the percentage — so a narrow
     // pane loses the decoration rather than the name of the thing.
     const MIN_NAME: usize = 14;
-    let room = width.saturating_sub(marker.chars().count());
-    let bar = progress_bar(percent, 6);
+    let room = width.saturating_sub(marker.chars().count() + icon.chars().count());
+    let bar = glyphs.bar(percent, 6);
     let candidates = [
         format!("  {bar} {percent:>3}%  {count} "),
         format!("  {percent:>3}%  {count} "),
@@ -896,6 +908,7 @@ fn group_line(app: &App, t: &Theme, idx: usize, width: usize) -> ListItem<'stati
 
     ListItem::new(Line::from(vec![
         Span::styled(marker, Style::default().fg(t.faint)),
+        Span::styled(icon, icon_style),
         Span::styled(name, name_style),
         Span::raw(" ".repeat(pad)),
         Span::styled(
@@ -917,9 +930,10 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
     let recent = app.is_recent(item.id);
 
     let rank = rank_tag(item, schema);
+    let glyphs = app.glyphs;
     let criteria = match item.criteria() {
         (_, 0) => String::new(),
-        (done, total) => format!("{done}/{total}"),
+        (done, total) => format!("{}{done}/{total}", adorn(glyphs.icons.criteria)),
     };
     let (mark, who_style) = item
         .holder()
@@ -928,7 +942,10 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
     // An item filed on another branch says which, where the holder would be:
     // where it lives is what decides what can be done with it from here.
     let (who, who_style) = match &item.filed_on {
-        Some(branch) => (truncate(branch, 16), provisional_style(t)),
+        Some(branch) => (
+            format!("{}{}", adorn(glyphs.icons.branch), truncate(branch, 16)),
+            provisional_style(t),
+        ),
         None => (
             item.holder()
                 .map(|a| format!("{mark}{}", truncate(a, 8)))
@@ -936,7 +953,11 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
             who_style,
         ),
     };
-    let proposed = !item.proposals.is_empty();
+    let asked = if item.proposals.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", glyphs.asked)
+    };
 
     let lead = 2 + 1 + 1 + reference.chars().count() + 1;
     let avail = width.saturating_sub(lead + 1);
@@ -968,7 +989,7 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
     let reserved = if show_criteria { cost(&criteria) } else { 0 }
         + if show_who { cost(&who) } else { 0 }
         + if show_rank { cost(&rank) } else { 0 }
-        + usize::from(proposed) * 2;
+        + asked.chars().count();
 
     let title_width = avail.saturating_sub(reserved);
     let title = truncate(&item.title, title_width);
@@ -1006,7 +1027,7 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
             Style::default().fg(t.accent).bold(),
         ),
         Span::styled(
-            turning(item, app.tick),
+            glyphs.turning(item, app.tick),
             Style::default().fg(state_color(item, t, schema)),
         ),
         Span::raw(" "),
@@ -1030,10 +1051,10 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
         spans.push(Span::raw("  "));
         spans.push(Span::styled(who, who_style));
     }
-    if proposed {
+    if !asked.is_empty() {
         // Somebody is waiting on an answer, which is a different kind of fact
         // from anything else on the row.
-        spans.push(Span::styled(" ?", Style::default().fg(t.accent).bold()));
+        spans.push(Span::styled(asked, Style::default().fg(t.accent).bold()));
     }
     if show_rank && !rank.is_empty() {
         spans.push(Span::raw("  "));
@@ -1135,15 +1156,6 @@ fn rank_style(item: &Item, schema: &Schema, t: &Theme) -> Style {
     Style::default().fg(t.rank(index, field.values.len()))
 }
 
-fn progress_bar(percent: u32, width: usize) -> String {
-    let filled = (percent as usize * width).div_ceil(100).min(width);
-    let mut bar = String::with_capacity(width * 3);
-    for i in 0..width {
-        bar.push(if i < filled { '▰' } else { '▱' });
-    }
-    bar
-}
-
 // ── The board ────────────────────────────────────────────────────────────────
 
 fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
@@ -1222,10 +1234,13 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             // `in progress` with the nought gone reads as damage.
             .title({
                 let n = column.items.len().to_string();
-                let room = (cell.width as usize).saturating_sub(n.chars().count() + 5);
+                let icon = adorn(column_icon(app, &column.value));
+                let room = (cell.width as usize)
+                    .saturating_sub(n.chars().count() + icon.chars().count() + 5);
                 Line::from(vec![
+                    Span::styled(format!(" {icon}"), Style::default().fg(color)),
                     Span::styled(
-                        format!(" {} ", truncate(&column.label, room)),
+                        format!("{} ", truncate(&column.label, room)),
                         Style::default().fg(color).bold(),
                     ),
                     Span::styled(format!("{n} "), Style::default().fg(t.faint)),
@@ -1294,6 +1309,24 @@ fn draw_board(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     }
 }
 
+/// What a lane is a lane of, where the set labels things — the same rule a
+/// list heading follows, on the board's own axis.
+fn column_icon(app: &App, value: &str) -> &'static str {
+    let glyphs = app.glyphs;
+    if value.is_empty() {
+        return "";
+    }
+    match app.board_by.as_str() {
+        "status" => app
+            .schema
+            .status(value)
+            .map(|s| glyphs.label(glyphs.category(s.category)))
+            .unwrap_or(""),
+        "milestone" => glyphs.icons.milestone,
+        _ => "",
+    }
+}
+
 fn card_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'static> {
     let schema = &app.schema;
     let reference = schema.format_id(item.id);
@@ -1316,7 +1349,7 @@ fn card_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
             Style::default().fg(t.accent).bold(),
         ),
         Span::styled(
-            turning(item, app.tick),
+            app.glyphs.turning(item, app.tick),
             Style::default().fg(state_color(item, t, schema)),
         ),
         Span::raw(" "),
@@ -1393,7 +1426,16 @@ fn draw_group_detail(f: &mut Frame, app: &App, t: &Theme, g: &crate::app::Group,
     let width = block.inner(area).width as usize;
 
     let collapsed = app.collapsed.contains(&g.key);
-    let marker = if collapsed { "▸ " } else { "▾ " };
+    let glyphs = app.glyphs;
+    let marker = format!(
+        "{} ",
+        if collapsed {
+            glyphs.folded
+        } else {
+            glyphs.unfolded
+        }
+    );
+    let (icon, icon_style) = group_icon(app, t, g);
     let noun = if g.count == 1 { "item" } else { "items" };
     let left = g.count.saturating_sub(g.done);
     let percent = g.percent(&app.items);
@@ -1401,6 +1443,7 @@ fn draw_group_detail(f: &mut Frame, app: &App, t: &Theme, g: &crate::app::Group,
     let mut lines = vec![
         Line::from(vec![
             Span::styled(marker, Style::default().fg(t.faint)),
+            Span::styled(adorn(icon), icon_style),
             Span::styled(g.label.clone(), group_name_style(app, t, g)),
         ]),
         // `count` is everything under the heading and `shown` is the rows —
@@ -1417,10 +1460,10 @@ fn draw_group_detail(f: &mut Frame, app: &App, t: &Theme, g: &crate::app::Group,
             Style::default().fg(t.muted),
         )),
         Line::from(""),
-        section("Progress", t, width),
+        section(glyphs.icons.standing, "Progress", t, width),
         Line::from(vec![
             Span::raw("  "),
-            Span::styled(progress_bar(percent, 12), Style::default().fg(t.milestone)),
+            Span::styled(glyphs.bar(percent, 12), Style::default().fg(t.milestone)),
             Span::styled(format!("  {percent}%"), Style::default().fg(t.muted)),
         ]),
         Line::from(Span::styled(
@@ -1478,7 +1521,10 @@ fn draw_filter(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(if focused { t.border_focus } else { t.border }))
         .padding(Padding::horizontal(1))
-        .title(Span::styled(" Filter ", Style::default().fg(t.muted)))
+        .title(Span::styled(
+            format!(" {}Filter ", adorn(app.glyphs.icons.filter)),
+            Style::default().fg(t.muted),
+        ))
         .title_bottom(Span::styled(
             match (shown == total, app.unmanaged_clauses()) {
                 // Said rather than implied. A bound the panel cannot draw is
@@ -1515,7 +1561,11 @@ fn draw_filter(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             }
             // An empty box and a ticked one, rather than colour alone: the
             // state of a checkbox has to survive a terminal with no colour.
-            let box_glyph = if value.ticked { "☑" } else { "☐" };
+            let box_glyph = if value.ticked {
+                app.glyphs.chosen
+            } else {
+                app.glyphs.unticked
+            };
             let colour = match value.role {
                 crate::app::FacetRole::Status => t.status(app.schema.status(&value.value)),
                 crate::app::FacetRole::Type => t.item_type(app.schema.item_type(&value.value)),
@@ -1724,6 +1774,8 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 /// pane's business, and the pane scrolls.
 fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
     let schema = &app.schema;
+    let glyphs = app.glyphs;
+    let icons = &glyphs.icons;
     let mut lines = Prose::default();
 
     // The title, wrapped under its own glyph.
@@ -1732,7 +1784,7 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
         lines.push(Line::from(vec![
             if n == 0 {
                 Span::styled(
-                    format!("{} ", turning(item, app.tick)),
+                    format!("{} ", glyphs.turning(item, app.tick)),
                     Style::default().fg(state_color(item, t, schema)),
                 )
             } else {
@@ -1742,49 +1794,49 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
         ]));
     }
 
-    // One line that says where it stands.
-    let mut state = vec![Span::raw("  ")];
-    state.push(Span::styled(
+    // One line that says where it stands, or two where a pane is too narrow
+    // for one.
+    let mut state = vec![vec![Span::styled(
         schema
             .status(&item.status)
             .map(|s| s.display().to_string())
             .unwrap_or_else(|| item.status.clone()),
         Style::default().fg(t.status(schema.status(&item.status))),
-    ));
-    state.push(Span::styled(" · ", Style::default().fg(t.faint)));
-    state.push(Span::styled(
+    )]];
+    state.push(vec![Span::styled(
         item.kind.clone(),
         Style::default().fg(t.item_type(schema.item_type(&item.kind))),
-    ));
+    )]);
     if let Some(milestone) = item.milestone() {
-        state.push(Span::styled(" · ", Style::default().fg(t.faint)));
-        state.push(Span::styled(
-            milestone.to_string(),
+        state.push(vec![Span::styled(
+            format!("{}{milestone}", adorn(icons.milestone)),
             Style::default().fg(t.milestone),
-        ));
+        )]);
     }
     if let Some(who) = &item.assignee {
-        state.push(Span::styled(" · ", Style::default().fg(t.faint)));
         let stale = app.claim_is_stale(item);
         let (mark, style) = actor_style(app, who, stale, t);
-        state.push(Span::styled(format!("{mark}{who}"), style));
+        let mut fact = vec![Span::styled(format!("{mark}{who}"), style)];
         // Marking it raises the question; the pane is where there is room to
         // answer it.
         if let Some(days) = app.claimed_days(item).filter(|_| stale) {
-            state.push(Span::styled(
+            fact.push(Span::styled(
                 format!(" · held {days} days"),
                 Style::default().fg(t.warn),
             ));
         }
+        state.push(fact);
+    }
+    for line in facts(state, t, width) {
+        lines.push(line);
+    }
+    for line in filed_elsewhere(item, t, "  ", width) {
+        lines.push(line);
     }
     // Only where it says something the assignee does not. The two fields
     // exist to separate *who is doing it* from *who is answerable*, which is
     // a distinction that only appears when they differ — and with a program
     // working and a person answerable, they do.
-    lines.push(Line::from(state));
-    for line in filed_elsewhere(item, t, "  ", width) {
-        lines.push(line);
-    }
     // On its own line rather than crowding the state, which is already four
     // facts wide and would simply truncate this one away.
     if let Some(owner) = item
@@ -1803,7 +1855,7 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
     // than the record by definition: it is the part that has not merged yet.
     if !item.elsewhere.is_empty() {
         lines.push(Line::from(""));
-        lines.push(section("Elsewhere", t, width));
+        lines.push(section(icons.branch, "Elsewhere", t, width));
     }
     let label = |name: &str| {
         schema
@@ -1878,7 +1930,7 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
     // to save a keystroke.
     if let Some((when, said)) = crate::item::latest_entry(&item.body) {
         lines.push(Line::from(""));
-        lines.push(section("Latest", t, width));
+        lines.push(section(icons.said, "Latest", t, width));
         lines.push(Line::from(vec![
             Span::raw("  "),
             Span::styled(when, Style::default().fg(t.faint)),
@@ -1893,7 +1945,12 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
 
     if item.blocked {
         lines.push(Line::from(""));
-        lines.push(section("Waiting on", t, width));
+        lines.push(section(
+            glyphs.label(glyphs.blocked),
+            "Waiting on",
+            t,
+            width,
+        ));
         for id in &item.blockers {
             let title = app
                 .items
@@ -1924,7 +1981,7 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
 
     for proposal in &item.proposals {
         lines.push(Line::from(""));
-        lines.push(section("Proposed", t, width));
+        lines.push(section(glyphs.label(glyphs.asked), "Proposed", t, width));
         lines.push(Line::from(vec![
             Span::raw("  "),
             Span::styled(proposal.field.clone(), Style::default().fg(t.muted)),
@@ -1964,13 +2021,13 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
     // than the bar took.
     if item.progress().is_some() {
         lines.push(Line::from(""));
-        lines.push(section("Rollup", t, width));
+        lines.push(section(icons.holds, "Rollup", t, width));
         let scheduled = app.rollup(item);
         let mut spans = vec![Span::raw("  ")];
         for (n, (mark, count, colour, what)) in [
-            ("✓", scheduled.done, t.done, "done"),
-            ("◐", scheduled.active, t.active, "in flight"),
-            ("○", scheduled.open, t.open, "to start"),
+            (glyphs.done, scheduled.done, t.done, "done"),
+            (glyphs.active, scheduled.active, t.active, "in flight"),
+            (glyphs.open, scheduled.open, t.open, "to start"),
         ]
         .into_iter()
         .filter(|(_, count, _, _)| *count > 0)
@@ -1991,7 +2048,7 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
         if scheduled.blocked > 0 {
             spans.push(Span::styled(" · ", Style::default().fg(t.faint)));
             spans.push(Span::styled(
-                format!("⊘ {} blocked", scheduled.blocked),
+                format!("{} {} blocked", glyphs.blocked, scheduled.blocked),
                 Style::default().fg(t.blocked),
             ));
         }
@@ -2013,7 +2070,7 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
             .then(|| criteria.iter().position(|(_, ticked, _)| !ticked))
             .flatten();
         lines.push(Line::from(""));
-        lines.push(section("Acceptance", t, width));
+        lines.push(section(icons.criteria, "Acceptance", t, width));
         for (n, (_, ticked, text)) in criteria.iter().enumerate() {
             let here = next == Some(n);
             lines.hanging(
@@ -2024,11 +2081,22 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
                     "  ",
                     vec![
                         Span::styled(
-                            if here { "▸ " } else { "  " },
+                            if here {
+                                format!("{} ", glyphs.pointer)
+                            } else {
+                                "  ".to_string()
+                            },
                             Style::default().fg(t.accent),
                         ),
                         Span::styled(
-                            if *ticked { "✓ " } else { "☐ " },
+                            format!(
+                                "{} ",
+                                if *ticked {
+                                    glyphs.ticked
+                                } else {
+                                    glyphs.unticked
+                                }
+                            ),
                             Style::default().fg(if *ticked { t.done } else { t.faint }),
                         ),
                     ],
@@ -2046,10 +2114,10 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
     }
 
     if !item.body.trim().is_empty() {
-        let rest = body_prose_without(&item.body, &hoisted, t, width.saturating_sub(2));
+        let rest = body_prose_without(&item.body, &hoisted, t, glyphs, width.saturating_sub(2));
         if rest.lines.iter().any(|l| l.width() > 0) {
             lines.push(Line::from(""));
-            lines.push(section("Body", t, width));
+            lines.push(section(icons.body, "Body", t, width));
             lines.extend(rest);
         }
     }
@@ -2096,7 +2164,7 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
             .unwrap_or(0)
             .min(12);
         lines.push(Line::from(""));
-        lines.push(section("Fields", t, width));
+        lines.push(section(icons.fields, "Fields", t, width));
         for (label, value, colour) in fields {
             let room = width.saturating_sub(label_width + 3);
             lines.push(Line::from(vec![
@@ -2111,6 +2179,34 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
         }
     }
 
+    lines
+}
+
+/// Facts in a row, parted by a dot, and broken between two facts rather than
+/// cut off at the pane's edge. The last fact on the line is usually a name,
+/// and a clipped line loses exactly that.
+fn facts(facts: Vec<Vec<Span<'static>>>, t: &Theme, width: usize) -> Vec<Line<'static>> {
+    const INDENT: usize = 2;
+    let mut lines = Vec::new();
+    let mut line = vec![Span::raw(" ".repeat(INDENT))];
+    let mut used = INDENT;
+    for fact in facts {
+        let wide: usize = fact.iter().map(|s| s.content.chars().count()).sum();
+        if used > INDENT && used + 3 + wide > width {
+            lines.push(Line::from(std::mem::replace(
+                &mut line,
+                vec![Span::raw(" ".repeat(INDENT))],
+            )));
+            used = INDENT;
+        }
+        if used > INDENT {
+            line.push(Span::styled(" · ", Style::default().fg(t.faint)));
+            used += 3;
+        }
+        used += wide;
+        line.extend(fact);
+    }
+    lines.push(Line::from(line));
     lines
 }
 
@@ -2152,11 +2248,16 @@ fn hoisted_lines(
 
 /// A heading, with a rule running out to the edge. Cheaper to scan than a
 /// column of capitals, and it gives the pane a horizontal rhythm.
-fn section(name: &str, t: &Theme, width: usize) -> Line<'static> {
-    let used = name.chars().count() + 4;
+///
+/// The icon, where the set has one, is in the accent: it is what the eye
+/// catches running down a pane, and the words beside it stay quiet.
+fn section(icon: &str, name: &str, t: &Theme, width: usize) -> Line<'static> {
+    let icon = adorn(icon);
+    let used = icon.chars().count() + name.chars().count() + 4;
     let rule = "─".repeat(width.saturating_sub(used));
     Line::from(vec![
         Span::raw("  "),
+        Span::styled(icon, Style::default().fg(t.accent)),
         Span::styled(
             name.to_string(),
             Style::default().fg(t.muted).add_modifier(Modifier::BOLD),
@@ -2277,8 +2378,8 @@ impl Prose {
 /// **anything it does not recognise comes out as the text that was typed**.
 /// A renderer that swallows what it cannot parse is worse than one that
 /// renders nothing, because the reader cannot tell what is missing.
-fn body_prose(body: &str, t: &Theme, width: usize) -> Prose {
-    body_prose_without(body, &std::collections::HashSet::new(), t, width)
+fn body_prose(body: &str, t: &Theme, glyphs: &Glyphs, width: usize) -> Prose {
+    body_prose_without(body, &std::collections::HashSet::new(), t, glyphs, width)
 }
 
 /// The same, with certain lines left out — the detail pane hoists the
@@ -2291,6 +2392,7 @@ fn body_prose_without(
     body: &str,
     skip: &std::collections::HashSet<usize>,
     t: &Theme,
+    glyphs: &Glyphs,
     width: usize,
 ) -> Prose {
     let mut out = Prose::default();
@@ -2382,7 +2484,7 @@ fn body_prose_without(
             blank = false;
             continue;
         }
-        if let Some(started) = Open::starting(trimmed, indent) {
+        if let Some(started) = Open::starting(trimmed, indent, glyphs) {
             open.flush(&mut out, t, width);
             open = started;
             blank = false;
@@ -2435,7 +2537,7 @@ enum Mark {
 
 impl Open {
     /// Whether this line begins a block, and which.
-    fn starting(trimmed: &str, indent: usize) -> Option<Open> {
+    fn starting(trimmed: &str, indent: usize, glyphs: &Glyphs) -> Option<Open> {
         let item = |marker: String, colour: Mark, text: &str| Open::Item {
             marker,
             colour,
@@ -2455,13 +2557,17 @@ impl Open {
         {
             // A box, where there is one after the marker.
             if let Some(after) = rest.strip_prefix("[ ]") {
-                return Some(item("☐".into(), Mark::Unticked, after.trim_start()));
+                return Some(item(
+                    glyphs.unticked.into(),
+                    Mark::Unticked,
+                    after.trim_start(),
+                ));
             }
             if let Some(after) = rest
                 .strip_prefix("[x]")
                 .or_else(|| rest.strip_prefix("[X]"))
             {
-                return Some(item("✓".into(), Mark::Ticked, after.trim_start()));
+                return Some(item(glyphs.ticked.into(), Mark::Ticked, after.trim_start()));
             }
             return Some(item("·".into(), Mark::Bullet, rest));
         }
@@ -2572,8 +2678,8 @@ fn rule(trimmed: &str) -> bool {
             || t.chars().all(|c| c == '_'))
 }
 
-fn body_lines(body: &str, t: &Theme, width: usize) -> Vec<Line<'static>> {
-    body_prose(body, t, width).lines
+fn body_lines(body: &str, t: &Theme, glyphs: &Glyphs, width: usize) -> Vec<Line<'static>> {
+    body_prose(body, t, glyphs, width).lines
 }
 
 /// One piece of a line, once the markup has been read off it.
@@ -2875,7 +2981,10 @@ fn draw_needs(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(t.border))
         .padding(Padding::horizontal(1))
-        .title(Span::styled(" Needs you ", Style::default().fg(t.muted)));
+        .title(Span::styled(
+            format!(" {}Needs you ", adorn(app.glyphs.icons.needs)),
+            Style::default().fg(t.muted),
+        ));
 
     if app.questions.is_empty() {
         // The best screen this program can show, and until now there was no
@@ -2910,6 +3019,16 @@ fn draw_needs(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         .iter()
         .map(|q| {
             let reference = app.schema.format_id(q.id);
+            let glyphs = app.glyphs;
+            // What kind of question, where the set can picture it — the queue
+            // is sorted by kind, so the icons also say where one kind ends.
+            let icon = adorn(match &q.asking {
+                crate::app::Asking::Proposal { .. } => glyphs.label(glyphs.asked),
+                crate::app::Asking::ColdClaim { .. } => glyphs.icons.cold,
+                crate::app::Asking::Finished => glyphs.icons.criteria,
+                crate::app::Asking::NothingUnfinished => glyphs.icons.holds,
+                crate::app::Asking::Unowned { .. } => glyphs.icons.unowned,
+            });
             let colour = match &q.asking {
                 // A proposal has somebody blocked on an answer; the rest are
                 // degrees of untidy.
@@ -2921,11 +3040,12 @@ fn draw_needs(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             };
             let question = q.asking.question(&reference);
             let answers = q.asking.answers();
-            let room = width.saturating_sub(answers.chars().count() + 5);
+            let room = width.saturating_sub(answers.chars().count() + icon.chars().count() + 5);
             let shown = truncate(&question, room);
             let pad = room.saturating_sub(shown.chars().count());
             ListItem::new(Line::from(vec![
                 Span::styled("  ", Style::default()),
+                Span::styled(icon, Style::default().fg(colour)),
                 Span::styled(shown, Style::default().fg(colour)),
                 Span::raw(" ".repeat(pad)),
                 // What the keys will do, said before they are pressed.
@@ -2964,7 +3084,7 @@ fn draw_log(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         .border_style(Style::default().fg(t.border))
         .padding(Padding::horizontal(1))
         .title(Span::styled(
-            " What happened ",
+            format!(" {}What happened ", adorn(app.glyphs.icons.log)),
             Style::default().fg(t.muted),
         ));
 
@@ -3000,11 +3120,15 @@ fn draw_log(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             // what this lens is for.
             let mine = m.who.eq_ignore_ascii_case(&me);
             let who = truncate(&m.who, 14);
-            let lead = 11 + 15 + reference.chars().count() + 3;
+            // Only where the mark is an icon. Unicode's `@` and `·` are glued
+            // to a name in a sentence; in a column they would be clutter.
+            let glyphs = app.glyphs;
+            let mark = glyphs.label(if mine { glyphs.you } else { glyphs.other });
+            let lead = 11 + 15 + mark.chars().count() + reference.chars().count() + 3;
             ListItem::new(Line::from(vec![
                 Span::styled(format!("  {} ", m.when), Style::default().fg(t.faint)),
                 Span::styled(
-                    format!("{who:<14} "),
+                    format!("{mark}{who:<14} "),
                     Style::default().fg(if mine { t.person } else { t.secondary }),
                 ),
                 Span::styled(format!("{reference} "), Style::default().fg(t.faint)),
@@ -3045,7 +3169,7 @@ fn draw_stats(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         .border_style(Style::default().fg(t.border))
         .padding(Padding::horizontal(1))
         .title(Span::styled(
-            format!(" {} ", app.schema.name),
+            format!(" {}{} ", adorn(app.glyphs.icons.stats), app.schema.name),
             Style::default().fg(t.muted),
         ));
     let inner = block.inner(area);
@@ -3202,14 +3326,16 @@ fn stats_left(
     cursor: Option<usize>,
 ) {
     let lines = sheet;
+    let glyphs = app.glyphs;
+    let icons = &glyphs.icons;
     let closed = s.done + s.dropped;
     let percent = (closed * 100).checked_div(s.total).unwrap_or(0) as u32;
 
-    lines.push(section("Where it stands", t, width));
+    lines.push(section(icons.standing, "Where it stands", t, width));
     lines.push(Line::from(vec![
         Span::raw("  "),
         Span::styled(
-            progress_bar(percent, 12),
+            glyphs.bar(percent, 12),
             Style::default().fg(if percent == 100 { t.done } else { t.accent }),
         ),
         Span::styled(
@@ -3218,13 +3344,26 @@ fn stats_left(
         ),
     ]));
     lines.blank();
+    let state = |g: &'static str| glyphs.label(g);
     tally(
         lines,
         cursor,
         &[
-            ("ready", s.ready, t.ready, "ready=true"),
-            ("in flight", s.active, t.active, "category=active"),
-            ("blocked", s.blocked, t.blocked, "blocked=true"),
+            (icons.ready, "ready", s.ready, t.ready, "ready=true"),
+            (
+                state(glyphs.active),
+                "in flight",
+                s.active,
+                t.active,
+                "category=active",
+            ),
+            (
+                state(glyphs.blocked),
+                "blocked",
+                s.blocked,
+                t.blocked,
+                "blocked=true",
+            ),
         ],
         t,
     );
@@ -3232,9 +3371,21 @@ fn stats_left(
         lines,
         cursor,
         &[
-            ("open", s.open, t.open, "category=open"),
-            ("claimed", s.claimed, t.person, "assignee!="),
-            ("dropped", s.dropped, t.dropped, "category=dropped"),
+            (state(glyphs.open), "open", s.open, t.open, "category=open"),
+            (
+                state(glyphs.you),
+                "claimed",
+                s.claimed,
+                t.person,
+                "assignee!=",
+            ),
+            (
+                state(glyphs.dropped),
+                "dropped",
+                s.dropped,
+                t.dropped,
+                "category=dropped",
+            ),
         ],
         t,
     );
@@ -3255,7 +3406,7 @@ fn stats_left(
     }
 
     lines.blank();
-    lines.push(section("Closed", t, width));
+    lines.push(section(state(glyphs.done), "Closed", t, width));
     let mut spans = vec![Span::raw("  ")];
     for (window, count) in s.closed_recently {
         spans.push(Span::styled(
@@ -3273,7 +3424,7 @@ fn stats_left(
 
     if let Some((id, title, days)) = &s.oldest {
         lines.blank();
-        lines.push(section("Waiting longest", t, width));
+        lines.push(section(icons.waiting, "Waiting longest", t, width));
         let here = lines.next_is_selected(cursor);
         let reference = app.schema.format_id(*id);
         let shown = truncate(title, width.saturating_sub(16));
@@ -3293,7 +3444,7 @@ fn stats_left(
 
     if let Some((id, title, count)) = &s.blocking {
         lines.blank();
-        lines.push(section("In the way", t, width));
+        lines.push(section(state(glyphs.blocked), "In the way", t, width));
         let here = lines.next_is_selected(cursor);
         let reference = app.schema.format_id(*id);
         let shown = truncate(title, width.saturating_sub(16));
@@ -3327,9 +3478,11 @@ fn stats_right(
     cursor: Option<usize>,
 ) {
     let lines = sheet;
+    let glyphs = app.glyphs;
+    let icons = &glyphs.icons;
 
     if !s.milestones.is_empty() {
-        lines.push(section("Milestones", t, width));
+        lines.push(section(icons.milestone, "Milestones", t, width));
         let key_width = s
             .milestones
             .iter()
@@ -3346,7 +3499,7 @@ fn stats_right(
                     door_style(t, here).fg(t.milestone).bold(),
                 ),
                 Span::styled(
-                    progress_bar(*percent, 8),
+                    glyphs.bar(*percent, 8),
                     Style::default().fg(if *percent == 100 { t.done } else { t.accent }),
                 ),
                 Span::styled(format!(" {percent:>3}%  "), Style::default().fg(t.muted)),
@@ -3410,7 +3563,7 @@ fn stats_right(
     };
 
     if !s.by_type.is_empty() {
-        lines.push(section("By type", t, width));
+        lines.push(section(icons.holds, "By type", t, width));
         let types: Vec<(String, usize)> = s.by_type.clone();
         let schema = &app.schema;
         let colour = |i: usize| {
@@ -3436,7 +3589,14 @@ fn stats_right(
         if rows.iter().all(|(_, n)| *n == 0) {
             continue;
         }
-        lines.push(section(&title_case(field), t, width));
+        // The field the project ranks by gets the flag, whatever it is
+        // called; every other field is a tag.
+        let icon = if rank_field(&app.schema).is_some_and(|f| &f.name == field) {
+            icons.rank
+        } else {
+            icons.fields
+        };
+        lines.push(section(icon, &title_case(field), t, width));
         let len = rows.len();
         let colour = |i: usize| t.rank(i, len);
         bars(lines, &rows, &colour);
@@ -3446,30 +3606,28 @@ fn stats_right(
 
 /// A row of `count label` pairs, aligned so the numbers line up, each one a
 /// door to the set it counted.
-fn tally(
-    sheet: &mut Sheet,
-    cursor: Option<usize>,
-    cells: &[(&str, usize, ratatui::style::Color, &str)],
-    t: &Theme,
-) {
-    const CELL: u16 = 14;
+/// A cell is its icon, if the set has one for it, its count and its label.
+type Figure<'a> = (&'a str, &'a str, usize, ratatui::style::Color, &'a str);
+
+fn tally(sheet: &mut Sheet, cursor: Option<usize>, cells: &[Figure], t: &Theme) {
     let mut spans = vec![Span::raw("  ")];
     let mut doors = Vec::new();
-    for (n, (label, count, colour, filter)) in cells.iter().enumerate() {
+    let mut x = 2u16;
+    for (n, (icon, label, count, colour, filter)) in cells.iter().enumerate() {
         let here = cursor == Some(sheet.doors.len() + n);
+        let icon = adorn(icon);
+        let cell = 14 + icon.chars().count() as u16;
         spans.push(Span::styled(
             format!("{count:>3} "),
             door_style(t, here).fg(*colour).bold(),
         ));
+        spans.push(Span::styled(icon, door_style(t, here).fg(*colour)));
         spans.push(Span::styled(
             format!("{label:<10}"),
             door_style(t, here).fg(t.faint),
         ));
-        doors.push((
-            2 + n as u16 * CELL,
-            CELL,
-            Door::Filter((*filter).to_string()),
-        ));
+        doors.push((x, cell, Door::Filter((*filter).to_string())));
+        x += cell;
     }
     sheet.push(Line::from(spans));
     for (x, width, door) in doors {
@@ -3520,7 +3678,7 @@ fn reader_masthead(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<
         lines.push(Line::from(vec![
             if n == 0 {
                 Span::styled(
-                    format!("{} ", turning(item, app.tick)),
+                    format!("{} ", app.glyphs.turning(item, app.tick)),
                     Style::default().fg(state_color(item, t, schema)),
                 )
             } else {
@@ -3551,7 +3709,7 @@ fn reader_masthead(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<
     if let Some(milestone) = item.milestone() {
         dot(&mut standing);
         standing.push(Span::styled(
-            milestone.to_string(),
+            format!("{}{milestone}", adorn(app.glyphs.icons.milestone)),
             Style::default().fg(t.milestone),
         ));
     }
@@ -3630,7 +3788,7 @@ fn draw_reader(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         Style::default().fg(t.border),
     )));
     lines.push(Line::from(""));
-    lines.extend(body_lines(&item.body, t, measure));
+    lines.extend(body_lines(&item.body, t, app.glyphs, measure));
 
     // Clamped here because here is where the height of the content is known.
     let over = lines.len().saturating_sub(inner.height as usize);
@@ -3853,7 +4011,11 @@ fn draw_dropdown(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             let pad = label_col.saturating_sub(label.chars().count());
             Line::from(vec![
                 Span::styled(
-                    if here { "▸ " } else { "  " },
+                    if here {
+                        format!("{} ", app.glyphs.pointer)
+                    } else {
+                        "  ".to_string()
+                    },
                     Style::default().fg(t.accent),
                 ),
                 Span::styled(
@@ -3947,7 +4109,11 @@ fn draw_palette(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             let said = truncate(command.describe(), room.saturating_sub(name_col + 1));
             Line::from(vec![
                 Span::styled(
-                    if here { "▸ " } else { "  " },
+                    if here {
+                        format!("{} ", app.glyphs.pointer)
+                    } else {
+                        "  ".to_string()
+                    },
                     Style::default().fg(t.accent),
                 ),
                 Span::styled(
@@ -4238,7 +4404,7 @@ fn balanced_split(heights: &[usize]) -> usize {
 /// A section heading sized to one help column, as spans so two can sit on a
 /// line.
 fn section_cell(name: &str, t: &Theme, width: usize) -> Vec<Span<'static>> {
-    let mut spans = section(name, t, width).spans;
+    let mut spans = section("", name, t, width).spans;
     let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
     spans.push(Span::raw(" ".repeat(width.saturating_sub(used))));
     spans
@@ -4289,7 +4455,12 @@ fn draw_diagnostics(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     // twice. The same ground `cairn check` covers, without leaving the screen.
     if !app.warnings.is_empty() {
         lines.push(Line::from(""));
-        lines.push(section("This backlog", t, width as usize - 2));
+        lines.push(section(
+            app.glyphs.label(app.glyphs.warning),
+            "This backlog",
+            t,
+            width as usize - 2,
+        ));
         for warning in app.warnings.iter().take(6) {
             lines.push(Line::from(vec![
                 Span::raw("  "),
@@ -4323,7 +4494,12 @@ fn draw_diagnostics(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         }
         Some(Err(why)) => {
             lines.push(Line::from(""));
-            lines.push(section("cairn check", t, width as usize - 2));
+            lines.push(section(
+                app.glyphs.icons.criteria,
+                "cairn check",
+                t,
+                width as usize - 2,
+            ));
             lines.push(Line::from(vec![
                 Span::raw("  "),
                 Span::styled(
@@ -4334,7 +4510,12 @@ fn draw_diagnostics(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         }
         Some(Ok(said)) => {
             lines.push(Line::from(""));
-            lines.push(section("cairn check", t, width as usize - 2));
+            lines.push(section(
+                app.glyphs.icons.criteria,
+                "cairn check",
+                t,
+                width as usize - 2,
+            ));
             for line in said.iter().take(8) {
                 lines.push(Line::from(vec![
                     Span::raw("  "),
@@ -4541,14 +4722,14 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     }
 
     if let Some((msg, kind, _)) = &app.toast {
-        let color = match kind {
-            ToastKind::Good => t.ok,
-            ToastKind::Bad => t.error,
-            ToastKind::Info => t.accent,
+        let (color, mark) = match kind {
+            ToastKind::Good => (t.ok, app.glyphs.good),
+            ToastKind::Bad => (t.error, app.glyphs.bad),
+            ToastKind::Info => (t.accent, app.glyphs.info),
         };
         f.render_widget(
             Line::from(vec![
-                Span::styled(" ● ", Style::default().fg(color)),
+                Span::styled(format!(" {mark} "), Style::default().fg(color)),
                 Span::styled(
                     truncate(msg, area.width.saturating_sub(4) as usize),
                     Style::default().fg(color),
@@ -4562,7 +4743,10 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     if let Some(fail) = &app.failure {
         f.render_widget(
             Line::from(vec![
-                Span::styled(" ⚠ ", Style::default().fg(t.error).bold()),
+                Span::styled(
+                    format!(" {} ", app.glyphs.warning),
+                    Style::default().fg(t.error).bold(),
+                ),
                 Span::styled(format!("{}  ", fail.detail), Style::default().fg(t.error)),
                 Span::styled("D", Style::default().fg(t.accent).bold()),
                 Span::styled(" diagnostics", Style::default().fg(t.faint)),
@@ -4748,19 +4932,9 @@ mod tests {
     use super::*;
     use crate::testkit;
 
-    #[test]
-    fn a_progress_bar_reads_as_what_it_is() {
-        assert_eq!(progress_bar(0, 4), "▱▱▱▱");
-        assert_eq!(progress_bar(100, 4), "▰▰▰▰");
-        assert_eq!(progress_bar(50, 4), "▰▰▱▱");
-        // Anything above nothing shows something: rounding a real 4% down to an
-        // empty bar says "not started", which is a different claim.
-        assert!(progress_bar(4, 8).starts_with('▰'));
-    }
-
     /// What the body renderer drew, as plain text, one line per line.
     fn rendered(body: &str, width: usize) -> Vec<String> {
-        body_lines(body, &Theme::mono(), width)
+        body_lines(body, &Theme::mono(), &crate::glyphs::UNICODE, width)
             .iter()
             .map(|l| l.spans.iter().map(|s| s.content.as_ref()).collect())
             .collect()
@@ -4863,7 +5037,7 @@ mod tests {
         for name in ["night", "paper", "gotham"] {
             let t = Theme::resolve(name).expect("a built-in theme");
             let drawn = |source: &str| -> Vec<(String, Color)> {
-                body_lines(source, &t, 60)
+                body_lines(source, &t, &crate::glyphs::UNICODE, 60)
                     .iter()
                     .flat_map(|l| l.spans.clone())
                     .filter(|s| !s.content.trim().is_empty())
@@ -4910,7 +5084,7 @@ mod tests {
         let t = Theme::mono();
         let styles: Vec<Style> = ["# one", "## two", "### three"]
             .iter()
-            .map(|h| body_lines(h, &t, 40)[0].spans[0].style)
+            .map(|h| body_lines(h, &t, &crate::glyphs::UNICODE, 40)[0].spans[0].style)
             .collect();
         assert_ne!(styles[0], styles[1]);
         assert_ne!(styles[1], styles[2]);
@@ -5019,26 +5193,60 @@ five six",
         assert!(!text.contains('▰'), "still drawing a bar: {text}");
     }
 
+    /// The name is the last fact on the line and the one a clipped line
+    /// lost, which an icon or two was enough to cause in a narrow pane.
+    #[test]
+    fn a_line_of_facts_breaks_between_facts_rather_than_losing_the_last() {
+        let t = Theme::mono();
+        let fact = |s: &str| vec![Span::raw(s.to_string())];
+        let said = |lines: Vec<Line>| -> Vec<String> {
+            lines
+                .iter()
+                .map(|l| l.spans.iter().map(|s| s.content.as_ref()).collect())
+                .collect()
+        };
+        let state = || {
+            vec![
+                fact("in progress"),
+                fact("feature"),
+                fact("v0.1"),
+                fact("oddur"),
+            ]
+        };
+        assert_eq!(
+            said(facts(state(), &t, 32)),
+            vec!["  in progress · feature · v0.1", "  oddur"]
+        );
+        assert_eq!(
+            said(facts(state(), &t, 40)),
+            vec!["  in progress · feature · v0.1 · oddur"],
+            "a line that fits stays one line"
+        );
+    }
+
     #[test]
     fn every_state_has_its_own_glyph() {
-        let mut seen = Vec::new();
-        for status in ["backlog", "doing", "done", "dropped"] {
-            let mut item = testkit::item(1, "x", status);
-            item.category = testkit::schema().category(status);
-            seen.push(glyph(&item));
-        }
-        let mut blocked = testkit::item(1, "x", "backlog");
-        blocked.blocked = true;
-        seen.push(glyph(&blocked));
+        for glyphs in [&crate::glyphs::UNICODE, &crate::glyphs::NERD] {
+            let mut seen = Vec::new();
+            for status in ["backlog", "doing", "done", "dropped"] {
+                let mut item = testkit::item(1, "x", status);
+                item.category = testkit::schema().category(status);
+                seen.push(glyphs.state(&item));
+            }
+            let mut blocked = testkit::item(1, "x", "backlog");
+            blocked.blocked = true;
+            seen.push(glyphs.state(&blocked));
 
-        let mut unique = seen.clone();
-        unique.sort_unstable();
-        unique.dedup();
-        assert_eq!(
-            unique.len(),
-            seen.len(),
-            "two states share a glyph: {seen:?}"
-        );
+            let mut unique = seen.clone();
+            unique.sort_unstable();
+            unique.dedup();
+            assert_eq!(
+                unique.len(),
+                seen.len(),
+                "two states share a glyph in {}: {seen:?}",
+                glyphs.name
+            );
+        }
     }
 
     #[test]
@@ -5053,7 +5261,12 @@ five six",
     #[test]
     fn wrapped_text_keeps_its_left_edge() {
         let t = Theme::mono();
-        let lines = body_lines("one two three four five six seven eight", &t, 12);
+        let lines = body_lines(
+            "one two three four five six seven eight",
+            &t,
+            &crate::glyphs::UNICODE,
+            12,
+        );
         assert!(lines.len() > 1, "it has to have wrapped at all");
         for line in &lines {
             let text: String = line.spans.iter().map(|s| s.content.clone()).collect();

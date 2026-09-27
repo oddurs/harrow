@@ -270,6 +270,7 @@ harrow config                # what is actually in effect, and where it came fro
 
 ```toml
 theme        = "auto"
+glyphs       = "auto"        # or nerd, unicode
 group_by     = "milestone"   # or status, type, area, assignee, none
 sort         = ""            # cairn's spelling: "priority,-updated"
 view         = ""            # open in a saved view from cairn.toml
@@ -303,6 +304,26 @@ Built in: `auto` (the default), `mono` (no colour at all), `gotham`, `night`,
 `paper`. Your own files go in `~/.config/harrow/themes/`. `NO_COLOR`,
 `--no-color` and `TERM=dumb` all select `mono`, where the glyphs carry what the
 colours would have. See [THEMES.md](THEMES.md).
+
+## Icons
+
+With a [Nerd Font](https://www.nerdfonts.com), harrow draws with icons: GitHub's
+issue states for open, closed, not planned and blocked, a pie that fills while
+work is under way, a joined progress bar, and icons on the lenses, the toolbar,
+the section headings and the questions waiting for you. Without one, it draws
+the Unicode every font has, and the screen is the same as it always was.
+
+```sh
+harrow --glyphs nerd         # for one run
+harrow --doctor              # shows a sample; boxes mean the font has not got them
+```
+
+`glyphs = "auto"`, the default, turns icons on only where it can tell the
+terminal has them: Ghostty, WezTerm and kitty ship the symbols, and are
+recognised through `ssh` and inside `tmux`. A locale that is not UTF-8 keeps
+Unicode. A font you installed yourself cannot be seen from here, so if yours is
+a Nerd Font, set `glyphs = "nerd"`. `harrow config` says which set was chosen
+and why.
 
 ## Colour
 

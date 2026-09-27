@@ -116,8 +116,10 @@ fn what_is_waiting_does_not_turn() {
         .iter()
         .find(|i| i.blocked && !i.category.is_closed())
         .expect("the fixture has a blocked item");
-    for tick in 0..8 {
-        assert_eq!(ui::turning(blocked, tick), "⊘");
+    for glyphs in [&harrow::glyphs::UNICODE, &harrow::glyphs::NERD] {
+        for tick in 0..16 {
+            assert_eq!(glyphs.turning(blocked, tick), glyphs.blocked);
+        }
     }
 }
 
