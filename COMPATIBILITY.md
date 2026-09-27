@@ -5,10 +5,11 @@ and supplies the human interface. Neither needs a shared runtime library or a
 Cairn process on each read.
 
 Harrow **0.2.0-alpha.1** is paired with Cairn **1.0.0-alpha.1**, revision
-`c5435a74a39b1383d703e0c8da85ab811fffb5ab`, the format-5 development line. These are development
-versions, not a stable 1.0 promise. The 63-case corpus covers formats 1–5,
-including frozen older corpora. Upgrade both tools before migrating: released
-Cairn 0.3.0 and Harrow 0.1.0 do not understand format 4 or 5.
+`1a0e46927de717750d28abc5d49f5e68d66f1d06`, which writes format 5. These are
+development versions, not a stable 1.0 promise. The 63-case corpus covers
+formats 1–5, including frozen older corpora. Upgrade both tools before
+migrating: released Cairn 0.3.0 and Harrow 0.1.0 do not understand format 4 or
+5.
 
 Format 5 stores a number under `id`, as formats 1–3 did, and a UUIDv4 `uid`
 tag that never changes. A type may declare its own rendering, and a type's
