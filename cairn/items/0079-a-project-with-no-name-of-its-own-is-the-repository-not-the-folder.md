@@ -1,5 +1,6 @@
 ---
-id: 99586a98-4c1a-4645-a82c-266d66a9ac6f
+id: 79
+uid: 99586a98-4c1a-4645-a82c-266d66a9ac6f
 title: A project with no name of its own is the repository, not the folder
 type: bug
 status: done

@@ -1,12 +1,13 @@
 ---
-id: fb504ace-7885-4730-b83a-02f9a3b5181f
+id: 69
+uid: fb504ace-7885-4730-b83a-02f9a3b5181f
 title: Five lenses need a direct route
 type: feature
 status: done
 milestone: v0.5
 depends_on:
-- 412eed4b-9f42-4b45-819b-2abfa9b15f16
-- 5e0d183a-39bc-4f05-87dd-312389399950
+- 64
+- 65
 created: 2026-09-12
 updated: 2026-09-12
 priority: p3

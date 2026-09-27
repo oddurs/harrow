@@ -1,5 +1,6 @@
 ---
-id: 4512b061-3425-4014-8ddf-ef716d1196bf
+id: 92
+uid: 4512b061-3425-4014-8ddf-ef716d1196bf
 title: A milestone in progress hides the work it has finished
 type: bug
 status: done

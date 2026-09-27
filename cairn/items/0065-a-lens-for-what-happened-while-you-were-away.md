@@ -1,11 +1,12 @@
 ---
-id: 5e0d183a-39bc-4f05-87dd-312389399950
+id: 65
+uid: 5e0d183a-39bc-4f05-87dd-312389399950
 title: A lens for what happened while you were away
 type: feature
 status: done
 milestone: v0.5
 depends_on:
-- 412eed4b-9f42-4b45-819b-2abfa9b15f16
+- 64
 created: 2026-09-12
 updated: 2026-09-12
 priority: p1

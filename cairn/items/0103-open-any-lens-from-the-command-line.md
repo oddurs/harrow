@@ -1,5 +1,6 @@
 ---
-id: 87254132-5470-413f-8917-e1796fbf330b
+id: 103
+uid: 87254132-5470-413f-8917-e1796fbf330b
 title: Open any lens from the command line
 type: feature
 status: done
@@ -11,7 +12,7 @@ priority: p1
 area: cli
 effort: m
 part_of:
-- 39ac484e-b657-4b46-92ce-89118076115a
+- 102
 ---
 
 ## Problem

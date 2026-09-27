@@ -1,11 +1,12 @@
 ---
-id: 66914815-dc8b-4379-bd0a-f84a3271c79d
+id: 57
+uid: 66914815-dc8b-4379-bd0a-f84a3271c79d
 title: The stats pane describes a backlog you are not looking at
 type: bug
 status: done
 milestone: v0.4
 depends_on:
-- adfd1844-c950-42be-94e3-9d6464da3894
+- 56
 created: 2026-09-12
 updated: 2026-09-12
 priority: p1

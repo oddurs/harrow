@@ -1,5 +1,6 @@
 ---
-id: 782be7cf-1285-41e5-8138-40e3c1c8045b
+id: 104
+uid: 782be7cf-1285-41e5-8138-40e3c1c8045b
 title: Answer the needs and log questions in plain text
 type: feature
 status: done
@@ -11,7 +12,7 @@ priority: p1
 area: cli
 effort: m
 part_of:
-- 39ac484e-b657-4b46-92ce-89118076115a
+- 102
 ---
 
 ## Problem

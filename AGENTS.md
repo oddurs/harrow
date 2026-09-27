@@ -35,9 +35,9 @@ cairn render                      # regenerate ROADMAP.md
 
 Selection uses saved view `next`. Additional filters only narrow it; the view's sort and columns do not change `next` ranking. Over MCP, pass `{"view":"next"}` to `next_items` and to `claim_item` without an id. A direct claim is an explicit assignment outside this selection policy. Regenerate these instructions with `cairn agent --view next --write AGENTS.md`.
 
-Claims coordinate writers in the same item directory, not separate branches, worktrees, or clones. Agree on assignments before splitting work.
+Claims coordinate writers in the same item directory and are seen across the worktrees of this repository: `next` leaves out what another worktree has claimed, `claim` refuses it, and `cairn worktrees` shows what each is doing. Separate clones are not read. Agree on assignments before splitting work across clones.
 
-Item identities are immutable UUIDv4 strings. Use full `id` values from JSON for durable references; commands also accept unambiguous prefixes of at least 8 hex digits. Store full identities in ID-reference fields, never prefixes. Migrated legacy numbers remain lookup aliases; new items do not receive numbers.
+Items are numbered: `0012`, and commands accept the bare number too. Write the number in `depends_on` and other id references. Each item also carries a `uid` tag; leave it alone. If a merge gives two items one number, `cairn renumber` moves the one that arrived and retargets the references that came with it.
 
 ### Schema
 

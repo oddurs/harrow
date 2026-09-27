@@ -1,11 +1,12 @@
 ---
-id: ae6bc033-e62f-4c22-badb-4179e003d8e8
+id: 87
+uid: ae6bc033-e62f-4c22-badb-4179e003d8e8
 title: Reach the views the project declared
 type: feature
 status: done
 milestone: v0.6
 depends_on:
-- 449588bb-ac84-4170-abea-759389f5cfb1
+- 82
 created: 2026-09-18
 updated: 2026-09-18
 priority: p2

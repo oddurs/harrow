@@ -1,5 +1,6 @@
 ---
-id: cac086e1-293f-4a93-a426-7f856e323c3a
+id: 9
+uid: cac086e1-293f-4a93-a426-7f856e323c3a
 title: A board with the project's own columns
 type: feature
 status: done

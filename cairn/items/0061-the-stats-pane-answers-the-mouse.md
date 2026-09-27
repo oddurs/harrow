@@ -1,11 +1,12 @@
 ---
-id: 78f301f2-5084-4492-897c-4f0daf1fce9a
+id: 61
+uid: 78f301f2-5084-4492-897c-4f0daf1fce9a
 title: The stats pane answers the mouse
 type: feature
 status: done
 milestone: v0.4
 depends_on:
-- adfd1844-c950-42be-94e3-9d6464da3894
+- 56
 created: 2026-09-12
 updated: 2026-09-12
 priority: p2

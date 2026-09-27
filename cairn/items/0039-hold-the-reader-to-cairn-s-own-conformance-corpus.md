@@ -1,5 +1,6 @@
 ---
-id: 2316c419-f686-41e0-afee-67782d7fdb85
+id: 39
+uid: 2316c419-f686-41e0-afee-67782d7fdb85
 title: Hold the reader to cairn's own conformance corpus
 type: chore
 status: done

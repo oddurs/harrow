@@ -1,5 +1,6 @@
 ---
-id: f21342d0-92ad-456f-ae66-dc5b39e1decd
+id: 52
+uid: f21342d0-92ad-456f-ae66-dc5b39e1decd
 title: A digit in a picker does not pick outright
 type: bug
 status: backlog
