@@ -92,9 +92,12 @@ pub fn glyph(item: &Item) -> &'static str {
 ///
 /// Not the terminal's blink attribute: half the terminals harrow runs in
 /// ignore it, and the ones that honour it blink the whole cell.
+///
+/// Work under way in another worktree turns too, because it is just as
+/// much under way — it is only the record here that has not heard yet.
 pub fn turning(item: &Item, tick: usize) -> &'static str {
     const TURN: [&str; 4] = ["◐", "◓", "◑", "◒"];
-    if item.category == Category::Active && !item.blocked {
+    if (item.category == Category::Active && !item.blocked) || item.active_elsewhere().is_some() {
         return TURN[(tick / 2) % TURN.len()];
     }
     glyph(item)
@@ -146,6 +149,11 @@ fn actor_style(app: &App, who: &str, stale: bool, t: &Theme) -> (String, Style) 
 }
 
 fn state_color(item: &Item, t: &Theme, schema: &Schema) -> ratatui::style::Color {
+    if item.category != Category::Active
+        && let Some(there) = item.active_elsewhere()
+    {
+        return t.status(schema.status(&there.status));
+    }
     if item.blocked && !item.category.is_closed() {
         return t.blocked;
     }
@@ -914,13 +922,11 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
         (done, total) => format!("{done}/{total}"),
     };
     let (mark, who_style) = item
-        .assignee
-        .as_deref()
+        .holder()
         .map(|a| actor_style(app, a, app.claim_is_stale(item), t))
         .unwrap_or_else(|| (String::new(), Style::default()));
     let who = item
-        .assignee
-        .as_deref()
+        .holder()
         .map(|a| format!("{mark}{}", truncate(a, 8)))
         .unwrap_or_default();
     let proposed = !item.proposals.is_empty();
@@ -1732,6 +1738,78 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
             Span::styled("  answerable ", Style::default().fg(t.faint)),
             Span::styled(format!("{mark}{owner}"), style),
         ]));
+    }
+
+    // Above the record's own latest note, because a worktree's copy is newer
+    // than the record by definition: it is the part that has not merged yet.
+    if !item.elsewhere.is_empty() {
+        lines.push(Line::from(""));
+        lines.push(section("Elsewhere", t, width));
+    }
+    let label = |name: &str| {
+        schema
+            .status(name)
+            .map(|s| s.display().to_string())
+            .unwrap_or_else(|| name.to_string())
+    };
+    for (n, there) in item.elsewhere.iter().enumerate() {
+        if n > 0 {
+            lines.push(Line::from(""));
+        }
+        let moved = there.status != item.status;
+        let mut head = vec![
+            Span::raw("  "),
+            Span::styled(
+                truncate(&there.branch, width.saturating_sub(9)),
+                Style::default().fg(t.secondary),
+            ),
+        ];
+        // A branch that changed the item without moving it has still done
+        // something to it, and a status that merely repeats this one's says
+        // nothing about what.
+        if !moved {
+            head.push(Span::styled("  edited", Style::default().fg(t.faint)));
+        }
+        lines.push(Line::from(head));
+        let mut state = vec![Span::raw("  ")];
+        if moved {
+            state.push(Span::styled(
+                format!("{} → ", label(&item.status)),
+                Style::default().fg(t.faint),
+            ));
+            state.push(Span::styled(
+                label(&there.status),
+                Style::default()
+                    .fg(t.status(schema.status(&there.status)))
+                    .bold(),
+            ));
+        }
+        if let Some(who) = there
+            .assignee
+            .as_ref()
+            .filter(|w| moved || Some(*w) != item.assignee.as_ref())
+        {
+            if moved {
+                state.push(Span::styled(" · ", Style::default().fg(t.faint)));
+            }
+            let (mark, style) = actor_style(app, who, false, t);
+            state.push(Span::styled(format!("{mark}{who}"), style));
+        }
+        if state.len() > 1 {
+            lines.push(Line::from(state));
+        }
+        if let Some((when, said)) = &there.latest {
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(when.clone(), Style::default().fg(t.faint)),
+            ]));
+            for part in wrap(said, width.saturating_sub(2)).into_iter().take(3) {
+                lines.push(Line::from(Span::styled(
+                    format!("  {part}"),
+                    Style::default().fg(t.text),
+                )));
+            }
+        }
     }
 
     // The newest thing anybody said, at the top, because on an item somebody
@@ -3441,7 +3519,7 @@ fn reader_masthead(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<
             ranking.push(Span::styled(value.display(), Style::default().fg(t.muted)));
         }
     }
-    if let Some(who) = &item.assignee {
+    if let Some(who) = item.holder() {
         if !ranking.is_empty() {
             dot(&mut ranking);
         }

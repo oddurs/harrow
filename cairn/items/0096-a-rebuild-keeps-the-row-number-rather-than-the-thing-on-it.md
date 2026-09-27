@@ -1,5 +1,5 @@
 ---
-id: 96
+id: 9e1c822d-fd51-4d35-89d5-47f3d7511d88
 title: A rebuild keeps the row number rather than the thing on it
 type: bug
 status: backlog

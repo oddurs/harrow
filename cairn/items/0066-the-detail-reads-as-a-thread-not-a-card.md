@@ -1,11 +1,11 @@
 ---
-id: 66
+id: 8431833e-81b9-4f53-8732-6cdac055566a
 title: The detail reads as a thread, not a card
 type: feature
 status: done
 milestone: v0.5
 depends_on:
-- 64
+- 412eed4b-9f42-4b45-819b-2abfa9b15f16
 created: 2026-09-12
 updated: 2026-09-12
 priority: p2

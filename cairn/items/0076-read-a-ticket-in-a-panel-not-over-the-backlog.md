@@ -1,5 +1,5 @@
 ---
-id: 76
+id: fe0d3915-f994-474e-973a-2966a78df8cc
 title: Read a ticket in a panel, not over the backlog
 type: feature
 status: done

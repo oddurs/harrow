@@ -1,11 +1,11 @@
 ---
-id: 25
+id: 430910a7-8a14-4807-8c3a-59e959cc650e
 key: v0.3
 title: Read everything cairn writes, and nothing it does not
 type: milestone
 status: done
 depends_on:
-- 16
+- 7acba74f-2a74-4939-ad1f-de5491253991
 created: 2026-09-12
 updated: 2026-09-23
 closed_at: 2026-09-23

@@ -1,11 +1,11 @@
 ---
-id: 16
+id: 7acba74f-2a74-4939-ad1f-de5491253991
 key: v0.2
 title: Triage that scales past one item at a time
 type: milestone
 status: done
 depends_on:
-- 1
+- c06912a9-6999-44ed-9ebc-f75e7ffb49c7
 created: 2026-09-08
 updated: 2026-09-23
 closed_at: 2026-09-23

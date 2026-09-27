@@ -1,13 +1,13 @@
 ---
-id: 110
+id: 7dceda4a-8de3-415b-8553-025511cd1941
 title: Read immutable UUID identities and keep the Cairn contract
 type: feature
-status: doing
+status: done
 assignee: codex
-claimed: 2026-09-23
 created_by: codex
 created: 2026-09-23
 updated: 2026-09-23
+closed_at: 2026-09-23
 priority: p1
 area: read
 ---
@@ -24,8 +24,8 @@ Read canonical UUID identities and declared ID references directly; display unam
 
 - [x] Format 4 and historical formats read correctly, including frozen numeric aliases and ambiguous prefixes.
 - [x] Every write, history request and undo carries full immutable identity; selection and marks survive reloads.
-- [ ] Conformance, agreement, snapshots and the full project checks pass.
-- [ ] The project backlog is migrated in a dedicated history-preserving commit and the installed pair works together.
+- [x] Conformance, agreement, snapshots and the full project checks pass.
+- [x] The project backlog is migrated in a dedicated history-preserving commit and the installed pair works together.
 
 ## 2026-09-23
 
@@ -38,3 +38,11 @@ All standalone checks passed, including the 49-case format corpus and seven UUID
 ## 2026-09-23
 
 Integrated newer main, retaining the new lens entry points and ordinary-listing semantics. The pre-migration integer collision on 0107 was repaired to 0110 before UUID conversion; no references to this new item existed. All five cross-tool agreement cases pass. Every plain-output lens now has a full-UUID regression. The counterpart pin and unmodified 49-case corpus identify the committed Cairn alpha revision, and refresh now refuses dirty upstream trees.
+
+## 2026-09-23
+
+Live migration verified all 110 bodies byte-for-byte and every non-reference metadata value unchanged. Historical lookup, full-UUID references and all five agreement tests pass; doctor agrees with Cairn on all 110 records and six views. Pre-push exposed a lens-alias screenshot flake: only the read-only footer differed because one host Cairn version probe timed out. The equivalence test now fixes writer availability using an explicitly absent executable and asserts both exit codes; the complete screenshot comparison is unchanged.
+
+## 2026-09-23
+
+Installed matching Cairn 1.0.0-alpha.1 and Harrow 0.2.0-alpha.1; doctor verifies every migrated record and saved view in both projects. Unlinked the older Homebrew Cairn to remove PATH shadowing while keeping that stable installation for recovery. Both migration ranges contain zero semantic item changes, and historical numeric lookup still reaches the pre-migration records. Full standalone checks, unchanged legacy snapshots, all five agreement cases and the ordinary pre-push gate pass. This is an unreleased development pair, not a stable 1.0 promise.
