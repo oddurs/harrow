@@ -1,5 +1,6 @@
 ---
-id: def809f0-a2a0-49ea-969d-2562f1ed1c0e
+id: 77
+uid: def809f0-a2a0-49ea-969d-2562f1ed1c0e
 title: The log reads the repository it was pointed at
 type: bug
 status: done

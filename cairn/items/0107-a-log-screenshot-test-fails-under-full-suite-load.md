@@ -1,5 +1,6 @@
 ---
-id: 51f96cd1-ce71-4b53-8b71-a09c80e1b8fa
+id: 107
+uid: 51f96cd1-ce71-4b53-8b71-a09c80e1b8fa
 title: A log screenshot test fails under full-suite load
 type: bug
 status: dropped

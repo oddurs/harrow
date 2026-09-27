@@ -1,5 +1,6 @@
 ---
-id: 721d351a-fc2b-4302-9ec0-c33627843860
+id: 94
+uid: 721d351a-fc2b-4302-9ec0-c33627843860
 title: The map is wrong in six places
 type: bug
 status: done

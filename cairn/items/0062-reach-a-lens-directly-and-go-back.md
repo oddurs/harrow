@@ -1,11 +1,12 @@
 ---
-id: 3125e8d5-b68e-4461-bc59-ee7cd6632297
+id: 62
+uid: 3125e8d5-b68e-4461-bc59-ee7cd6632297
 title: Reach a lens directly, and go back
 type: feature
 status: done
 milestone: v0.4
 depends_on:
-- adfd1844-c950-42be-94e3-9d6464da3894
+- 56
 created: 2026-09-12
 updated: 2026-09-12
 priority: p3

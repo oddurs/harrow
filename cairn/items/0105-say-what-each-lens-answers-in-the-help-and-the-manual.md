@@ -1,5 +1,6 @@
 ---
-id: 35cb07c4-cc07-45e1-ab2b-17ccb6302faa
+id: 105
+uid: 35cb07c4-cc07-45e1-ab2b-17ccb6302faa
 title: Say what each lens answers, in the help and the manual
 type: docs
 status: done
@@ -11,7 +12,7 @@ priority: p2
 area: docs
 effort: s
 part_of:
-- 39ac484e-b657-4b46-92ce-89118076115a
+- 102
 ---
 
 ## What a reader needs

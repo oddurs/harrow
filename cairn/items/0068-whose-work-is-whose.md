@@ -1,11 +1,12 @@
 ---
-id: a54e00de-b5cb-4314-9968-b58687dbcd76
+id: 68
+uid: a54e00de-b5cb-4314-9968-b58687dbcd76
 title: Whose work is whose
 type: feature
 status: done
 milestone: v0.5
 depends_on:
-- 412eed4b-9f42-4b45-819b-2abfa9b15f16
+- 64
 created: 2026-09-12
 updated: 2026-09-12
 priority: p2

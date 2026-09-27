@@ -1,11 +1,12 @@
 ---
-id: 45943011-8a23-4fa1-beab-e27a2f3c7226
+id: 84
+uid: 45943011-8a23-4fa1-beab-e27a2f3c7226
 title: One query, two ways to type it
 type: feature
 status: done
 milestone: v0.6
 depends_on:
-- 449588bb-ac84-4170-abea-759389f5cfb1
+- 82
 created: 2026-09-18
 updated: 2026-09-18
 priority: p2

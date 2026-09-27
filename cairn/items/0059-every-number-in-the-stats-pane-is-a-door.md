@@ -1,12 +1,13 @@
 ---
-id: d8a51a15-f889-4c92-9e14-4b4bf41cdfc2
+id: 59
+uid: d8a51a15-f889-4c92-9e14-4b4bf41cdfc2
 title: Every number in the stats pane is a door
 type: feature
 status: done
 milestone: v0.4
 depends_on:
-- adfd1844-c950-42be-94e3-9d6464da3894
-- 78f301f2-5084-4492-897c-4f0daf1fce9a
+- 56
+- 61
 created: 2026-09-12
 updated: 2026-09-12
 priority: p1
