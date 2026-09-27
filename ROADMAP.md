@@ -187,10 +187,11 @@ Good ideas without a date yet.
 
 ## Unscheduled
 
-`##########` 100% · 4 of 4 done
+`##########` 100% · 5 of 5 done
 
 ### done
 
+- [x] `197f02bf` Pin the merged format-5 Cairn <sup>chore · p1 · read</sup>
 - [x] `7dceda4a` Read immutable UUID identities and keep the Cairn contract <sup>feature · p1 · read</sup>
 - [x] `a2d88226` Read Cairn format 5: numbers, tags and type renderings <sup>feature · p0 · read</sup>
 - [x] `be6d5823` Advance the Cairn pin to worktree-aware claims <sup>chore · p1 · read</sup>
