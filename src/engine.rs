@@ -30,6 +30,9 @@ pub struct Report {
     pub elsewhere: Vec<PathBuf>,
     /// Where git registers worktrees, watched for a new one.
     pub registry: Option<PathBuf>,
+    /// Items other worktrees have filed and this checkout has not got. Kept
+    /// apart from `items`, which is the record and has to agree with cairn.
+    pub filed: Vec<Item>,
 }
 
 #[derive(Debug)]
@@ -142,6 +145,7 @@ impl Source for Project {
         derive(&mut items, &schema, &mut warnings);
         let survey = crate::worktree::survey(&schema);
         sight(&mut items, &schema, &survey.others);
+        let filed = filed(&items, &schema, &survey.others);
         for w in &warnings {
             diag::warn("backlog", w.clone());
         }
@@ -152,6 +156,7 @@ impl Source for Project {
             stamp,
             elsewhere: survey.others.into_iter().map(|o| o.items).collect(),
             registry: survey.registry,
+            filed,
         })
     }
 }
@@ -254,6 +259,71 @@ pub fn sight(items: &mut [Item], schema: &Schema, others: &[crate::worktree::Oth
         item.elsewhere
             .sort_by_key(|e| e.category != crate::schema::Category::Active);
     }
+}
+
+/// Items other worktrees have filed that this checkout has not got, as rows
+/// of their own.
+///
+/// Each keeps the number it has there where that names nothing here, and
+/// otherwise goes by its tag. One with neither is left out: two branches that
+/// each filed a 7 are the collision `cairn renumber` exists for, and an item
+/// nothing can name cannot be told apart from the one it collides with.
+///
+/// Derived on its own rather than with the record, so a branch's plans do not
+/// move the progress of a milestone the record here reports.
+pub fn filed(items: &[Item], schema: &Schema, others: &[crate::worktree::Other]) -> Vec<Item> {
+    let mut taken: HashSet<Id> = items.iter().map(|i| i.id).collect();
+    let mut tags: HashSet<uuid::Uuid> = items.iter().filter_map(|i| i.uid).collect();
+    let open: HashSet<Id> = items
+        .iter()
+        .filter(|i| !i.category.is_closed())
+        .map(|i| i.id)
+        .collect();
+    let section = schema.criteria_section.as_deref();
+    let mut out = Vec::new();
+    for other in others {
+        for theirs in &other.filed {
+            // Here already, merged under the same tag, or filed by a branch
+            // this one was cut from and seen once already.
+            if theirs.uid.is_some_and(|uid| tags.contains(&uid)) {
+                continue;
+            }
+            let id = match (taken.contains(&theirs.id), theirs.uid) {
+                (false, _) => theirs.id,
+                // An immutable id already here is this very item.
+                _ if theirs.id.is_uuid() => continue,
+                (true, Some(uid)) if !taken.contains(&Id::Uuid(uid)) => Id::Uuid(uid),
+                _ => {
+                    diag::info(
+                        "worktree",
+                        format!(
+                            "{}: {} is taken here and the item has no tag; not shown",
+                            other.branch,
+                            schema.format_id(theirs.id)
+                        ),
+                    );
+                    continue;
+                }
+            };
+            let mut item = theirs.clone();
+            item.id = id;
+            item.filed_on = Some(other.branch.clone());
+            item.category = schema.category(&item.status);
+            (item.criteria_met, item.criteria_total) =
+                crate::item::count_criteria(&item.body, section);
+            item.blockers = item
+                .depends_on
+                .iter()
+                .copied()
+                .filter(|d| open.contains(d))
+                .collect();
+            item.blocked = !item.blockers.is_empty();
+            taken.insert(id);
+            tags.extend(item.uid);
+            out.push(item);
+        }
+    }
+    out
 }
 
 fn name_of(path: &Path) -> String {
@@ -482,6 +552,7 @@ impl Source for Static {
             stamp: None,
             elsewhere: Vec::new(),
             registry: None,
+            filed: Vec::new(),
         })
     }
 }
@@ -618,6 +689,7 @@ mod tests {
             branch: "feature".into(),
             items: std::path::PathBuf::from("/elsewhere/items"),
             copies,
+            filed: Vec::new(),
         }
     }
 
@@ -635,6 +707,79 @@ mod tests {
         );
         assert_eq!(items[0].elsewhere.len(), 1);
         assert_eq!(items[0].elsewhere[0].status, "doing");
+    }
+
+    fn filing(filed: Vec<Item>) -> crate::worktree::Other {
+        crate::worktree::Other {
+            filed,
+            ..elsewhere(Vec::new())
+        }
+    }
+
+    #[test]
+    fn a_filing_keeps_the_number_it_has_there_where_that_names_nothing_here() {
+        let schema = testkit::schema();
+        let items = vec![tagged(1, U1, "backlog")];
+        let shown = filed(&items, &schema, &[filing(vec![tagged(2, U2, "doing")])]);
+        assert_eq!(shown.len(), 1);
+        assert_eq!(shown[0].id, 2);
+        assert_eq!(shown[0].filed_on.as_deref(), Some("feature"));
+    }
+
+    #[test]
+    fn a_filing_whose_number_is_taken_here_goes_by_its_tag() {
+        let schema = testkit::schema();
+        let items = vec![tagged(1, U1, "backlog")];
+        let shown = filed(&items, &schema, &[filing(vec![tagged(1, U2, "doing")])]);
+        assert_eq!(shown.len(), 1);
+        assert_eq!(shown[0].id, Id::Uuid(U2.parse().unwrap()));
+    }
+
+    #[test]
+    fn a_filing_nothing_can_name_is_left_out() {
+        let schema = testkit::schema();
+        let items = vec![testkit::item(1, "here", "backlog")];
+        let shown = filed(
+            &items,
+            &schema,
+            &[filing(vec![testkit::item(1, "there", "doing")])],
+        );
+        assert!(shown.is_empty(), "{shown:?}");
+    }
+
+    #[test]
+    fn a_filing_already_merged_here_is_not_shown_twice() {
+        let schema = testkit::schema();
+        // Renumbered by the merge, and still the same item by its tag.
+        let items = vec![tagged(9, U2, "backlog")];
+        let shown = filed(&items, &schema, &[filing(vec![tagged(4, U2, "backlog")])]);
+        assert!(shown.is_empty(), "{shown:?}");
+    }
+
+    #[test]
+    fn two_branches_carrying_one_filing_show_it_once() {
+        // A branch cut from the branch that filed it has the file too.
+        let schema = testkit::schema();
+        let shown = filed(
+            &[],
+            &schema,
+            &[
+                filing(vec![tagged(2, U2, "doing")]),
+                filing(vec![tagged(2, U2, "doing")]),
+            ],
+        );
+        assert_eq!(shown.len(), 1);
+    }
+
+    #[test]
+    fn a_filing_waits_on_what_it_depends_on_here() {
+        let schema = testkit::schema();
+        let items = vec![tagged(1, U1, "backlog")];
+        let mut theirs = tagged(2, U2, "backlog");
+        theirs.depends_on = vec![1.into()];
+        let shown = filed(&items, &schema, &[filing(vec![theirs])]);
+        assert!(shown[0].blocked);
+        assert_eq!(shown[0].blockers, vec![Id::from(1)]);
     }
 
     #[test]

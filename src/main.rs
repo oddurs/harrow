@@ -423,6 +423,11 @@ fn plain_items(app: &App) {
             continue;
         };
         let item = &app.items[*i];
+        // The record, which is what a script is reading and what `cairn list`
+        // here agrees with. Another branch's items are for the interface.
+        if item.filed_on.is_some() {
+            continue;
+        }
         println!(
             "{}\t{}\t{}\t{}\t{}",
             plain_id(app, item.id),
@@ -440,7 +445,9 @@ fn plain_items(app: &App) {
 /// answer rather than a failure, and a caller that wants to branch on it
 /// counts lines. That is what makes it composable.
 fn plain_needs(app: &App) {
-    for question in &app.questions {
+    let recorded =
+        |id: harrow::identity::Id| app.items.iter().any(|i| i.id == id && i.filed_on.is_none());
+    for question in app.questions.iter().filter(|q| recorded(q.id)) {
         let (kind, who, detail) = match &question.asking {
             harrow::app::Asking::Proposal { field, to, by } => {
                 ("proposal", by.as_str(), format!("{field}={to}"))

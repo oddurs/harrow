@@ -45,6 +45,7 @@ fn report(with_collision: bool) -> Report {
         stamp: None,
         elsewhere: Vec::new(),
         registry: None,
+        filed: Vec::new(),
     }
 }
 
@@ -107,6 +108,9 @@ fn selection_marks_and_scroll_survive_a_prefix_change_on_reload() {
     app.marked.insert(id);
     app.detail.to(id, 2);
     assert_eq!(app.schema.format_id(id), "a47c3bd2");
+    // Somebody at the keys: an idle reader is taken to the item that just
+    // arrived, and this is about the one they were on.
+    app.touched = app.now;
     app.ingest(report(true));
     assert_eq!(app.schema.format_id(id), "a47c3bd20");
     assert_eq!(app.selected_item().unwrap().id, id);

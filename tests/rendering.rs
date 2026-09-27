@@ -409,3 +409,19 @@ fn a_board_with_empty_lanes() {
         &ui::render_to_string(&mut app, 110, 12, 0),
     );
 }
+
+/// An agent's item, filed on its own branch and not merged: a row like any
+/// other, italic, with the branch where the holder would be, and a detail
+/// that says why nothing here will change it.
+#[test]
+fn an_item_filed_on_another_branch() {
+    let mut report = harrow::testkit::report();
+    let mut seven = harrow::testkit::item(7, "Write the changelog", "doing");
+    seven.category = report.schema.category("doing");
+    seven.filed_on = Some("feat/changelog".into());
+    report.filed.push(seven);
+    let mut app = support::app();
+    app.ingest(report);
+    app.select_id(7.into());
+    support::assert_snapshot("filed", &ui::render_to_string(&mut app, 110, 18, 0));
+}

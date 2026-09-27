@@ -109,6 +109,77 @@ fn an_item_filed_on_a_branch_is_not_mistaken_for_one_here() {
     let seven = report.items.iter().find(|i| i.id == 7).expect("item 7");
     assert!(seven.elsewhere.is_empty());
     assert_eq!(report.items.len(), 7, "and nothing is added to the set");
+    // Nor shown as a filing: its number is taken here and it has no tag, so
+    // nothing could tell the two apart.
+    assert!(report.filed.is_empty(), "{:?}", report.filed);
+}
+
+/// What `cairn new` leaves in a worktree: a file nobody has committed yet.
+fn file_there(dir: &Path, title: &str, status: &str) {
+    std::fs::write(
+        dir.join("items/0007-filed-there.md"),
+        format!("---\nid: 7\ntitle: {title}\ntype: feature\nstatus: {status}\n---\n"),
+    )
+    .expect("file it");
+}
+
+#[test]
+fn an_item_filed_on_a_branch_is_shown_before_it_is_committed() {
+    let (main, agent) = testkit::with_worktree("feat/filing");
+    file_there(agent.path(), "Filed there", "doing");
+
+    let report = load(main.path());
+    assert_eq!(report.items.len(), 6, "the record is untouched");
+    let [seven] = report.filed.as_slice() else {
+        panic!("one filing: {:?}", report.filed);
+    };
+    assert_eq!(seven.id, 7);
+    assert_eq!(seven.title, "Filed there");
+    assert_eq!(seven.filed_on.as_deref(), Some("feat/filing"));
+    assert_eq!(seven.category, Category::Active, "derived like any item");
+}
+
+#[test]
+fn a_committed_filing_is_shown_as_well_as_an_uncommitted_one() {
+    let (main, agent) = testkit::with_worktree("feat/filing");
+    file_there(agent.path(), "Filed there", "backlog");
+    testkit::commit(agent.path(), "file 7 there");
+
+    assert_eq!(load(main.path()).filed.len(), 1);
+}
+
+#[test]
+fn once_merged_a_filing_is_an_ordinary_row_and_appears_once() {
+    let (main, agent) = testkit::with_worktree("feat/filing");
+    file_there(agent.path(), "Filed there", "done");
+    testkit::commit(agent.path(), "file 7 there");
+    testkit::git(main.path(), &["merge", "-q", "feat/filing"]);
+
+    let report = load(main.path());
+    assert!(report.filed.is_empty(), "{:?}", report.filed);
+    let seven: Vec<_> = report.items.iter().filter(|i| i.id == 7).collect();
+    assert_eq!(seven.len(), 1);
+    assert!(seven[0].filed_on.is_none());
+}
+
+#[test]
+fn a_script_reading_the_record_never_sees_another_branchs_filing() {
+    let (main, agent) = testkit::with_worktree("feat/filing");
+    file_there(agent.path(), "Filed there", "backlog");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_harrow"))
+        .arg("-C")
+        .arg(main.path())
+        .args(["--plain", "--all"])
+        .env("HARROW_CONFIG", "/nonexistent")
+        .output()
+        .expect("harrow runs");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "{text}");
+    assert!(
+        text.contains("Draw the board"),
+        "the record is printed: {text}"
+    );
+    assert!(!text.contains("Filed there"), "{text}");
 }
 
 #[test]

@@ -154,6 +154,10 @@ pub struct Item {
     /// Other worktrees that have changed this item, in the order git lists
     /// them.
     pub elsewhere: Vec<Elsewhere>,
+    /// The branch this item was filed on, where this checkout does not have
+    /// it yet. Such an item is shown and never written: cairn here cannot
+    /// see it.
+    pub filed_on: Option<String>,
 }
 
 impl Item {

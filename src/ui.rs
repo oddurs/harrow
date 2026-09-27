@@ -925,10 +925,17 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
         .holder()
         .map(|a| actor_style(app, a, app.claim_is_stale(item), t))
         .unwrap_or_else(|| (String::new(), Style::default()));
-    let who = item
-        .holder()
-        .map(|a| format!("{mark}{}", truncate(a, 8)))
-        .unwrap_or_default();
+    // An item filed on another branch says which, where the holder would be:
+    // where it lives is what decides what can be done with it from here.
+    let (who, who_style) = match &item.filed_on {
+        Some(branch) => (truncate(branch, 16), provisional_style(t)),
+        None => (
+            item.holder()
+                .map(|a| format!("{mark}{}", truncate(a, 8)))
+                .unwrap_or_default(),
+            who_style,
+        ),
+    };
     let proposed = !item.proposals.is_empty();
 
     let lead = 2 + 1 + 1 + reference.chars().count() + 1;
@@ -983,6 +990,7 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
     } else {
         Style::default().fg(t.text)
     };
+    let title_style = provisional(item, title_style);
 
     let marked = app.marked.contains(&item.id);
     let mut spans = vec![
@@ -1032,6 +1040,54 @@ fn item_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
         spans.push(Span::styled(rank.clone(), rank_style(item, schema, t)));
     }
     ListItem::new(Line::from(spans))
+}
+
+/// Italic, for a row that is not in this checkout's record yet: the same
+/// words, set in the voice of something reported rather than held.
+fn provisional(item: &Item, style: Style) -> Style {
+    if item.filed_on.is_some() {
+        style.add_modifier(Modifier::ITALIC)
+    } else {
+        style
+    }
+}
+
+/// How the branch an item lives on is named.
+fn provisional_style(t: &Theme) -> Style {
+    Style::default()
+        .fg(t.secondary)
+        .add_modifier(Modifier::ITALIC)
+}
+
+/// Where an item lives, where that is not here. Said in full wherever there
+/// is room for a sentence, because it is why every key that changes things
+/// will refuse it.
+///
+/// Two lines where one does not fit, broken where the sentence breaks: a
+/// branch name cut short is a branch nobody can find.
+fn filed_elsewhere(item: &Item, t: &Theme, indent: &str, width: usize) -> Vec<Line<'static>> {
+    let Some(branch) = item.filed_on.as_ref() else {
+        return Vec::new();
+    };
+    const WHERE: &str = "filed on ";
+    const YET: &str = " · not in this checkout yet";
+    let quiet = Style::default().fg(t.faint);
+    let mut first = vec![
+        Span::styled(format!("{indent}{WHERE}"), quiet),
+        Span::styled(branch.clone(), provisional_style(t)),
+    ];
+    let wide = indent.chars().count() + WHERE.len() + branch.chars().count() + YET.chars().count();
+    if wide <= width {
+        first.push(Span::styled(YET, quiet));
+        return vec![Line::from(first)];
+    }
+    vec![
+        Line::from(first),
+        Line::from(Span::styled(
+            format!("{indent}{}", YET.trim_start_matches(" · ")),
+            quiet,
+        )),
+    ]
 }
 
 /// The first enum field the project marked as a column — `priority`, usually.
@@ -1266,7 +1322,7 @@ fn card_line(app: &App, item: &Item, t: &Theme, width: usize) -> ListItem<'stati
         Span::raw(" "),
         Span::styled(reference, Style::default().fg(t.faint)),
         Span::raw(" "),
-        Span::styled(title, Style::default().fg(t.text)),
+        Span::styled(title, provisional(item, Style::default().fg(t.text))),
         Span::raw(" ".repeat(pad)),
     ];
     if !rank.is_empty() {
@@ -1726,6 +1782,9 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
     // a distinction that only appears when they differ — and with a program
     // working and a person answerable, they do.
     lines.push(Line::from(state));
+    for line in filed_elsewhere(item, t, "  ", width) {
+        lines.push(line);
+    }
     // On its own line rather than crowding the state, which is already four
     // facts wide and would simply truncate this one away.
     if let Some(owner) = item
@@ -3497,6 +3556,7 @@ fn reader_masthead(app: &App, item: &Item, t: &Theme, width: usize) -> Vec<Line<
         ));
     }
     lines.push(Line::from(standing));
+    lines.extend(filed_elsewhere(item, t, "", width));
 
     // The rank the project ranks by, then the rest of the columns it chose.
     // Nothing here is named in this file: a project that ranks by `severity`

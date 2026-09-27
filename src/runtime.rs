@@ -150,6 +150,7 @@ fn emit(tx: &SyncSender<Msg>, msg: Msg) -> bool {
 /// `r` will pick up regardless. What other worktrees are doing is the
 /// exception, because a claim there changes no file here: without it, the
 /// watcher would wake for the claim and the reading would be thrown away.
+/// That goes for what they have filed as much as what they have changed.
 type Fingerprint = (usize, Option<SystemTime>, u64);
 
 fn fingerprint(report: &Report) -> Fingerprint {
@@ -158,6 +159,10 @@ fn fingerprint(report: &Report) -> Fingerprint {
     for item in report.items.iter().filter(|i| !i.elsewhere.is_empty()) {
         item.id.hash(&mut elsewhere);
         item.elsewhere.hash(&mut elsewhere);
+    }
+    for item in &report.filed {
+        (item.id, &item.filed_on, &item.status, &item.assignee).hash(&mut elsewhere);
+        (&item.title, &item.body).hash(&mut elsewhere);
     }
     (report.items.len(), report.stamp, elsewhere.finish())
 }
