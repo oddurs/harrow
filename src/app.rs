@@ -3291,7 +3291,9 @@ impl App {
                 Category::Active => out.active += 1,
                 Category::Open => out.open += 1,
             }
-            if child.blocked {
+            // Finished work depending on something unfinished is finished,
+            // not blocked. Cairn's summaries count it the same way.
+            if child.blocked && !self.schema.category(&child.status).is_closed() {
                 out.blocked += 1;
             }
         }
@@ -5434,5 +5436,37 @@ mod date_tests {
         for bad in ["", "today", "2026", "2026-13-01", "2026-01-99", "x-y-z"] {
             assert_eq!(days_from_iso(bad), None, "accepted {bad:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod rollup_tests {
+    use crate::engine::Source;
+    use crate::testkit::FORMAT_2_TOML;
+    use std::path::PathBuf;
+
+    #[test]
+    fn finished_work_is_not_counted_as_blocked_beneath_a_container() {
+        let schema = crate::schema::Schema::parse(FORMAT_2_TOML, PathBuf::from("/tmp/rollup"))
+            .expect("the fixture parses");
+        let items = [
+            ("0001-m.md", "---\nid: 1\nkey: v0.1\ntitle: M\ntype: milestone\nstatus: backlog\n---\n"),
+            ("0002-a.md", "---\nid: 2\ntitle: A\ntype: feature\nstatus: backlog\nmilestone: v0.1\n---\n"),
+            ("0003-b.md", "---\nid: 3\ntitle: B\ntype: feature\nstatus: done\nmilestone: v0.1\ndepends_on: [2]\n---\n"),
+            ("0004-c.md", "---\nid: 4\ntitle: C\ntype: feature\nstatus: backlog\nmilestone: v0.1\ndepends_on: [2]\n---\n"),
+        ]
+        .iter()
+        .map(|(name, body)| {
+            crate::item::parse(body, &PathBuf::from("items").join(name)).expect("an item parses")
+        })
+        .collect();
+        let mut source = crate::engine::Static { schema, items };
+        let mut app = crate::app::App::new();
+        app.ingest(source.load().expect("the fixture loads"));
+        let milestone = app.items.iter().find(|i| i.id == 1).expect("the milestone");
+        let rollup = app.rollup(milestone);
+        assert_eq!(rollup.done, 1);
+        assert_eq!(rollup.open, 2);
+        assert_eq!(rollup.blocked, 1, "C is blocked; B is finished");
     }
 }
