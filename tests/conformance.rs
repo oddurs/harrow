@@ -76,7 +76,9 @@ fn every_item_in_cairns_corpus_reads_the_way_cairn_says_it_does() {
             .and_then(|n| n.to_str())
             .and_then(|n| n.strip_prefix("format-"))
             .and_then(|n| n.parse::<u32>().ok())
-            .unwrap_or(4);
+            // The top of the corpus is the format cairn writes now; each
+            // older one is frozen in a `format-N` directory of its own.
+            .unwrap_or(harrow::schema::KNOWN_FORMAT);
         let schema = harrow::schema::Schema::parse(
             &format!("format = {format}\n[project]\nname = \"corpus\"\n"),
             root.clone(),
@@ -89,6 +91,11 @@ fn every_item_in_cairns_corpus_reads_the_way_cairn_says_it_does() {
             serde_json::to_value(got.id).unwrap(),
             want["id"],
             "{name}: id"
+        );
+        assert_eq!(
+            got.uid.map(|u| u.to_string()).as_deref(),
+            expected(&want, "uid").and_then(text),
+            "{name}: uid"
         );
         assert_eq!(
             Some(got.title.as_str()),
