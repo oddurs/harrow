@@ -72,6 +72,22 @@ pub struct Proposal {
     pub why: String,
 }
 
+/// This item as another worktree of the repository has it, where that
+/// worktree has changed it since the two diverged.
+///
+/// Beside the record rather than in it: the status here is still the one
+/// cairn in this checkout reads, filters on and writes to. This says where
+/// the work actually is.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Elsewhere {
+    pub branch: String,
+    pub status: String,
+    pub category: Category,
+    pub assignee: Option<String>,
+    /// That copy's newest note, where this copy does not have it.
+    pub latest: Option<(String, String)>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Item {
     pub id: Id,
@@ -129,6 +145,9 @@ pub struct Item {
     /// work belongs to rather than a piece of work. Kept on the item because
     /// every listing has to ask.
     pub container: bool,
+    /// Other worktrees that have changed this item, in the order git lists
+    /// them.
+    pub elsewhere: Vec<Elsewhere>,
 }
 
 impl Item {
@@ -173,6 +192,21 @@ impl Item {
             return None;
         }
         Some(self.scheduled_done * 100 / self.scheduled)
+    }
+
+    /// The first other worktree where this is under way, if one is.
+    pub fn active_elsewhere(&self) -> Option<&Elsewhere> {
+        self.elsewhere
+            .iter()
+            .find(|e| e.category == Category::Active)
+    }
+
+    /// Who has it: the record's assignee, or whoever took it in the worktree
+    /// where it is under way.
+    pub fn holder(&self) -> Option<&str> {
+        self.assignee
+            .as_deref()
+            .or_else(|| self.active_elsewhere()?.assignee.as_deref())
     }
 
     /// Checkbox lines in the body — cairn's acceptance criteria.
