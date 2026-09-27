@@ -1,11 +1,11 @@
 ---
-id: 55
+id: 565a425b-fce0-47b8-a401-9a9106ddac8f
 key: v0.4
 title: One backlog, three lenses
 type: milestone
 status: done
 depends_on:
-- 25
+- 430910a7-8a14-4807-8c3a-59e959cc650e
 created: 2026-09-12
 updated: 2026-09-23
 closed_at: 2026-09-23

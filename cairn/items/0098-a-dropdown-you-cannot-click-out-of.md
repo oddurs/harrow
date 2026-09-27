@@ -1,5 +1,5 @@
 ---
-id: 98
+id: 9a34d78d-0f42-4ca0-9800-cb7329ee97a8
 title: A dropdown you cannot click out of
 type: bug
 status: done

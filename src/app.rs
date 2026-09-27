@@ -1140,12 +1140,25 @@ impl App {
                         || before.updated != item.updated
                         || before.closed_at != item.closed_at
                         || before.assignee != item.assignee
+                        || before.elsewhere != item.elsewhere
                 }
             };
             if changed {
                 self.changed.insert(item.id, now);
                 if before.is_none_or(|b| b.status != item.status) {
                     moved.push((item.id, item.status.clone()));
+                }
+                // Somebody picking work up in their own worktree is the news
+                // this checkout would otherwise never hear.
+                for there in &item.elsewhere {
+                    let known = before.is_some_and(|b| {
+                        b.elsewhere
+                            .iter()
+                            .any(|e| e.branch == there.branch && e.status == there.status)
+                    });
+                    if !known {
+                        moved.push((item.id, format!("{} · {}", there.status, there.branch)));
+                    }
                 }
             }
         }

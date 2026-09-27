@@ -1,11 +1,11 @@
 ---
-id: 86
+id: fc3e5f20-ce92-469e-b88d-19107f7361de
 title: h and l mean what the arrows mean
 type: bug
 status: done
 milestone: v0.6
 depends_on:
-- 85
+- d8989454-a86d-4e9a-b70d-11b9fc572f67
 created: 2026-09-18
 updated: 2026-09-18
 priority: p2

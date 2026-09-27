@@ -1,5 +1,5 @@
 ---
-id: 54
+id: f49359fc-30f1-4e7a-bc1e-ebfc7618484e
 title: The derived theme paints chrome in the warning colour
 type: bug
 status: done
