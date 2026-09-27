@@ -213,9 +213,23 @@ pub fn is_item_file(path: &Path) -> bool {
 /// row here to carry it.
 pub fn sight(items: &mut [Item], schema: &Schema, others: &[crate::worktree::Other]) {
     let at: HashMap<Id, usize> = items.iter().enumerate().map(|(n, i)| (i.id, n)).collect();
+    // By tag first, where both copies carry one: a merge that renumbered the
+    // item on one side leaves the numbers different and the tag the same.
+    let tagged: HashMap<uuid::Uuid, usize> = items
+        .iter()
+        .enumerate()
+        .filter_map(|(n, i)| Some((i.uid?, n)))
+        .collect();
     for other in others {
         for theirs in &other.copies {
-            let Some(ours) = at.get(&theirs.id).map(|n| &mut items[*n]) else {
+            let found = match theirs.uid {
+                Some(uid) if tagged.contains_key(&uid) => tagged.get(&uid),
+                // The same number on a differently tagged item is a different
+                // item that collided with this one, not a copy of it.
+                Some(_) => at.get(&theirs.id).filter(|n| items[**n].uid.is_none()),
+                None => at.get(&theirs.id),
+            };
+            let Some(ours) = found.map(|n| &mut items[*n]) else {
                 continue;
             };
             if theirs.status == ours.status
@@ -252,7 +266,7 @@ fn name_of(path: &Path) -> String {
 /// what is blocked by what, and how much of each larger piece of work is done.
 pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
     items.sort_by_key(|i| i.id);
-    schema.remember_ids(items.iter().map(|i| i.id));
+    schema.remember(items);
 
     let section = schema.criteria_section.as_deref();
     for item in items.iter_mut() {
@@ -272,9 +286,25 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
     for id in duplicates {
         warnings.push(if id.is_uuid() {
             format!("id {id} is used by more than one item — reconcile the duplicate copies; immutable IDs must not be renumbered")
+        } else if schema.format >= 5 {
+            // Two branches that each took the next number: the collision a
+            // numbered format expects, and the one `renumber` exists for.
+            format!("id {id} is used by more than one item — `cairn renumber` repairs the collision")
         } else {
             format!("id {id} is used by more than one item — repair with the legacy Cairn version before migrating")
         });
+    }
+    // Two items carrying one tag are one item copied, not two that collided.
+    let mut tags: HashMap<uuid::Uuid, Id> = HashMap::new();
+    for i in items.iter() {
+        if let Some(uid) = i.uid
+            && let Some(first) = tags.insert(uid, i.id)
+        {
+            warnings.push(format!(
+                "uid {uid} is carried by {first} and {} — one is a copy of the other",
+                i.id
+            ));
+        }
     }
 
     let mut closed: HashSet<Id> = HashSet::new();
@@ -573,6 +603,86 @@ mod tests {
             .insert("part_of".into(), crate::item::Value::One("1".into()));
         let mut warnings = Vec::new();
         derive(&mut items, &schema, &mut warnings); // Hangs here if the guard regresses.
+    }
+
+    fn tagged(id: u32, uid: &str, status: &str) -> Item {
+        Item {
+            uid: Some(uid.parse().unwrap()),
+            ..testkit::item(id, "t", status)
+        }
+    }
+
+    fn elsewhere(copies: Vec<Item>) -> crate::worktree::Other {
+        crate::worktree::Other {
+            branch: "feature".into(),
+            items: std::path::PathBuf::from("/elsewhere/items"),
+            copies,
+        }
+    }
+
+    const U1: &str = "c7ac551e-b7f3-4da0-b7a1-94fd027ea098";
+    const U2: &str = "49543fc8-23b5-4987-acd9-4a1c680693e3";
+
+    #[test]
+    fn a_copy_renumbered_on_another_branch_is_matched_by_its_tag() {
+        let schema = testkit::schema();
+        let mut items = vec![tagged(1, U1, "backlog")];
+        sight(
+            &mut items,
+            &schema,
+            &[elsewhere(vec![tagged(7, U1, "doing")])],
+        );
+        assert_eq!(items[0].elsewhere.len(), 1);
+        assert_eq!(items[0].elsewhere[0].status, "doing");
+    }
+
+    #[test]
+    fn the_same_number_on_a_different_tag_is_a_collision_not_a_copy() {
+        let schema = testkit::schema();
+        let mut items = vec![tagged(1, U1, "backlog")];
+        sight(
+            &mut items,
+            &schema,
+            &[elsewhere(vec![tagged(1, U2, "doing")])],
+        );
+        assert!(items[0].elsewhere.is_empty());
+    }
+
+    #[test]
+    fn a_numbered_collision_in_format_5_names_renumber() {
+        let schema = crate::schema::Schema::parse(
+            "format = 5\n[project]\nname = \"p\"\n",
+            std::path::PathBuf::from("/tmp/p"),
+        )
+        .unwrap();
+        let mut items = vec![
+            testkit::item(1, "a", "backlog"),
+            testkit::item(1, "b", "backlog"),
+        ];
+        let mut warnings = Vec::new();
+        derive(&mut items, &schema, &mut warnings);
+        assert!(
+            warnings.iter().any(|w| w.contains("cairn renumber")),
+            "{warnings:?}"
+        );
+    }
+
+    #[test]
+    fn one_tag_on_two_items_is_reported_as_a_copy() {
+        let schema = testkit::schema();
+        let uid: uuid::Uuid = "c7ac551e-b7f3-4da0-b7a1-94fd027ea098".parse().unwrap();
+        let mut items = vec![
+            testkit::item(1, "a", "backlog"),
+            testkit::item(2, "b", "backlog"),
+        ];
+        items[0].uid = Some(uid);
+        items[1].uid = Some(uid);
+        let mut warnings = Vec::new();
+        derive(&mut items, &schema, &mut warnings);
+        assert!(
+            warnings.iter().any(|w| w.contains("one is a copy")),
+            "{warnings:?}"
+        );
     }
 
     #[test]

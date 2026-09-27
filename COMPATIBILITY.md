@@ -5,12 +5,21 @@ and supplies the human interface. Neither needs a shared runtime library or a
 Cairn process on each read.
 
 Harrow **0.2.0-alpha.1** is paired with Cairn **1.0.0-alpha.1**, revision
-`8cf3747fea4ae24a18b2c3f1805ba633cd11dccf`. These are development versions, not
-a stable 1.0 promise. The 49-case corpus covers formats 1–4, including frozen
-older corpora. Upgrade both tools before migrating: released Cairn 0.3.0 and
-Harrow 0.1.0 do not understand format 4.
+`c5435a74a39b1383d703e0c8da85ab811fffb5ab`, the format-5 development line. These are development
+versions, not a stable 1.0 promise. The 63-case corpus covers formats 1–5,
+including frozen older corpora. Upgrade both tools before migrating: released
+Cairn 0.3.0 and Harrow 0.1.0 do not understand format 4 or 5.
 
-Format 4 stores immutable UUIDv4 identities. Screens use unambiguous short
+Format 5 stores a number under `id`, as formats 1–3 did, and a UUIDv4 `uid`
+tag that never changes. A type may declare its own rendering, and a type's
+prefix must name an item of that type: `BUG-13` for a feature is refused, as
+Cairn refuses it. A full tag, or a prefix of at least eight hex digits with a
+letter in it, finds its item; all-digit text is always a number. Worktree
+copies are matched by tag where both carry one, so an item renumbered on
+another branch is still recognised, and the same number on a differently
+tagged item is a collision rather than a copy.
+
+Format 4 stored immutable UUIDv4 identities. Screens use unambiguous short
 prefixes; writes, undo, history requests, clipboard copies and every `--plain`
 lens carry full identities. `_legacy-ids.toml` preserves the frozen aliases from
 a migration. Harrow reads this file directly and never allocates or rewrites

@@ -195,7 +195,10 @@ fn legacy_aliases_and_activity_paths_bridge_migration() {
     )
     .unwrap();
     let schema = Schema::load(&dir.path().join("cairn.toml")).unwrap();
-    schema.remember_ids([A.parse::<Id>().unwrap()]);
+    schema.remember(&[harrow::item::Item {
+        id: A.parse::<Id>().unwrap(),
+        ..Default::default()
+    }]);
     for alias in ["42", "#42", "MP-42", "mp-42"] {
         assert_eq!(schema.parse_id(alias).unwrap().to_string(), A);
     }

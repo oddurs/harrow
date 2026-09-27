@@ -28,7 +28,7 @@ use crate::diag;
 /// The on-disk format harrow knows how to read. A project written in a later
 /// one still opens — every key harrow does not know is skipped — but it says so,
 /// because a silently half-read backlog is worse than a warning.
-pub const KNOWN_FORMAT: u32 = 4;
+pub const KNOWN_FORMAT: u32 = 5;
 
 /// What a project allows a tool to do with a field or a status.
 ///
@@ -142,6 +142,10 @@ pub struct ItemType {
     pub description: Option<String>,
     /// Set when this type groups work rather than being some of it.
     pub groups: Option<Groups>,
+    /// How an item of this type renders its number, from format 5: a bug
+    /// reads `BUG-12` beside a feature's `0013`. Every type draws on one
+    /// sequence, so the number alone is still unique.
+    pub id_format: Option<IdFormat>,
 }
 
 impl ItemType {
@@ -266,6 +270,23 @@ impl IdFormat {
             .unwrap_or(&s);
         bare.parse().ok()
     }
+
+    /// Only the rendered spelling, prefix and suffix present. A type's
+    /// template is recognised by what surrounds the number; without that it is
+    /// the project's rendering, or a bare number, and says nothing about type.
+    pub fn parse_prefixed(&self, text: &str) -> Option<u32> {
+        if self.prefix.is_empty() && self.suffix.is_empty() {
+            return None;
+        }
+        let s = text.to_ascii_lowercase();
+        let digits = s
+            .strip_prefix(self.prefix.to_ascii_lowercase().as_str())?
+            .strip_suffix(self.suffix.to_ascii_lowercase().as_str())?;
+        if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        digits.parse().ok()
+    }
 }
 
 /// How a reference names what it points at.
@@ -328,6 +349,10 @@ pub struct View {
 #[derive(Clone, Debug, Default)]
 struct IdentityIndex {
     ids: BTreeSet<Id>,
+    /// Each item's type, so a number renders the way its type says.
+    kinds: BTreeMap<Id, String>,
+    /// Each item's tag, so a tag or a format-4 reference finds its number.
+    uids: BTreeMap<uuid::Uuid, Id>,
     legacy: Option<LegacyMap>,
 }
 
@@ -493,13 +518,23 @@ impl Schema {
         let types: Vec<ItemType> = file
             .r#type
             .into_iter()
-            .map(|t| ItemType {
-                name: t.name,
-                label: t.label,
-                icon: t.icon,
-                color: t.color,
-                description: t.description,
-                groups: t.groups,
+            .map(|t| {
+                // Unusable is a warning, and the project's rendering is used:
+                // a type whose ids are spelled oddly should still open.
+                let id_format = t.id_format.as_deref().and_then(|template| {
+                    IdFormat::compile(template)
+                        .map_err(|why| diag::warn("schema", format!("type `{}`: {why}", t.name)))
+                        .ok()
+                });
+                ItemType {
+                    name: t.name,
+                    label: t.label,
+                    icon: t.icon,
+                    color: t.color,
+                    description: t.description,
+                    groups: t.groups,
+                    id_format,
+                }
             })
             .collect();
 
@@ -676,8 +711,11 @@ impl Schema {
     pub fn format_id(&self, id: impl Into<Id>) -> String {
         let id = id.into();
         let Id::Uuid(_) = id else {
-            let Id::Legacy(n) = id else { unreachable!() };
-            return self.id_format.render(n);
+            let Id::Num(n) = id else { unreachable!() };
+            let index = self.identities.borrow();
+            return self
+                .id_format_for(index.kinds.get(&id).map(String::as_str))
+                .render(n);
         };
         let compact = id.compact();
         let index = self.identities.borrow();
@@ -699,14 +737,26 @@ impl Schema {
         id.to_string()
     }
 
-    pub fn remember_ids(&self, ids: impl IntoIterator<Item = Id>) {
-        self.identities.borrow_mut().ids = ids.into_iter().collect();
+    /// What identifiers have to be resolved against: every id, the type
+    /// that says how each renders, and every tag.
+    pub fn remember(&self, items: &[crate::item::Item]) {
+        let mut index = self.identities.borrow_mut();
+        index.ids = items.iter().map(|i| i.id).collect();
+        index.kinds = items.iter().map(|i| (i.id, i.kind.clone())).collect();
+        index.uids = items.iter().filter_map(|i| Some((i.uid?, i.id))).collect();
+    }
+
+    /// The rendering for items of a type: its own template, or the project's.
+    pub fn id_format_for(&self, kind: Option<&str>) -> &IdFormat {
+        kind.and_then(|k| self.item_type(k))
+            .and_then(|t| t.id_format.as_ref())
+            .unwrap_or(&self.id_format)
     }
 
     /// Git activity names paths, including the filenames retained by migration.
     pub fn id_from_path(&self, path: &Path) -> Option<Id> {
         if let Some(id) = crate::item::id_from_path(path) {
-            if id.is_uuid() || self.format < 4 {
+            if id.is_uuid() || self.format != 4 {
                 return Some(id);
             }
             return self
@@ -728,12 +778,8 @@ impl Schema {
     }
 
     pub fn parse_id(&self, raw: &str) -> Result<Id, String> {
-        if self.format < 4 {
-            return self
-                .id_format
-                .parse(raw)
-                .map(Id::Legacy)
-                .ok_or_else(|| format!("invalid item id: {raw}"));
+        if self.format != 4 {
+            return self.parse_number(raw);
         }
         let raw = raw.trim().trim_start_matches('#').trim();
         if let Ok(id @ Id::Uuid(_)) = raw.parse::<Id>() {
@@ -761,6 +807,65 @@ impl Schema {
             )),
             _ => Err(format!(
                 "ambiguous item id {raw}; use a longer prefix or full UUID"
+            )),
+        }
+    }
+
+    /// An identifier in a numbered format, the way Cairn reads one: all
+    /// digits is always a number; a type's rendering must name an item of
+    /// that type, so `BUG-42` for a feature is refused rather than quietly
+    /// meaning it; then the project's rendering; then a tag, whole or as a
+    /// prefix of at least eight hex digits with a letter in it.
+    fn parse_number(&self, raw: &str) -> Result<Id, String> {
+        let bare = raw.trim().trim_start_matches('#').trim();
+        if !bare.is_empty() && bare.bytes().all(|b| b.is_ascii_digit()) {
+            return bare
+                .parse()
+                .map(Id::Num)
+                .map_err(|_| format!("invalid item id: {raw}"));
+        }
+        let index = self.identities.borrow();
+        for t in &self.types {
+            let Some(format) = &t.id_format else { continue };
+            let Some(n) = format.parse_prefixed(bare) else {
+                continue;
+            };
+            let id = Id::Num(n);
+            if let Some(actual) = index
+                .kinds
+                .get(&id)
+                .filter(|actual| !actual.eq_ignore_ascii_case(&t.name))
+            {
+                return Err(format!(
+                    "`{raw}` names a {}, but {n} is a {actual} — {}",
+                    t.name,
+                    self.id_format_for(Some(actual)).render(n)
+                ));
+            }
+            return Ok(id);
+        }
+        if let Some(n) = self.id_format.parse(bare) {
+            return Ok(Id::Num(n));
+        }
+        let found: Vec<Id> = if let Ok(uid) = crate::identity::parse_uid(bare) {
+            index.uids.get(&uid).copied().into_iter().collect()
+        } else if crate::identity::is_uid_prefix(bare) {
+            let prefix = bare.to_ascii_lowercase();
+            index
+                .uids
+                .iter()
+                .filter(|(uid, _)| uid.simple().to_string().starts_with(&prefix))
+                .map(|(_, id)| *id)
+                .collect()
+        } else {
+            return Err(format!("invalid item id: {raw}"));
+        };
+        match found.as_slice() {
+            [id] => Ok(*id),
+            [] => Err(format!("`{raw}` is not the tag of any item")),
+            _ => Err(format!(
+                "`{raw}` is the start of {} items' tags; use more of it",
+                found.len()
             )),
         }
     }
@@ -882,6 +987,7 @@ struct TypeFile {
     color: Option<String>,
     description: Option<String>,
     groups: Option<Groups>,
+    id_format: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1375,5 +1481,88 @@ filter = "category=active"
             "a subdirectory of a project is in the project"
         );
         assert_eq!(Schema::find(Path::new("/")), None);
+    }
+
+    const U1: &str = "c7ac551e-b7f3-4da0-b7a1-94fd027ea098";
+    const U2: &str = "49543fc8-23b5-4987-acd9-4a1c680693e3";
+
+    fn format_5() -> Schema {
+        let schema = Schema::parse(
+            "format = 5\n[project]\nname = \"p\"\nid_format = \"{n:04}\"\n\
+             [[type]]\nname = \"feature\"\n\
+             [[type]]\nname = \"bug\"\nid_format = \"BUG-{n}\"\n",
+            PathBuf::from("/tmp/p"),
+        )
+        .unwrap();
+        let item = |id: u32, kind: &str, uid: &str| crate::item::Item {
+            id: Id::Num(id),
+            kind: kind.into(),
+            uid: Some(uid.parse().unwrap()),
+            ..Default::default()
+        };
+        schema.remember(&[item(12, "bug", U1), item(13, "feature", U2)]);
+        schema
+    }
+
+    #[test]
+    fn a_format_5_number_renders_the_way_its_type_says() {
+        let schema = format_5();
+        assert_eq!(schema.format_id(Id::Num(12)), "BUG-12");
+        assert_eq!(schema.format_id(Id::Num(13)), "0013");
+        assert_eq!(
+            schema.format_id(Id::Num(99)),
+            "0099",
+            "unknown: the project's"
+        );
+    }
+
+    #[test]
+    fn a_format_5_id_reads_in_every_spelling_cairn_accepts() {
+        let schema = format_5();
+        let compact = U1.replace('-', "");
+        for raw in [
+            "12", "#12", "0012", "BUG-12", "bug-12", U1, &compact, "c7ac551e",
+        ] {
+            assert_eq!(schema.parse_id(raw), Ok(Id::Num(12)), "{raw}");
+        }
+        assert_eq!(schema.parse_id("13"), Ok(Id::Num(13)));
+        assert_eq!(
+            schema.parse_id("12345678"),
+            Ok(Id::Num(12_345_678)),
+            "all digits is a number, never a tag"
+        );
+    }
+
+    #[test]
+    fn a_format_5_id_that_cannot_name_one_item_is_refused() {
+        let schema = format_5();
+        let wrong = schema.parse_id("BUG-13").unwrap_err();
+        assert!(wrong.contains("is a feature"), "{wrong}");
+        assert!(schema.parse_id("deadbeef").is_err(), "no such tag");
+        assert!(schema.parse_id("nonsense").is_err());
+
+        let crowded = format_5();
+        let item = |id: u32, uid: &str| crate::item::Item {
+            id: Id::Num(id),
+            kind: "feature".into(),
+            uid: Some(uid.parse().unwrap()),
+            ..Default::default()
+        };
+        crowded.remember(&[item(1, U1), item(2, "c7ac551e-0000-4000-8000-000000000000")]);
+        let ambiguous = crowded.parse_id("c7ac551e").unwrap_err();
+        assert!(ambiguous.contains("2 items"), "{ambiguous}");
+    }
+
+    #[test]
+    fn a_format_5_filename_gives_its_number_back_in_any_rendering() {
+        let schema = format_5();
+        assert_eq!(
+            schema.id_from_path(Path::new("BUG-12-fix-it.md")),
+            Some(Id::Num(12))
+        );
+        assert_eq!(
+            schema.id_from_path(Path::new("0013-add-it.md")),
+            Some(Id::Num(13))
+        );
     }
 }

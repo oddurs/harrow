@@ -300,9 +300,11 @@ fn a_field_neither_tool_declares_is_refused_here() {
     assert!(cairn_ids(dir.path(), "nonsense=x").is_empty());
 }
 
+/// The fixture is format 3; `cairn migrate` takes it to the format the
+/// pinned Cairn writes — numbers kept, a `uid` tag added to every item.
 #[test]
-#[ignore = "needs format-4 Cairn on PATH"]
-fn migrated_aliases_and_native_uuid_queries_agree() {
+#[ignore = "needs Cairn on PATH"]
+fn migrated_numbers_renderings_and_tags_agree() {
     let dir = testkit::project();
     // The ordinary reader fixture intentionally has a dangling dependency.
     // Supply its target before asking the writer to validate a migration.
@@ -330,11 +332,21 @@ fn migrated_aliases_and_native_uuid_queries_agree() {
     }
     let mut project = Project::discover(dir.path()).unwrap();
     let report = project.load().unwrap();
+    assert_eq!(report.schema.format, harrow::schema::KNOWN_FORMAT);
     for item in &report.items {
-        let full = item.id.to_string();
-        let short = report.schema.format_id(item.id);
+        let uid = item.uid.expect("migration tags every item");
+        let mut spellings = vec![
+            item.id.to_string(),
+            report.schema.format_id(item.id),
+            uid.to_string(),
+        ];
+        // A tag prefix needs a letter in it, or it is a number.
+        let prefix = uid.simple().to_string()[..8].to_string();
+        if harrow::identity::is_uid_prefix(&prefix) {
+            spellings.push(prefix);
+        }
         for field in ["id", "depends_on", "part_of", "contains", "blockers"] {
-            for value in [&full, &short] {
+            for value in &spellings {
                 let filter = format!("{field}={value}");
                 assert_eq!(
                     cairn_ids(dir.path(), &filter),

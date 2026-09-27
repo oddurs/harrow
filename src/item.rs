@@ -91,6 +91,9 @@ pub struct Elsewhere {
 #[derive(Clone, Debug, Default)]
 pub struct Item {
     pub id: Id,
+    /// The item's tag, from format 5: what still names it after a merge
+    /// renumbers it. Absent from items no tool has tagged.
+    pub uid: Option<uuid::Uuid>,
     pub key: Option<String>,
     pub title: String,
     pub kind: String,
@@ -271,6 +274,9 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
                     .map_err(|e| format!("id {:?}: {e}", value.as_str()))?;
                 has_id = true;
             }
+            // A tag that is not a UUIDv4 is refused rather than dropped: two
+            // items that could be one would otherwise read as unrelated.
+            "uid" => item.uid = Some(crate::identity::parse_uid(value.as_str())?),
             "title" => item.title = value.as_str().to_string(),
             "type" => item.kind = value.as_str().to_string(),
             "status" => item.status = value.as_str().to_string(),
@@ -319,9 +325,13 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
 
 /// Project-aware validation keeps a partial or malformed format-4 identity
 /// from quietly disappearing from a dependency or changing the selected item.
+///
+/// Only format 4 stores UUIDs. Every other format numbers, and a UUID left in
+/// a format-5 file — work filed on a branch before its migration — still
+/// reads, as that identity, until `cairn renumber` gives it a number.
 pub fn parse_for_schema(text: &str, path: &Path, schema: &Schema) -> Result<Item, String> {
     let mut item = parse(text, path)?;
-    if schema.format < 4 {
+    if schema.format != 4 {
         return Ok(item);
     }
     let (front, _) = split(text).ok_or("no YAML frontmatter")?;

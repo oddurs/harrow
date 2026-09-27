@@ -5,11 +5,13 @@
 
 Work a [cairn](https://oddurs.github.io/cairn) backlog from the terminal.
 
-This development line, **0.2.0-alpha.1**, reads Cairn formats 1–4.
-Format 4 uses immutable UUIDs: screens show unambiguous short references,
-while writes, undo, clipboard copies, and `--plain` retain the full identity.
-Upgrade Harrow before running `cairn migrate` on a live backlog.
-Published 0.1.0 binaries do not support format 4.
+This development line, **0.2.0-alpha.1**, reads Cairn formats 1–5.
+Format 5 numbers items again, in each type's own rendering (`BUG-12` beside
+`0013`), and tags each with a hidden `uid`; a tag or its first eight hex digits
+still finds the item. Format 4 used immutable UUIDs: screens show unambiguous
+short references, while writes, undo, clipboard copies, and `--plain` retain
+the full identity. Upgrade Harrow before running `cairn migrate` on a live
+backlog. Published 0.1.0 binaries do not support format 4 or 5.
 
 `cairn` keeps a project's roadmap and issues as Markdown files in the
 repository, under a schema the project defines. Reading them one at a time is
