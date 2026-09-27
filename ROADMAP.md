@@ -187,11 +187,7 @@ Good ideas without a date yet.
 
 ## Unscheduled
 
-`#########·` 83% · 5 of 6 done
-
-### in progress
-
-- [ ] `0115` Migrate Harrow's own backlog to format 5 <sup>chore · p1 · read</sup>
+`##########` 100% · 6 of 6 done
 
 ### done
 
@@ -200,4 +196,5 @@ Good ideas without a date yet.
 - [x] `0112` Pin the merged format-5 Cairn <sup>chore · p1 · read</sup>
 - [x] `0113` Read Cairn format 5: numbers, tags and type renderings <sup>feature · p0 · read</sup>
 - [x] `0114` Advance the Cairn pin to worktree-aware claims <sup>chore · p1 · read</sup>
+- [x] `0115` Migrate Harrow's own backlog to format 5 <sup>chore · p1 · read</sup>
 

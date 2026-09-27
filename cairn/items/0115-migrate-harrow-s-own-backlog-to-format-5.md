@@ -3,11 +3,11 @@ id: 115
 uid: d520e93a-1235-4ac2-97e4-0ed3b75f5253
 title: Migrate Harrow's own backlog to format 5
 type: chore
-status: doing
+status: done
 assignee: Oddur Sigurdsson
-claimed: 2026-09-27
 created: 2026-09-27
 updated: 2026-09-27
+closed_at: 2026-09-27
 priority: p1
 area: read
 effort: s
@@ -33,6 +33,10 @@ and every non-identity value are unchanged before it writes anything.
 
 ## Done when
 
-- [ ] The backlog is format 5 in one migration commit, verified by migrate
-- [ ] Harrow reads it: `harrow --doctor` and `scripts/task check` pass
-- [ ] `cairn check --render --strict` passes with a format-5 cairn
+- [x] The backlog is format 5 in one migration commit, verified by migrate
+- [x] Harrow reads it: `harrow --doctor` and `scripts/task check` pass
+- [x] `cairn check --render --strict` passes with a format-5 cairn
+
+## 2026-09-27
+
+Migrated with cairn 5caf5c6 (migrate --commit, 149dc1e): 115 items, 110 numbers restored from the map, 5 numbered 111-115, 34 references follow their items; migrate verified bodies and every non-identity value before writing. cairn check --render --strict ok; harrow --doctor with a format-5 cairn agrees on 115 items; scripts/task check 558 passed. The installed cairn stays format 4 until rim and nun migrate, so writing this backlog needs a format-5 build meanwhile.
