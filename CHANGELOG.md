@@ -11,7 +11,28 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ## [Unreleased]
 
+### Added
+
+- Results and prompts, with cairn's own. A finished item's `## Result` comes
+  first in the detail pane and the reader, and **Builds on** says what each
+  finished dependency concluded. `x` asks what an item concluded and records it
+  with `cairn close --result`. `P` shows an item as the prompt `cairn prompt`
+  compiles, and `y` copies it whole. `:split` turns an item's numbered steps into
+  items of their own after showing each. `C` shows `cairn check --prompts`
+  findings under their own heading. A command the installed cairn lacks is not
+  offered. See the README's *Results and prompts*.
+- `[` and `]` pick a link in the detail pane, and `enter` follows it: every link
+  can be reached without the mouse.
+- `harrow man` lists every key and every command, generated from the bindings.
+
 ### Fixed
+
+- A write to cairn is no longer killed after eight seconds, which could leave
+  cairn's lock behind and fail every writer after it for minutes. Writes run in
+  the background, one at a time, are said to be still going while they wait
+  their turn, and are stopped only past cairn's own age for an abandoned lock.
+- The diagnostics overlay shows what `cairn check` found, not only its summary.
+- The reader no longer clips the last word of a long line.
 
 - Completion dates now read, display, sort and filter as `closed_at`; a later
   edit no longer moves a recorded completion in statistics.

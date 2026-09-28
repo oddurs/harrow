@@ -476,6 +476,35 @@ pub fn man(version: &str) -> String {
         ));
     }
 
+    // From the default bindings, as the help overlay is: a key written here
+    // by hand is a key that goes stale here first.
+    out.push_str(".SH KEYS\n");
+    let keymap = crate::keys::Keymap::default();
+    for section in keymap.help_sections() {
+        out.push_str(&format!(".SS {}\n", escape(section.title)));
+        for (keys, what) in section.rows {
+            out.push_str(&format!(
+                ".TP\n\\fB{}\\fR\n{}\n",
+                escape(&keys),
+                escape(what)
+            ));
+        }
+    }
+    // What has no key is still a command, reached from the palette by name.
+    out.push_str(".SS By name, from the palette (:)\n");
+    for command in crate::keys::Command::ALL {
+        if keymap.keys_for(command).is_empty() {
+            out.push_str(&format!(
+                ".TP\n\\fB{}\\fR\n{}\n",
+                escape(command.name()),
+                escape(command.describe())
+            ));
+        }
+    }
+    out.push_str(
+        ".PP\nA command the installed\n.B cairn\ncannot carry out is not offered: see COMPATIBILITY.md.\n",
+    );
+
     for line in [
         ".SH ENVIRONMENT",
         ".TP",

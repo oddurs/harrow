@@ -571,3 +571,29 @@ fn every_plain_lens_preserves_the_full_uuid() {
         );
     }
 }
+
+/// Every key and every command is in the man page, from the bindings: a key
+/// written into the page by hand is one that goes stale there first.
+#[test]
+fn the_man_page_lists_every_key_and_command_from_the_bindings() {
+    let page = harrow::cli::man("test");
+    let roff = |s: &str| s.replace('-', "\\-");
+    assert!(page.contains(".SH KEYS"), "no KEYS section");
+    let keymap = harrow::keys::Keymap::default();
+    for (keys, what) in keymap.help_rows() {
+        let row = format!(".TP\n\\fB{}\\fR\n{}\n", roff(&keys), roff(what));
+        assert!(
+            page.contains(&row),
+            "the help's row {keys:?} is not in the man page"
+        );
+    }
+    for command in harrow::keys::Command::ALL {
+        if keymap.keys_for(command).is_empty() {
+            assert!(
+                page.contains(&format!("\\fB{}\\fR", roff(command.name()))),
+                "`{}`, which has no key, is not in the man page",
+                command.name()
+            );
+        }
+    }
+}

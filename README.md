@@ -180,39 +180,45 @@ harrow --fix-terminal         # undo a terminal left in mouse-reporting mode
 
 | key | |
 |---|---|
-| `↑` `↓` / `j` `k` | move between items — the stats pane, on the stats |
-| `K` / `J` | scroll the detail pane |
-| `←` `→` | previous or next group — a column, on the board |
-| `space` | mark it for the next change — on a heading, fold |
+| `↑` `↓` / `j` `k` | move between items |
 | `g` / `G` | first / last |
+| `pgup` / `pgdn` | a screenful up or down |
+| `K` / `J` | scroll the detail pane |
+| `←` `→` / `h` `l` | previous or next group — a column, on the board |
 | `tab` / `shift-tab` | the next lens, or the one before it |
-| `v` | group by something else |
+| `1`…`5` | go straight to a lens |
+| `v` / `ctrl-v` | arrange it by something else / step to the next arrangement |
+| `S` / `ctrl-s` | order it by something else / type an order |
+| `V` | look at it the way the project does |
+| `a` | show everything — finished, dropped, and milestones |
+| `/` | filter, in cairn's own grammar |
+| `f` | open the filter panel |
+| `:` | every command, by name |
 | `enter` / `o` | read the item in full |
-| `e` | open it in your editor |
-| `N` | add a line to the item's body — why, what you tried |
+| `[` / `]` | pick a link in the detail pane; `enter` follows it |
 | `H` | how this item got the way it is |
-| `A` | accept the change somebody proposed |
-| `t` | tick an acceptance criterion that has come true |
-| `ctrl-p` | in a picker: ask for the change rather than make it |
+| `P` | the item as an agent's prompt; `y` copies it |
+| `y` / `Y` | copy the item's reference / this view as a command line |
+| `space` | mark it for the next change — on a heading, fold |
 | `c` / `C` | claim / hand back, with a reason if you have one |
 | `s` `p` `M` | set the status, the priority, the milestone |
-| `h` / `l` | move it back or forward through the statuses |
-| `x` | close, with a confirm |
+| `<` / `>` | move it back or forward through the statuses |
+| `t` | tick an acceptance criterion that has come true |
+| `A` | accept the change somebody proposed |
+| `ctrl-p` | in a picker: ask for the change rather than make it |
+| `N` | add a line to the item's body — why, what you tried |
+| `e` | open it in your editor |
+| `x` | close, with what it concluded |
 | `u` | reopen |
 | `n` | new item |
-| `y` | copy the item's reference |
-| `/` | filter, in cairn's own grammar |
-| `a` | include finished and dropped items |
-| `esc` | back out — clear the filter, close an overlay |
-| `r` | re-read the backlog now |
-| `ctrl-r` | reload the config and theme |
-| `D` | diagnostics — what failed, and why |
-| `ctrl-k` | run the project's own `cairn check` |
-| `m` | toggle mouse capture — off restores native text selection |
+| `esc` | back out — one press leaves whatever is open |
+| `r` / `ctrl-r` | re-read the backlog / reload the config and theme |
 | `?` | help |
 | `q` | quit |
 
-The help overlay is generated from your bindings, not from that table.
+`split`, `check`, `diagnostics`, `go-to-the-work` and `toggle-mouse` have no
+key: `:` finds them by name. The help overlay and `harrow man` are generated from your bindings, not from
+that table.
 
 ### Mouse
 
@@ -256,6 +262,32 @@ view in `cairn.toml` and names any it cannot evaluate.
 The [Cairn compatibility contract](COMPATIBILITY.md) records tested versions,
 the pinned corpus, and intentional query differences. Completion-date queries
 use `closed_at`, not `updated`: editing a finished item does not finish it again.
+
+## Results and prompts
+
+An item that is finished can say what it concluded: a `## Result` section,
+which `cairn close <ID> --result "…"` writes. It is the part of an item worth
+handing on, and cairn hands it on: `cairn prompt` quotes it to whatever depends
+on the item.
+
+harrow shows it where it matters. A finished item's Result comes first in the
+detail pane and the reader, above everything said about it since, and Body
+does not repeat it. An item's **Builds on** lists each finished dependency
+with its Result — or its last dated note, where it has none — in the order
+`cairn prompt` reads them, so the pane and the prompt say the same thing.
+
+| | what it does | needs |
+|---|---|---|
+| `x` | asks what the item concluded, and closes it with that as its Result; an empty answer closes it without one | `cairn close --result` |
+| `P` | shows the item as the prompt cairn compiles for an agent; `y` copies it whole | `cairn prompt` |
+| `:split` | turns the item's numbered steps into items of their own, after showing each one | `cairn split` |
+| `C` | runs the project's check, and shows which open items an agent will misread under **Prompts** | `cairn check --prompts` |
+
+Reading a Result needs no cairn at all: it is read from the file. Each command
+is asked of the installed cairn once, at startup, and one it lacks is not
+offered — no key, and nothing in the help or the palette. Without
+`close --result`, `x` asks only for a yes. [COMPATIBILITY.md](COMPATIBILITY.md)
+lists the first cairn that has each.
 
 ## Configuration
 
@@ -394,7 +426,12 @@ behaviour, which still works.
 
 ## Durability
 
-- Every subprocess has a deadline and is killed if it overruns.
+- Every read of cairn or git has a deadline and is killed if it overruns. A
+  write is not: cairn ends its own waits for its lock, and a cairn killed with
+  the lock in hand would stop every writer after it. A write runs in the
+  background, one at a time, with its output in files and in a process group of
+  its own, so the screen stays live and quitting waits for it; it is stopped
+  only past cairn's own age for an abandoned lock.
 - A failed read keeps the last good backlog on screen, marked stale, and backs
   off rather than hammering a directory that is not there.
 - One unreadable item file is reported in the diagnostics overlay; the rest
