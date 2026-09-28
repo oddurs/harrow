@@ -106,6 +106,10 @@ pub struct Icons {
     pub criteria: &'static str,
     pub branch: &'static str,
     pub said: &'static str,
+    /// What a finished item concluded: its Result.
+    pub concluded: &'static str,
+    /// Finished work this item rests on.
+    pub builds_on: &'static str,
     pub body: &'static str,
     pub fields: &'static str,
     /// The field a project ranks by, whatever it calls it.
@@ -155,6 +159,8 @@ const NO_ICONS: Icons = Icons {
     criteria: "",
     branch: "",
     said: "",
+    concluded: "",
+    builds_on: "",
     body: "",
     fields: "",
     rank: "",
@@ -270,6 +276,8 @@ pub const NERD: Glyphs = Glyphs {
         criteria: "\u{f45e}",   // oct-checklist
         branch: "\u{f418}",     // oct-git_branch
         said: "\u{f41f}",       // oct-comment
+        concluded: "\u{f400}",  // oct-light_bulb — what it came to
+        builds_on: "\u{f419}",  // oct-git_merge — finished work flowing in
         body: "\u{f4f6}",       // oct-note
         fields: "\u{f412}",     // oct-tag
         rank: "\u{f023b}",      // md-flag
@@ -414,6 +422,8 @@ impl Glyphs {
             i.criteria,
             i.branch,
             i.said,
+            i.concluded,
+            i.builds_on,
             i.body,
             i.fields,
             i.rank,

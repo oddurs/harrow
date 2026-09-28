@@ -3407,12 +3407,31 @@ impl App {
                 Action::Open(url)
             }
             Some(Target::Item(id)) => {
-                let shown = self.by_id.get(&id).is_some_and(|&i| {
-                    self.rows
-                        .iter()
-                        .any(|r| matches!(r, Row::Item(j) if *j == i))
-                });
-                if shown {
+                let shown = |app: &App| {
+                    app.by_id.get(&id).is_some_and(|&i| {
+                        app.rows
+                            .iter()
+                            .any(|r| matches!(r, Row::Item(j) if *j == i))
+                    })
+                };
+                // Finished work is folded away by default, and what an item
+                // builds on is finished by definition: unfold it where it
+                // sits, as `space` on the fold would, rather than refuse.
+                if !shown(self)
+                    && let Some(&i) = self.by_id.get(&id)
+                    && self.items[i].category.is_closed()
+                {
+                    let key = self.group_key(&self.items[i]);
+                    if self.unfolded.insert(key.clone()) {
+                        self.rebuild();
+                        // The filter hides it anyway: leave the fold as it was.
+                        if !shown(self) {
+                            self.unfolded.remove(&key);
+                            self.rebuild();
+                        }
+                    }
+                }
+                if shown(self) {
                     self.select_id(id);
                 } else {
                     // It exists — it is a blocker — but the filter in force is

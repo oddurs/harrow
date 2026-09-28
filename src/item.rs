@@ -513,7 +513,7 @@ pub fn result_of(body: &str) -> Option<String> {
 ///
 /// A note's heading ends it whatever its level: a note appended after a
 /// hand-written `# Result` is a note, not more of the conclusion.
-fn result_span(body: &str) -> Option<(usize, usize)> {
+pub(crate) fn result_span(body: &str) -> Option<(usize, usize)> {
     let headings = headings(body);
     let (start, level) = headings
         .iter()
