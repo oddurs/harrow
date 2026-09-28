@@ -1851,6 +1851,16 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
         ]));
     }
 
+    // What it came to, before anything else is said about it: on a finished
+    // item that is why you opened it. Body leaves it out below, so it is not
+    // read twice.
+    let conclusion = concluded(item);
+    if let Some(result) = conclusion {
+        lines.push(Line::from(""));
+        lines.push(section(icons.concluded, "Result", t, width));
+        lines.extend(body_prose(result, t, glyphs, width.saturating_sub(2)));
+    }
+
     // Above the record's own latest note, because a worktree's copy is newer
     // than the record by definition: it is the part that has not merged yet.
     if !item.elsewhere.is_empty() {
@@ -1979,6 +1989,64 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
         }
     }
 
+    // Finished work this rests on, and what each came to: the part of `cairn
+    // prompt` a person reads here, in the order it reads, so the pane and the
+    // prompt say the same thing. Finished is closed, as cairn counts it; what
+    // is not is under Waiting on and is not said twice.
+    let finished: Vec<&Item> = item
+        .depends_on
+        .iter()
+        .filter_map(|id| app.items.iter().find(|i| i.id == *id))
+        .filter(|dep| dep.category.is_closed())
+        .collect();
+    if !finished.is_empty() {
+        lines.push(Line::from(""));
+        lines.push(section(icons.builds_on, "Builds on", t, width));
+    }
+    for (n, dep) in finished.into_iter().enumerate() {
+        if n > 0 {
+            lines.push(Line::from(""));
+        }
+        let reference = schema.format_id(dep.id);
+        let width_of = reference.chars().count() as u16;
+        let room = width.saturating_sub(reference.chars().count() + 3);
+        let title = truncate(&dep.title, room);
+        let reach = width_of + 1 + title.chars().count() as u16;
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                reference,
+                Style::default()
+                    .fg(state_color(dep, t, schema))
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" "),
+            Span::styled(title, Style::default().fg(t.muted)),
+        ]));
+        lines.link(2, reach, Target::Item(dep.id));
+        // Its Result, or where it has none the last thing said about it, as
+        // `cairn prompt` falls back; a dependency that left neither is its
+        // title and nothing more.
+        let (when, said) = match (&dep.result, crate::item::latest_entry(&dep.body)) {
+            (Some(result), _) => (None, result.clone()),
+            (None, Some((when, said))) => (Some(when), said),
+            (None, None) => continue,
+        };
+        if let Some(when) = when {
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(when, Style::default().fg(t.faint)),
+            ]));
+        }
+        let said = said.split_whitespace().collect::<Vec<_>>().join(" ");
+        for part in wrap(&said, width.saturating_sub(2)).into_iter().take(3) {
+            lines.push(Line::from(Span::styled(
+                format!("  {part}"),
+                Style::default().fg(t.text),
+            )));
+        }
+    }
+
     for proposal in &item.proposals {
         lines.push(Line::from(""));
         lines.push(section(glyphs.label(glyphs.asked), "Proposed", t, width));
@@ -2060,7 +2128,11 @@ fn detail_prose(app: &App, item: &Item, t: &Theme, width: usize) -> Prose {
     // at, so the pane is the place the work is recorded and not a readout of
     // it happening elsewhere.
     let criteria = crate::item::criteria_at(&item.body, app.schema.criteria_section.as_deref());
-    let hoisted = hoisted_lines(&item.body, &criteria);
+    let hoisted = hoisted_lines(
+        &item.body,
+        &criteria,
+        conclusion.and_then(|_| crate::item::result_span(&item.body)),
+    );
     if !criteria.is_empty() {
         let met = criteria.iter().filter(|(_, ticked, _)| *ticked).count();
         // The one `t` would offer first, marked, so the key and the pane
@@ -2210,17 +2282,28 @@ fn facts(facts: Vec<Vec<Span<'static>>>, t: &Theme, width: usize) -> Vec<Line<'s
     lines
 }
 
-/// Which lines of the body the Acceptance section has taken over.
+/// An item's Result, where it is one to show: a finished item's. An open item
+/// with a Result heading is one still being written, and its body is where
+/// that is read.
+fn concluded(item: &Item) -> Option<&str> {
+    item.result.as_deref().filter(|_| item.category.is_closed())
+}
+
+/// Which lines of the body the Acceptance and Result sections have taken over.
 ///
-/// The criteria themselves, and — where removing them empties a heading of
-/// everything but blank lines — that heading too. A body that says nothing
-/// under `## Acceptance criteria` but the criteria should not be left with a
-/// heading standing over a hole.
+/// The criteria themselves, the Result's section from its heading to its end,
+/// and — where removing them empties a heading of everything but blank lines —
+/// that heading too. A body that says nothing under `## Acceptance criteria`
+/// but the criteria should not be left with a heading standing over a hole.
 fn hoisted_lines(
     body: &str,
     criteria: &[(usize, bool, String)],
+    result: Option<(usize, usize)>,
 ) -> std::collections::HashSet<usize> {
     let mut skip: std::collections::HashSet<usize> = criteria.iter().map(|(n, _, _)| *n).collect();
+    if let Some((start, end)) = result {
+        skip.extend(start..end);
+    }
     if skip.is_empty() {
         return skip;
     }
@@ -3788,7 +3871,20 @@ fn draw_reader(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         Style::default().fg(t.border),
     )));
     lines.push(Line::from(""));
-    lines.extend(body_lines(&item.body, t, app.glyphs, measure));
+    // Prose is indented under the rule, and wraps inside the measure rather
+    // than two columns past it, which clipped the last word of a long line.
+    let prose = measure.saturating_sub(2);
+    // What it came to, first, as the detail pane has it, and not again below.
+    // The same lines the detail pane leaves out, so a heading the Result was
+    // the only thing under goes with it here too.
+    let span = concluded(item).and(crate::item::result_span(&item.body));
+    if let Some(result) = concluded(item).filter(|_| span.is_some()) {
+        lines.push(section(app.glyphs.icons.concluded, "Result", t, measure));
+        lines.extend(body_lines(result, t, app.glyphs, prose));
+        lines.push(Line::from(""));
+    }
+    let skip = hoisted_lines(&item.body, &[], span);
+    lines.extend(body_prose_without(&item.body, &skip, t, app.glyphs, prose).lines);
 
     // Clamped here because here is where the height of the content is known.
     let over = lines.len().saturating_sub(inner.height as usize);
@@ -5385,5 +5481,95 @@ five six",
         let mut app = App::new();
         let text = render_to_string(&mut app, 100, 24, 0);
         assert!(text.contains("Nothing in the backlog"), "{text}");
+    }
+
+    /// The detail pane of one item, as plain text, one line per line.
+    fn pane(app: &App, id: crate::identity::Id) -> Vec<String> {
+        let item = app
+            .items
+            .iter()
+            .find(|i| i.id == id)
+            .expect("the item is in the fixture");
+        detail_prose(app, item, &Theme::mono(), 60)
+            .lines
+            .iter()
+            .map(|l| l.spans.iter().map(|s| s.content.as_ref()).collect())
+            .collect()
+    }
+
+    /// Where a section's heading is, if the pane has one.
+    fn heading(lines: &[String], name: &str) -> Option<usize> {
+        lines
+            .iter()
+            .position(|l| l.trim_start().starts_with(name) && l.contains("──"))
+    }
+
+    /// The lines under a section's heading, up to the next heading.
+    fn under(lines: &[String], name: &str) -> String {
+        let Some(at) = heading(lines, name) else {
+            return String::new();
+        };
+        lines[at + 1..]
+            .iter()
+            .take_while(|l| !l.contains("──"))
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn a_finished_items_result_comes_first_and_is_not_read_twice() {
+        let app = testkit::concluded();
+        let lines = pane(&app, 1.into());
+        let result = heading(&lines, "Result").expect("a Result section");
+        let latest = heading(&lines, "Latest").expect("a Latest section");
+        assert!(
+            result < latest,
+            "Result above Latest:\n{}",
+            lines.join("\n")
+        );
+        assert!(under(&lines, "Result").contains("Plain Markdown with YAML"));
+        let body = under(&lines, "Body");
+        assert!(body.contains("Compare the candidates"), "{body}");
+        assert!(!body.contains("Plain Markdown"), "said twice: {body}");
+        assert!(!body.contains("Result"), "its heading left behind: {body}");
+    }
+
+    #[test]
+    fn what_an_item_builds_on_says_what_each_concluded() {
+        let app = testkit::concluded();
+        let lines = pane(&app, 5.into());
+        let builds_on = under(&lines, "Builds on");
+        let expected = [
+            "0001 Pick the file format",
+            "Plain Markdown with YAML",
+            "0002 Try a database",
+            "2026-09-03",
+            "SQLite made merging",
+            "0003 Name the project",
+        ];
+        let mut at = 0;
+        for want in expected {
+            let found = builds_on[at..]
+                .find(want)
+                .unwrap_or_else(|| panic!("{want:?} in order in:\n{builds_on}"));
+            at += found + want.len();
+        }
+        // A dependency that left neither is its title and nothing more.
+        assert!(
+            builds_on.trim_end().ends_with("0003 Name the project"),
+            "{builds_on}"
+        );
+        assert!(!builds_on.contains("Write the parser"), "{builds_on}");
+        assert!(under(&lines, "Waiting on").contains("0004 Write the parser"));
+    }
+
+    #[test]
+    fn the_sample_backlog_has_no_result_to_show() {
+        let app = testkit::app();
+        for item in &app.items {
+            let lines = pane(&app, item.id);
+            assert!(heading(&lines, "Result").is_none(), "{}", item.title);
+        }
     }
 }

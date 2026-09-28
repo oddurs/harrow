@@ -364,3 +364,55 @@ pub fn app() -> crate::app::App {
     app.ingest(report);
     app
 }
+
+/// A backlog about what finished work concluded: an item that builds on three
+/// finished ones — with a Result, with only a note, with neither — and waits on
+/// one that is not finished.
+pub const CONCLUDED_ITEMS: &[(&str, &str)] = &[
+    (
+        "0001-pick-the-file-format.md",
+        "---\nid: 1\ntitle: Pick the file format\ntype: feature\nstatus: done\n---\n\n## Approach\n\nCompare the candidates.\n\n## Result\n\nPlain Markdown with YAML frontmatter, one file per item, so a merge is a text merge.\n\n## 2026-09-02\n\nA note written after it closed.\n",
+    ),
+    (
+        "0002-try-a-database.md",
+        "---\nid: 2\ntitle: Try a database\ntype: feature\nstatus: dropped\n---\n\n## 2026-09-03\n\nSQLite made merging branches impossible; files instead.\n",
+    ),
+    (
+        "0003-name-the-project.md",
+        "---\nid: 3\ntitle: Name the project\ntype: chore\nstatus: done\n---\n\nDone.\n",
+    ),
+    (
+        "0004-write-the-parser.md",
+        "---\nid: 4\ntitle: Write the parser\ntype: feature\nstatus: doing\nassignee: ada\n---\n\nUnder way.\n",
+    ),
+    (
+        "0005-read-an-item.md",
+        "---\nid: 5\ntitle: Read an item\ntype: feature\nstatus: backlog\ndepends_on:\n- 1\n- 2\n- 3\n- 4\n---\n\n## Goal\n\nRead one item from its file.\n",
+    ),
+    (
+        "0006-write-an-item.md",
+        "---\nid: 6\ntitle: Write an item\ntype: feature\nstatus: done\ndepends_on:\n- 1\n---\n\n## Goal\n\nWrite one item to its file.\n\n## Outcome\n\n### Result\n\nWritten through a temporary file and a rename, so a reader never sees half of one.\n",
+    ),
+];
+
+/// That backlog, loaded and derived.
+pub fn concluded_report() -> Report {
+    let items = CONCLUDED_ITEMS
+        .iter()
+        .map(|(name, body)| {
+            crate::item::parse(body, &PathBuf::from("items").join(name)).expect("a fixture parses")
+        })
+        .collect();
+    let mut source = crate::engine::Static {
+        schema: schema(),
+        items,
+    };
+    source.load().expect("the fixture loads")
+}
+
+/// An app holding it.
+pub fn concluded() -> crate::app::App {
+    let mut app = crate::app::App::new();
+    app.ingest(concluded_report());
+    app
+}

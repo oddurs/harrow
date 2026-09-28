@@ -191,6 +191,25 @@ fn states_in(glyphs: &'static Glyphs) -> Vec<State> {
             }),
         ),
         (
+            "on what a finished item concluded",
+            build(|app| {
+                app.ingest(testkit::concluded_report());
+                app.show_all = true;
+                app.rebuild();
+                app.select_id(6.into());
+            }),
+        ),
+        (
+            "reading what a finished item concluded",
+            build(|app| {
+                app.ingest(testkit::concluded_report());
+                app.show_all = true;
+                app.rebuild();
+                app.select_id(6.into());
+                app.run(Command::Read);
+            }),
+        ),
+        (
             "with the filter panel open",
             build(|app| {
                 app.run(Command::Facets);

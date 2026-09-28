@@ -8,7 +8,11 @@ use harrow::testkit;
 /// An app holding the sample backlog, with everything that moves on its own
 /// pinned. A snapshot of a clock is a snapshot that fails tomorrow.
 pub fn app() -> App {
-    let mut app = testkit::app();
+    pinned(testkit::app())
+}
+
+/// Any app, with the same things pinned.
+pub fn pinned(mut app: App) -> App {
     app.loading = false;
     app.last_load = None;
     // A fixed day, so anything measured against the clock — how long the

@@ -451,7 +451,13 @@ fn a_link_in_the_body_opens_when_it_is_clicked() {
     app.select_id(5.into());
     drawn(&mut app);
 
-    let (x, y) = find(&app, &Hit::Link(0));
+    // Found by where it goes: what the item builds on is linked above it.
+    let body = app
+        .links
+        .iter()
+        .position(|t| matches!(t, harrow::app::Target::Url(_)))
+        .expect("the body's link is registered");
+    let (x, y) = find(&app, &Hit::Link(body));
     // What it says is the link text; the destination is not on the screen.
     let screen = ui::render_frame(&mut app, 110, 26, 0);
     let row: String = (0..110)
@@ -482,6 +488,21 @@ fn a_blocker_is_clickable() {
     let (x, y) = find(&app, &Hit::Link(0));
     click(&mut app, x, y);
     assert_eq!(app.selected_item().map(|i| i.id), Some(3.into()));
+}
+
+/// What an item builds on is finished, and finished work is folded out of an
+/// ordinary listing. Following it unfolds it where it sits rather than saying
+/// it is not in this view.
+#[test]
+fn a_finished_dependency_is_clickable() {
+    let mut app = testkit::concluded();
+    app.select_id(5.into());
+    drawn(&mut app);
+
+    // Waiting on is drawn first, then Builds on.
+    let (x, y) = find(&app, &Hit::Link(1));
+    click(&mut app, x, y);
+    assert_eq!(app.selected_item().map(|i| i.id), Some(1.into()));
 }
 
 /// Registered against where they were drawn, so scrolling moves the targets

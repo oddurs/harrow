@@ -82,6 +82,41 @@ fn reading_an_item() {
     support::assert_snapshot("reader", &ui::render_to_string(&mut app, 110, 24, 0));
 }
 
+/// A finished item: what it came to first, then the finished work it rests on
+/// and what that came to.
+#[test]
+fn what_a_finished_item_concluded() {
+    let mut app = support::pinned(harrow::testkit::concluded());
+    app.show_all = true;
+    app.rebuild();
+    app.select_id(6.into());
+    support::assert_snapshot("concluded", &ui::render_to_string(&mut app, 110, 30, 0));
+}
+
+/// The reader says what it came to above the body, whole, and only once.
+#[test]
+fn reading_what_a_finished_item_concluded() {
+    let mut app = support::pinned(harrow::testkit::concluded());
+    app.show_all = true;
+    app.rebuild();
+    app.select_id(6.into());
+    app.reading = true;
+    let screen = ui::render_to_string(&mut app, 110, 26, 0);
+    let at = |s: &str| {
+        screen
+            .find(s)
+            .unwrap_or_else(|| panic!("{s:?} in\n{screen}"))
+    };
+    assert!(at("Result") < at("Write one item to its file"), "{screen}");
+    assert_eq!(screen.matches("temporary file").count(), 1, "{screen}");
+    assert!(screen.contains("half of one."), "clipped:\n{screen}");
+    // A heading the Result was the only thing under goes with it.
+    assert!(
+        !screen.contains("Outcome"),
+        "an empty heading left behind:\n{screen}"
+    );
+}
+
 /// The end of a long item, beside the list rather than in an overlay over it.
 #[test]
 fn the_detail_pane_scrolled_into_a_long_item() {

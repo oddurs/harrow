@@ -1,0 +1,30 @@
+ sample    needs  list  board  stats  log                                                            starting
+ f filter ▾  a +finished  S status priority id ▾  v milestone ▾                       ◐ 1  ○ 1  ✓ 3  × 1  ⊘ 1
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭ Backlog ───────────────────────────────────────────────────╮╭ 0006 ────────────────────────────────────────╮
+│ ▾ no milestone                         ▰▰▰▰▱▱  66%  2 left ││ ✓ Write an item                              │
+│  ✓ 4 done                                          ↵ shows ││   done · feature                             │
+│  ⊘ 0005 Read an item                                       ││                                              │
+│  ◐ 0004 Write the parser                              @ada ││   Result ──────────────────────────────────  │
+│  ✓ 0001 Pick the file format                               ││   Written through a temporary file and a     │
+│  ✓ 0003 Name the project                                   ││   rename, so a reader never sees half of     │
+│  ✓ 0006 Write an item                                      ││   one.                                       │
+│  × 0002 Try a database                                     ││                                              │
+│                                                            ││   Builds on ───────────────────────────────  │
+│                                                            ││   0001 Pick the file format                  │
+│                                                            ││   Plain Markdown with YAML frontmatter, one  │
+│                                                            ││   file per item, so a merge is a text merge. │
+│                                                            ││                                              │
+│                                                            ││   Body ────────────────────────────────────  │
+│                                                            ││   Goal                                       │
+│                                                            ││                                              │
+│                                                            ││   Write one item to its file.                │
+│                                                            ││                                              │
+│                                                            ││                                              │
+│                                                            ││                                              │
+│                                                            ││                                              │
+│                                                            ││                                              │
+│                                                            ││                                              │
+│                                                            ││                                              │
+╰────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
+ ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab lenses  ? help
