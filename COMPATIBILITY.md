@@ -28,6 +28,25 @@ a migration. Harrow reads this file directly and never allocates or rewrites
 identities. Migrate each project once, commit the result, and merge that commit
 to other branches instead of migrating each branch independently.
 
+## What each command needs
+
+Harrow asks the `cairn` on `PATH` once, at startup, what it can do, by reading
+that command's `--help`. It never finds out by trying. A command the installed
+cairn lacks is not offered: it has no key, the help and the palette leave it
+out, and nothing on screen promises it. Everything harrow *reads* comes from
+the files and needs no particular cairn.
+
+| harrow | Cairn command | First in Cairn | Without it |
+|---|---|---|---|
+| `x` asks what the item concluded | `close --result` | `cd547d3` (cairn#112, 0155) | `x` asks only for a yes, as before |
+| `P` shows the item as a prompt | `prompt` | `5569798` (cairn#113, 0156) | `P` is unbound and not offered |
+| `split` in the palette | `split`, `split --dry-run` | `f91642a` (cairn#115, 0157) | the palette does not offer it |
+| `C` shows prompt checks | `check --prompts` | `2fb5f31` (cairn#116, 0158) | `C` runs plain `cairn check`; the overlay is unchanged |
+
+The pinned revision above has all of them, and CI builds it. A finished item's
+`## Result` is read from the file itself (specification §10.2). Showing one, in
+the detail pane, the reader and what an item builds on, needs no cairn at all.
+
 ## The gate
 
 `scripts/task check` always runs the vendored format corpus. CI also requires
