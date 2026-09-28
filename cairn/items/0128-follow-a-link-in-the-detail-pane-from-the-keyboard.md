@@ -45,3 +45,7 @@ Decided: ] and [ pick the next and previous link in the detail pane (both were f
 ## Result
 
 Every link in the detail pane — what an item waits on, what it builds on, a URL in its body — can be picked with ] and [ and followed with ↵, by the same path a click takes; esc lets it go.
+
+## 2026-09-28
+
+Review (/code-review) found three things, all fixed. The pane's links are only refreshed when the pane is drawn, so on a screen without it (the reader, a narrow board) ] could pick up another item's links; they now record whose pane they came from (App::links_of) and ] refuses otherwise (links_from_another_items_pane_are_not_picked). The pane was pulled back to the picked link on every frame, so it could not be scrolled while one was picked; it now scrolls to it once, when the pick moves (the_pane_still_scrolls_with_a_link_picked). And a pick was an index, so a re-read that moved the pane's links pointed it at a different target silently; it now remembers where it went and lets go if that changed (a_reread_that_moves_the_links_lets_the_pick_go).

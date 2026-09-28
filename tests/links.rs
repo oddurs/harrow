@@ -161,3 +161,56 @@ fn the_keys_are_in_the_help_on_one_row() {
         .expect("in the help");
     assert!(row.0.contains('[') && row.0.contains(']'), "{row:?}");
 }
+
+/// Brought into sight when picked, then the pane is the reader's to scroll.
+#[test]
+fn the_pane_still_scrolls_with_a_link_picked() {
+    let mut app = testkit::app();
+    app.select_id(5.into());
+    // Short enough that the pane holds more than it shows.
+    let _ = ui::render_frame(&mut app, 110, 15, 0);
+    app.handle_key(KeyCode::Char(']'), KeyModifiers::NONE);
+    let _ = ui::render_frame(&mut app, 110, 15, 0);
+    let before = app.detail.at(5.into());
+    app.run(Command::DetailDown);
+    app.run(Command::DetailDown);
+    let _ = ui::render_frame(&mut app, 110, 15, 0);
+    assert!(app.detail.at(5.into()) > before, "snapped back to the link");
+}
+
+/// Links left from another item's pane are not this one's.
+#[test]
+fn links_from_another_items_pane_are_not_picked() {
+    let mut app = five();
+    // Moved on, and the pane not drawn since.
+    app.select_id(4.into());
+    app.handle_key(KeyCode::Char(']'), KeyModifiers::NONE);
+    assert_eq!(app.picked_link(), None);
+    assert!(
+        app.toast
+            .clone()
+            .unwrap()
+            .0
+            .contains("open the detail pane")
+    );
+}
+
+/// A re-read that changes where a picked link goes lets it go, rather than
+/// pointing it somewhere new without a word.
+#[test]
+fn a_reread_that_moves_the_links_lets_the_pick_go() {
+    let mut app = five();
+    key(&mut app, KeyCode::Char(']'));
+    key(&mut app, KeyCode::Char(']'));
+    assert_eq!(app.picked_link(), Some(1), "0001, under Builds on");
+    let mut report = testkit::concluded_report();
+    for item in &mut report.items {
+        if item.id == 5 {
+            item.depends_on
+                .retain(|d| *d != harrow::identity::Id::from(1));
+        }
+    }
+    app.ingest(report);
+    let _ = ui::render_frame(&mut app, 110, 30, 0);
+    assert_eq!(app.picked_link(), None);
+}

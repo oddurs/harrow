@@ -1733,11 +1733,13 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     // A link picked from the keyboard is drawn picked, and the pane moves to
     // keep it in sight.
     if let Some(&(line, x, width, _)) = app.picked_link().and_then(|k| prose.links.get(k)) {
-        let top = app.detail.at(id);
-        if line < top {
-            app.detail.to(id, line);
-        } else if line >= top + inner.height {
-            app.detail.to(id, line + 1 - inner.height);
+        if std::mem::take(&mut app.link_moved) {
+            let top = app.detail.at(id);
+            if line < top {
+                app.detail.to(id, line);
+            } else if line >= top + inner.height {
+                app.detail.to(id, line + 1 - inner.height);
+            }
         }
         if let Some(drawn) = prose.lines.get_mut(line as usize) {
             *drawn = picked(std::mem::take(drawn), x, width);
@@ -1767,6 +1769,7 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     // the last thing registered wins.
     app.hit(area, Hit::Detail);
     app.links.clear();
+    app.links_of = Some(id);
     for (line, x, w, target) in prose.links {
         let y = inner.y as i32 + line as i32 - scroll as i32;
         if y >= inner.y as i32 && y < (inner.y + inner.height) as i32 {
