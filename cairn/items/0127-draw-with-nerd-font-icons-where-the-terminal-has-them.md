@@ -1,5 +1,6 @@
 ---
-id: 1fa7181f-09e3-4421-ba68-a0e66adc0f34
+id: 127
+uid: 1fa7181f-09e3-4421-ba68-a0e66adc0f34
 title: Draw with Nerd Font icons where the terminal has them
 type: feature
 status: done
