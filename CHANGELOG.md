@@ -211,7 +211,7 @@ COMPATIBILITY.md.
   card. Whether finished work is worth a row is a question about the list, and
   the board answered it when the project wrote `board = true`.
 
-- Required CI compares against Cairn 1.0.0-alpha.1 at a pinned revision,
+- Required CI compares against Cairn v1.0.0-alpha.1, its tagged revision,
   including all of Cairn's project views, its conformance corpus and the
   Result of every item. See COMPATIBILITY.md.
 

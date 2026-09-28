@@ -42,7 +42,7 @@ jobs:
         with:
           repository: oddurs/cairn
           # Format-5 development contract; update with corpus and agreement.
-          ref: 9c29249036cb7d4f062cb7c2d1d89fee6ea38021
+          ref: 68ac1549383870aa57548da65ed25119895bb201
           path: .counterparts/cairn
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
       - run: cargo build --locked --manifest-path .counterparts/cairn/Cargo.toml

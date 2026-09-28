@@ -5,7 +5,8 @@ and supplies the human interface. Neither needs a shared runtime library or a
 Cairn process on each read.
 
 Harrow **0.2.0-alpha.1** is paired with Cairn **1.0.0-alpha.1**, revision
-`9c29249036cb7d4f062cb7c2d1d89fee6ea38021`, which writes format 5. These are
+`68ac1549383870aa57548da65ed25119895bb201`, tagged v1.0.0-alpha.1, which writes
+format 5. These are
 development versions, not a stable 1.0 promise. The 66-case corpus covers
 formats 1–5, including frozen older corpora, and a `## Result` section as
 specification §10.2 reads one. Upgrade both tools before
