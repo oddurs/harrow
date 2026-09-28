@@ -225,7 +225,7 @@ impl Command {
             Command::Tick => "tick an acceptance criterion that has come true",
             Command::Claim => "claim it — assign it to you and start it",
             Command::Release => "give it back",
-            Command::Close => "close it, with a confirm",
+            Command::Close => "close, with what it concluded",
             Command::Reopen => "reopen it",
             Command::New => "new item",
             Command::Status => "set the status",
@@ -1067,7 +1067,7 @@ mod tests {
         let rows = map.help_rows();
         let close = rows
             .iter()
-            .find(|(_, d)| d.contains("close it"))
+            .find(|(_, d)| *d == Command::Close.describe())
             .expect("close is in the help");
         assert!(
             close.0.contains('z'),
