@@ -4635,7 +4635,12 @@ fn draw_diagnostics(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
                 ),
             ]));
         }
-        Some(Err(why)) => {
+        Some(result) => {
+            const SHOWN: usize = 8;
+            let (said, passed) = match result {
+                Ok(said) => (said, true),
+                Err(said) => (said, false),
+            };
             lines.push(Line::from(""));
             lines.push(section(
                 app.glyphs.icons.criteria,
@@ -4643,28 +4648,31 @@ fn draw_diagnostics(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
                 t,
                 width as usize - 2,
             ));
-            lines.push(Line::from(vec![
-                Span::raw("  "),
-                Span::styled(
-                    truncate(why, width.saturating_sub(6) as usize),
-                    Style::default().fg(t.error),
-                ),
-            ]));
-        }
-        Some(Ok(said)) => {
-            lines.push(Line::from(""));
-            lines.push(section(
-                app.glyphs.icons.criteria,
-                "cairn check",
-                t,
-                width as usize - 2,
-            ));
-            for line in said.iter().take(8) {
+            // The summary in the colour of the outcome, and every finding as a
+            // warning: cairn does not mark which of its lines is which.
+            for (n, line) in said.iter().take(SHOWN).enumerate() {
+                let colour = match (n, passed) {
+                    (0, true) => t.ok,
+                    (0, false) => t.error,
+                    _ => t.warn,
+                };
                 lines.push(Line::from(vec![
                     Span::raw("  "),
                     Span::styled(
                         truncate(line, width.saturating_sub(6) as usize),
-                        Style::default().fg(if line.starts_with("ok") { t.ok } else { t.warn }),
+                        Style::default().fg(colour),
+                    ),
+                ]));
+            }
+            if said.len() > SHOWN {
+                lines.push(Line::from(vec![
+                    Span::raw("  "),
+                    Span::styled(
+                        format!(
+                            "…and {} more — cairn check has them all",
+                            said.len() - SHOWN
+                        ),
+                        Style::default().fg(t.faint),
                     ),
                 ]));
             }

@@ -920,7 +920,9 @@ pub struct App {
     /// files. The two answer different questions — what could not be read,
     /// and what is invalid against the project's own rules — and a cairn
     /// complaint read as a harrow bug is the failure mode to avoid.
-    pub checked: Option<Result<Vec<String>, String>>,
+    /// What cairn said, its summary first and then each finding as it wrote
+    /// it: `Ok` where the check passed, `Err` where it did not.
+    pub checked: Option<Result<Vec<String>, Vec<String>>>,
     /// What `cairn check --prompts` said will be misread, as cairn said it:
     /// `(item, finding)`. Advice, drawn as such; harrow evaluates none of it.
     pub prompt_findings: Vec<(Option<Id>, String)>,
@@ -3827,25 +3829,37 @@ impl App {
             Err(_) => "",
         };
         self.prompt_findings = prompt_findings(said);
-        self.checked = Some(match result {
-            Ok((out, _)) => Ok(out
+        // cairn's findings are on stderr, the summary of a check that passed
+        // on stdout, and the summary of one that failed last on stderr. Shown
+        // summary first, so the count survives the list being cut short.
+        let findings = |said: &str| -> Vec<String> {
+            let lines: Vec<String> = said
                 .lines()
                 .map(str::trim_end)
-                .filter(|l| !l.is_empty())
+                .filter(|l| !l.trim().is_empty() && !l.contains(": prompt: "))
                 .map(str::to_string)
+                .collect();
+            let (summary, rest): (Vec<String>, Vec<String>) =
+                lines.into_iter().partition(|l| l.starts_with("failed:"));
+            summary.into_iter().chain(rest).collect()
+        };
+        self.checked = Some(match result {
+            Ok((out, advice)) => Ok(findings(&out)
+                .into_iter()
+                .chain(findings(&advice))
                 .collect()),
             Err(ExecError::Failed { code, stderr }) => {
-                let cause = stderr
-                    .lines()
-                    .map(str::trim)
-                    .find(|l| !l.is_empty() && !l.contains(": prompt: "))
-                    .unwrap_or_default();
-                Err(match code {
-                    Some(c) => format!("exited {c}: {cause}"),
-                    None => format!("killed by a signal: {cause}"),
-                })
+                let said = findings(&stderr);
+                if said.is_empty() {
+                    Err(vec![match code {
+                        Some(c) => format!("exited {c}"),
+                        None => "killed by a signal".to_string(),
+                    }])
+                } else {
+                    Err(said)
+                }
             }
-            Err(other) => Err(other.to_string()),
+            Err(other) => Err(vec![other.to_string()]),
         });
     }
 
