@@ -191,6 +191,15 @@ fn states_in(glyphs: &'static Glyphs) -> Vec<State> {
             }),
         ),
         (
+            "asked to split an item",
+            build(|app| {
+                app.show_split(
+                    3.into(),
+                    Ok("  0010 Read the file\n  0011 Parse it  after 0010\n".into()),
+                );
+            }),
+        ),
+        (
             "reading an item's prompt",
             build(|app| {
                 app.show_prompt(

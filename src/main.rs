@@ -217,6 +217,9 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
     if !cairn_can(&startup.config.cairn, "prompt") {
         app.cannot.push(harrow::keys::Command::Prompt);
     }
+    if !cairn_can(&startup.config.cairn, "split") {
+        app.cannot.push(harrow::keys::Command::Split);
+    }
     app.set_keymap(startup.keymap.clone());
     app
 }
@@ -837,6 +840,15 @@ fn dispatch(
                 Ok(_) => handle.refresh(),
                 Err(e) => app.toast(format!("could not open your editor: {e}"), ToastKind::Bad),
             }
+        }
+        Action::Split(id) => {
+            let result = harrow::exec::run(
+                &startup.config.cairn,
+                &["split", &id.to_string(), "--dry-run"],
+                startup.config.write_timeout(),
+            )
+            .map_err(|e| e.said());
+            app.show_split(id, result);
         }
         Action::Prompt(id) => {
             let result = harrow::exec::run(

@@ -128,6 +128,7 @@ fn a_filing_elsewhere_cannot_be_changed_from_here() {
         Command::Status,
         Command::Note,
         Command::Tick,
+        Command::Split,
     ] {
         app.toast = None;
         assert!(
