@@ -969,6 +969,9 @@ pub struct App {
     /// renderer each frame, for the same reason `doors` is: only the renderer
     /// knows where they landed.
     pub links: Vec<Target>,
+    /// The link picked from the keyboard, and on whose pane: `]` and `[` move
+    /// it, `↵` follows it, `esc` lets it go.
+    link_pick: Option<(Id, usize)>,
     /// Which figure the stats cursor is on.
     pub figure: usize,
     /// The last click, for telling a double-click from two single ones.
@@ -1095,6 +1098,7 @@ impl App {
             hits: Vec::new(),
             doors: Vec::new(),
             links: Vec::new(),
+            link_pick: None,
             figure: 0,
             last_click: None,
             dragging: None,
@@ -3564,6 +3568,13 @@ impl App {
         out
     }
 
+    /// The link picked on the pane of the item now selected, if any. Keyed by
+    /// the item, so moving on lets it go without anybody having to.
+    pub fn picked_link(&self) -> Option<usize> {
+        let (id, k) = self.link_pick?;
+        (self.selected_item().map(|i| i.id) == Some(id) && k < self.links.len()).then_some(k)
+    }
+
     /// Follow something in the detail pane: out to the browser, or across to
     /// another item.
     pub fn follow(&mut self, n: usize) -> Action {
@@ -4742,7 +4753,9 @@ impl App {
                 // `esc j j ↵` cheap, and it is exactly the same four keys
                 // either way — so all the extra step bought was an `esc` that
                 // looked like it had not worked.
-                if self.reading {
+                if self.picked_link().is_some() {
+                    self.link_pick = None;
+                } else if self.reading {
                     self.reading = false;
                     self.focus = Focus::List;
                 } else if !self.marked.is_empty() {
@@ -4852,6 +4865,44 @@ impl App {
             }
             // Opening it and focusing it are one gesture: a panel you have to
             // open and then reach for is two.
+            // A link picked from the keyboard is what `↵` is for while there
+            // is one: the same follow a click does, to the same place.
+            Command::Read if self.picked_link().is_some() => {
+                let picked = self.picked_link().unwrap_or_default();
+                self.link_pick = None;
+                return self.follow(picked);
+            }
+            Command::NextLink | Command::PrevLink => {
+                let forward = command == Command::NextLink;
+                let Some(id) = self.selected_item().map(|i| i.id) else {
+                    return Action::None;
+                };
+                let n = self.links.len();
+                if n == 0 {
+                    self.toast("nothing in this pane to follow", ToastKind::Info);
+                    return Action::None;
+                }
+                let next = match (self.picked_link(), forward) {
+                    (None, true) => 0,
+                    (None, false) => n - 1,
+                    (Some(k), true) => (k + 1) % n,
+                    (Some(k), false) => (k + n - 1) % n,
+                };
+                self.link_pick = Some((id, next));
+                let said = match &self.links[next] {
+                    Target::Item(to) => {
+                        let title = self
+                            .by_id
+                            .get(to)
+                            .and_then(|i| self.items.get(*i))
+                            .map(|item| item.title.clone())
+                            .unwrap_or_default();
+                        format!("{} {title}", self.schema.format_id(*to))
+                    }
+                    Target::Url(url) => url.clone(),
+                };
+                self.toast(format!("{said} — ↵ follows, esc lets go"), ToastKind::Info);
+            }
             Command::Read => {
                 if self.selected_item().is_some() {
                     self.reading = true;

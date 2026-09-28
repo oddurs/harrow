@@ -39,6 +39,8 @@ pub enum Command {
     Edit,
     Note,
     History,
+    NextLink,
+    PrevLink,
     Prompt,
     Split,
     Accept,
@@ -73,7 +75,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 57] = [
+    pub const ALL: [Command; 59] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -100,6 +102,8 @@ impl Command {
         Command::Edit,
         Command::Note,
         Command::History,
+        Command::NextLink,
+        Command::PrevLink,
         Command::Prompt,
         Command::Split,
         Command::Accept,
@@ -163,6 +167,8 @@ impl Command {
             Command::Edit => "edit",
             Command::Note => "note",
             Command::History => "history",
+            Command::NextLink => "next-link",
+            Command::PrevLink => "prev-link",
             Command::Prompt => "prompt",
             Command::Split => "split",
             Command::Accept => "accept",
@@ -226,6 +232,8 @@ impl Command {
             Command::Edit => "open the item in your editor",
             Command::Note => "add a line to the item's body — why, what you tried",
             Command::History => "how this item got the way it is",
+            Command::NextLink => "pick a link; ↵ follows it",
+            Command::PrevLink => "pick the link before",
             Command::Prompt => "the item as an agent's prompt",
             Command::Split => "turn its numbered steps into items of their own",
             Command::Accept => "accept the change somebody proposed",
@@ -304,6 +312,7 @@ impl Command {
             &[
                 Command::Read,
                 Command::History,
+                Command::NextLink,
                 Command::Prompt,
                 Command::Copy,
                 Command::CopyView,
@@ -434,6 +443,8 @@ impl Default for Keymap {
                 (K::Char('q'), n, C::Quit),
                 (K::Char('c'), ctrl, C::Quit),
                 (K::Char('P'), n, C::Prompt),
+                (K::Char(']'), n, C::NextLink),
+                (K::Char('['), n, C::PrevLink),
             ],
             withheld: Vec::new(),
         }
@@ -639,6 +650,7 @@ impl Keymap {
                 pair(vec![first(Command::PageUp)], vec![first(Command::PageDown)])
             }
             Command::DetailDown => pair(self.keys_for(Command::DetailUp), keys),
+            Command::NextLink => pair(self.keys_for(Command::PrevLink), keys),
             Command::PrevGroup => pair(keys, self.keys_for(Command::NextGroup)),
             Command::ViewBoard => pair(keys, self.keys_for(Command::ViewBack)),
             // Five bindings, one row: "1…5" says it and a list of them
@@ -914,6 +926,7 @@ mod tests {
             (Command::First, Command::Last),
             (Command::PageDown, Command::PageUp),
             (Command::DetailDown, Command::DetailUp),
+            (Command::NextLink, Command::PrevLink),
             (Command::PrevGroup, Command::NextGroup),
             (Command::ViewBoard, Command::ViewBack),
             (Command::Advance, Command::Retreat),
