@@ -23,6 +23,8 @@ use crate::diag;
 pub struct Config {
     /// `auto`, `mono`, a built-in name, `ghostty:<name>`, or a path.
     pub theme: String,
+    /// `auto`, `nerd` or `unicode`: what the icons are drawn with.
+    pub glyphs: String,
     /// What the rows are grouped under: a field name, or `none`.
     pub group_by: String,
     /// Sort keys within a group, in cairn's `--sort` spelling.
@@ -54,6 +56,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             theme: crate::theme::DEFAULT.to_string(),
+            glyphs: "auto".to_string(),
             group_by: "milestone".to_string(),
             sort: String::new(),
             view: String::new(),
@@ -73,6 +76,7 @@ impl Default for Config {
 /// rejected, so a config written for a newer version still loads here.
 const KNOWN: &[&str] = &[
     "theme",
+    "glyphs",
     "group_by",
     "sort",
     "view",
@@ -225,6 +229,13 @@ impl Config {
 # Try: auto, mono, gotham, night, paper, ghostty:<name>, or a path to a file.
 theme = "{theme}"
 
+# What the icons are drawn with. "nerd" uses Nerd Font icons, "unicode" uses
+# what every font has, and "auto" uses Nerd Font icons only on a terminal that
+# ships them — Ghostty, WezTerm, kitty — and Unicode everywhere else. A font
+# you installed yourself is invisible from here, so if yours is a Nerd Font,
+# say "nerd".
+glyphs = "{glyphs}"
+
 # What the list is grouped under. Any field the project has — milestone,
 # status, type, priority, area, assignee — or "none" for a flat list.
 group_by = "{group_by}"
@@ -274,6 +285,7 @@ editor = "{editor}"
 # "s"      = "status"
 "##,
             theme = d.theme,
+            glyphs = d.glyphs,
             group_by = d.group_by,
             sort = d.sort,
             view = d.view,
@@ -311,6 +323,9 @@ editor = "{editor}"
         let mut out = Vec::new();
         if self.theme != d.theme {
             out.push("theme");
+        }
+        if self.glyphs != d.glyphs {
+            out.push("glyphs");
         }
         if self.group_by != d.group_by {
             out.push("group_by");
@@ -392,6 +407,13 @@ mod tests {
                 .any(|e| e.message.contains("future_setting")),
             "an unknown key must be reported"
         );
+    }
+
+    #[test]
+    fn the_glyph_set_is_read_and_reported_as_set() {
+        let c = Config::parse("glyphs = \"nerd\"\n", "test");
+        assert_eq!(c.glyphs, "nerd");
+        assert_eq!(c.overridden(), vec!["glyphs"]);
     }
 
     #[test]

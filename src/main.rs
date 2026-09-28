@@ -10,6 +10,7 @@ use crossterm::event::{self, Event, KeyEventKind};
 use harrow::app::{Action, App, Change, ToastKind};
 use harrow::config::Config;
 use harrow::engine::{Project, Source};
+use harrow::glyphs::{self, Glyphs};
 use harrow::keys::Keymap;
 use harrow::runtime::{self, Msg, Settings};
 use harrow::term::{self, Guard, Tui};
@@ -23,6 +24,9 @@ struct Startup {
     config: Config,
     config_path: Option<PathBuf>,
     theme: Theme,
+    glyphs: &'static Glyphs,
+    /// Why those glyphs, which is a guess where the config said `auto`.
+    glyphs_why: String,
     keymap: Keymap,
     /// Where to look for the project, which is the current directory unless
     /// `-C` said otherwise.
@@ -104,6 +108,7 @@ fn main() -> Result<()> {
             &startup.config,
             startup.config_path.as_deref(),
             &startup.theme,
+            (startup.glyphs, &startup.glyphs_why),
             &startup.start,
         )));
     }
@@ -139,6 +144,15 @@ fn resolve(args: &[String]) -> Startup {
         }
     };
 
+    // The shell reads the environment so the core does not have to: what
+    // the terminal is, and what locale it is in, decide `auto`.
+    let spec = flag_value(args, "--glyphs").unwrap_or_else(|| config.glyphs.clone());
+    let env = |name: &str| std::env::var(name).ok();
+    let (glyphs, glyphs_why) = glyphs::resolve(&spec, env).unwrap_or_else(|e| {
+        diag::warn("glyphs", e);
+        glyphs::resolve("auto", env).expect("auto always resolves")
+    });
+
     let (keymap, key_problems) = Keymap::from_config(&config.keys);
     for p in key_problems {
         diag::warn("keys", p);
@@ -153,6 +167,8 @@ fn resolve(args: &[String]) -> Startup {
         config,
         config_path,
         theme,
+        glyphs,
+        glyphs_why,
         keymap,
         start,
     }
@@ -162,6 +178,7 @@ fn resolve(args: &[String]) -> Startup {
 fn prepare(startup: &Startup, args: &[String]) -> App {
     let mut app = App::new();
     app.theme = startup.theme.clone();
+    app.glyphs = startup.glyphs;
     app.keymap = startup.keymap.clone();
     app.show_all = startup.config.show_all || args.iter().any(|a| a == "-a" || a == "--all");
     // Every lens by name, and the two that had flags of their own keep them.
@@ -305,6 +322,10 @@ fn cmd_config(args: &[String]) -> Result<()> {
         "# theme resolves to {} ({})",
         startup.theme.name,
         startup.theme.source.label()
+    );
+    println!(
+        "# glyphs resolve to {} ({})",
+        startup.glyphs.name, startup.glyphs_why
     );
     println!();
     print!("{}", startup.config.to_toml());
@@ -762,6 +783,7 @@ fn dispatch(
             let theme = wear_the_terminal(fresh.theme);
             let name = theme.name.clone();
             app.theme = theme;
+            app.glyphs = fresh.glyphs;
             app.keymap = fresh.keymap;
             app.rebuild();
             // Deliberately no `terminal.clear()`. It issues a cursor-position

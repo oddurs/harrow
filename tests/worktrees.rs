@@ -325,6 +325,7 @@ fn the_doctor_says_what_the_other_worktrees_hold() {
         &harrow::config::Config::default(),
         None,
         &harrow::theme::Theme::mono(),
+        (&harrow::glyphs::UNICODE, "asked for"),
         main.path(),
     );
     let line = checks

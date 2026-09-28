@@ -151,6 +151,12 @@ pub const FLAGS: &[Flag] = &[
     },
     Flag {
         short: None,
+        long: "--glyphs",
+        takes: Takes::OneOf("<SET>", crate::glyphs::CHOICES),
+        help: "draw with nerd or unicode glyphs, or auto",
+    },
+    Flag {
+        short: None,
         long: "--config",
         takes: Takes::File,
         help: "read this config file instead of the usual one",

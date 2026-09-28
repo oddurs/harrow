@@ -1,0 +1,22 @@
+ sample     needs   list   board   stats   log     1 needs you                                 starting
+ f  filter   S  status priority id   v  milestone                                    󰪡 1   3   1   1
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭  Needs you ───────────────────────────────────────────────────╮╭ 0006 ────────────────────────────────────╮
+│    an agent asks that 0006 priority become p0    A accepts    ││  Write the readme                       │
+│                                                                ││   backlog · chore                        │
+│                                                                ││                                          │
+│                                                                ││    Proposed ──────────────────────────  │
+│                                                                ││   priority p3 → p0                       │
+│                                                                ││   an agent · 2026-09-05                  │
+│                                                                ││   Nobody can install this without it.    │
+│                                                                ││   A to accept it                         │
+│                                                                ││                                          │
+│                                                                ││    Body ──────────────────────────────  │
+│                                                                ││   A dangling dependency, on purpose.     │
+│                                                                ││                                          │
+│                                                                ││   Proposed priority: p3 -> p0 (an agent, │
+│                                                                ││   2026-09-05)                            │
+│                                                                ││                                          │
+│                                                                ││   Nobody can install this without it.    │
+╰────────────────────────────────────────────────────────────────╯╰ K/J scroll ──────────────────────────────╯
+ ↑↓ move  ↵ read  c claim  s status  x close  f filter  tab lenses  ? help
