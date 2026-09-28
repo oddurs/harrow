@@ -7,7 +7,7 @@ use std::time::Duration;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyEventKind};
 
-use harrow::app::{Action, App, Change, ToastKind};
+use harrow::app::{Action, App, ToastKind};
 use harrow::config::Config;
 use harrow::engine::{Project, Source};
 use harrow::glyphs::{self, Glyphs};
@@ -15,6 +15,7 @@ use harrow::keys::Keymap;
 use harrow::runtime::{self, Msg, Settings};
 use harrow::term::{self, Guard, Tui};
 use harrow::theme::{self, Theme};
+use harrow::writer::{self, Writing};
 use harrow::{diag, doctor, ui};
 
 const TICK: Duration = Duration::from_millis(100);
@@ -673,6 +674,7 @@ fn run_tui(mut startup: Startup, args: &[String]) -> Result<()> {
     app.theme = startup.theme.clone();
 
     let (handle, msgs) = runtime::spawn(Box::new(project), settings);
+    let mut writing: Option<Writing> = None;
     let result = event_loop(
         &mut terminal,
         &mut app,
@@ -681,9 +683,25 @@ fn run_tui(mut startup: Startup, args: &[String]) -> Result<()> {
         &mut guard,
         &startup,
         args,
+        &mut writing,
     );
     drop(handle);
     guard.restore();
+    // A write cut off partway is a write half made. Quitting waits for the
+    // one being made, and says why it is waiting.
+    // Not `eprintln!`: after a hangup stderr is gone, and a panic here would
+    // skip the wait this is for.
+    if let Some(write) = writing {
+        use std::io::Write as _;
+        let _ = writeln!(
+            std::io::stderr(),
+            "harrow: finishing a write before quitting — {}",
+            write.describe()
+        );
+        if let Err(e) = write.wait().outcome {
+            let _ = writeln!(std::io::stderr(), "harrow: {e}");
+        }
+    }
     result
 }
 
@@ -696,6 +714,7 @@ fn event_loop(
     guard: &mut Guard,
     startup: &Startup,
     args: &[String],
+    writing: &mut Option<Writing>,
 ) -> Result<()> {
     let mut tick = 0usize;
     let mut dirty = true;
@@ -715,6 +734,23 @@ fn event_loop(
             }
             dirty = true;
         }
+        if let Some(write) = writing.as_mut() {
+            if let Some(done) = write.poll() {
+                *writing = None;
+                app.finished_writing(done);
+                handle.refresh();
+                dirty = true;
+            } else if write.overdue(startup.config.write_timeout()) {
+                // Not waited on — the screen stays live — but said, so a
+                // write waiting its turn for the lock is not mistaken for one
+                // that never happened.
+                app.toast(
+                    format!("{}: still writing", write.describe()),
+                    ToastKind::Info,
+                );
+                dirty = true;
+            }
+        }
         let had_toast = app.toast.is_some();
         app.tick_clock();
         app.expire_toast();
@@ -723,7 +759,7 @@ fn event_loop(
         // re-read, and this is what asks again.
         if let Some(action) = app.pending() {
             dirty = true;
-            if dispatch(action, app, handle, guard, terminal, startup, args)? {
+            if dispatch(action, app, handle, guard, terminal, startup, args, writing)? {
                 return Ok(());
             }
         }
@@ -769,7 +805,7 @@ fn event_loop(
                 _ => Action::None,
             };
             dirty = true;
-            if dispatch(action, app, handle, guard, terminal, startup, args)? {
+            if dispatch(action, app, handle, guard, terminal, startup, args, writing)? {
                 return Ok(());
             }
         }
@@ -789,6 +825,7 @@ fn dispatch(
     terminal: &mut Tui,
     startup: &Startup,
     args: &[String],
+    writing: &mut Option<Writing>,
 ) -> Result<bool> {
     match action {
         Action::None => {}
@@ -893,29 +930,13 @@ fn dispatch(
             );
             app.show_check(result);
         }
-        Action::Write(change) => run_change(app, handle, &startup.config, change),
+        Action::Write(change) => {
+            if let Some(change) = app.accept_write(change) {
+                *writing = Some(Writing::start(&startup.config.cairn, change, writer::LIMIT));
+            }
+        }
     }
     Ok(false)
-}
-
-/// Hand a change to cairn. Synchronous on purpose: it takes milliseconds, and a
-/// change that had not landed before the next read would show up as the screen
-/// silently reverting.
-fn run_change(app: &mut App, handle: &runtime::Handle, config: &Config, change: Change) {
-    let args: Vec<&str> = change.args.iter().map(String::as_str).collect();
-    match harrow::exec::run_advised(&config.cairn, &args, config.write_timeout()) {
-        Ok((_, advice)) => {
-            // So the re-read this causes is not announced back as somebody
-            // else's news.
-            app.wrote();
-            app.done(&change, &advice);
-            handle.refresh();
-        }
-        Err(e) => {
-            diag::error("write", format!("cairn {}: {e}", change.args.join(" ")));
-            app.toast(format!("cairn refused: {e}"), ToastKind::Bad);
-        }
-    }
 }
 
 fn shell_quote(s: &str) -> String {

@@ -977,6 +977,18 @@ pub struct App {
     pub dragging: Option<(usize, Hit)>,
     /// When harrow last asked cairn to change something.
     pub wrote: Option<Instant>,
+    /// The change cairn is carrying out now, if any. One at a time: a change
+    /// is worked out from what is on screen, and what is on screen has not
+    /// caught up with a change still being made.
+    pub writing: Option<String>,
+    /// The items that change acts on. While it is being made, their re-reads
+    /// are ours; everybody else's news still arrives.
+    ours: Vec<Id>,
+    /// Whether that change creates items (`new`, `split`), whose numbers are
+    /// not known until cairn has chosen them.
+    creating: bool,
+    /// What the last reading had that the one before did not.
+    appeared: Vec<Id>,
     /// The whole screen, as this frame was given it. Recorded at the top of
     /// the draw so that everything the draw records can be held to it.
     pub screen: Rect,
@@ -1087,6 +1099,10 @@ impl App {
             last_click: None,
             dragging: None,
             wrote: None,
+            writing: None,
+            ours: Vec::new(),
+            creating: false,
+            appeared: Vec::new(),
             screen: Rect::default(),
             tick: 0,
             finished: HashSet::new(),
@@ -1121,6 +1137,15 @@ impl App {
         let mut items = report.items;
         items.extend(report.filed);
         let (moved, arrived) = self.notice_changes(&items);
+        self.appeared = if first {
+            Vec::new()
+        } else {
+            items
+                .iter()
+                .filter(|item| !self.by_id.contains_key(&item.id))
+                .map(|item| item.id)
+                .collect()
+        };
 
         self.schema = report.schema;
         self.items = items;
@@ -1197,6 +1222,11 @@ impl App {
     /// so whatever else moved is below it rather than scrolled away above.
     /// A change of our own is not news, and is where the cursor already is.
     fn follow_the_news(&mut self, arrived: &[Id]) {
+        let arrived: Vec<Id> = arrived
+            .iter()
+            .copied()
+            .filter(|id| !self.being_written(*id))
+            .collect();
         if arrived.is_empty() || !self.watching() || self.wrote_recently() {
             return;
         }
@@ -1282,7 +1312,8 @@ impl App {
 
     /// Say what somebody else did. A change harrow made says so already, so
     /// this keeps quiet for a moment after a write of our own.
-    fn announce(&mut self, moved: Vec<(Id, String)>) {
+    fn announce(&mut self, mut moved: Vec<(Id, String)>) {
+        moved.retain(|(id, _)| !self.being_written(*id));
         if moved.is_empty() || self.wrote_recently() {
             return;
         }
@@ -1296,6 +1327,90 @@ impl App {
     fn wrote_recently(&self) -> bool {
         self.wrote
             .is_some_and(|at| at.elapsed() < Duration::from_secs(3))
+    }
+
+    /// Whether an item's news is our own change, still being made. However
+    /// long cairn takes — waiting its turn for the lock, running a hook — a
+    /// re-read of it meanwhile is ours, while everybody else's still arrives.
+    fn being_written(&self, id: Id) -> bool {
+        self.writing.is_some()
+            && (self.ours.contains(&id) || (self.creating && self.appeared.contains(&id)))
+    }
+
+    /// Say so, and refuse, while a change is being made.
+    fn refuse_while_writing(&mut self) -> bool {
+        let Some(what) = &self.writing else {
+            return false;
+        };
+        self.toast(
+            format!("still writing — {what} — try again when it lands"),
+            ToastKind::Info,
+        );
+        true
+    }
+
+    /// Take a change for cairn, or refuse it while another is being made.
+    ///
+    /// Refused rather than queued: `>` twice under a busy lock would work out
+    /// both from the status on screen and land one step, not two. Everything
+    /// that reads keeps working meanwhile.
+    pub fn accept_write(&mut self, change: Change) -> Option<Change> {
+        if self.refuse_while_writing() {
+            return None;
+        }
+        self.writing = Some(change.describe.clone());
+        // Ours on the items it acts on, which are these — and a change that
+        // creates items is ours on whatever appears while it is being made,
+        // since cairn chooses their numbers. `new` acts on nothing already
+        // there, whatever the cursor is on.
+        let verb = change.args.first().map(String::as_str);
+        self.creating = matches!(verb, Some("new" | "split"));
+        self.ours = if verb == Some("new") {
+            Vec::new()
+        } else {
+            self.targets()
+        };
+        Some(change)
+    }
+
+    /// Say how a write ended. The backlog is read again afterwards whatever
+    /// the end: a write that failed to report may still have landed.
+    pub fn finished_writing(&mut self, done: crate::writer::Done) {
+        use crate::exec::ExecError;
+        let change = done.change;
+        self.writing = None;
+        self.creating = false;
+        // Its re-read, which follows, is ours too.
+        self.wrote();
+        match done.outcome {
+            Ok((_, advice)) => self.done(&change, &advice),
+            // Past cairn's own bounds only a hook was still running, so the
+            // change itself has most likely landed; the re-read shows whether.
+            Err(ExecError::Stopped { after, whole }) => {
+                crate::diag::error(
+                    "write",
+                    format!("cairn {}: stopped after {after:?}", change.args.join(" ")),
+                );
+                let what = if whole {
+                    "stopped cairn and its hooks"
+                } else {
+                    "stopped cairn; a hook may still be running"
+                };
+                self.toast(
+                    format!("{}: {what} after {}s", change.describe, after.as_secs()),
+                    ToastKind::Bad,
+                );
+            }
+            Err(e @ ExecError::Failed { .. }) => {
+                crate::diag::error("write", format!("cairn {}: {e}", change.args.join(" ")));
+                self.toast(format!("cairn refused: {e}"), ToastKind::Bad);
+            }
+            // Not cairn's answer: harrow could not start it, or lost it.
+            Err(e) => {
+                crate::diag::error("write", format!("cairn {}: {e}", change.args.join(" ")));
+                self.toast(format!("{}: {e}", change.describe), ToastKind::Bad);
+            }
+        }
     }
 
     /// Note that a change of ours has just landed, so the re-read it causes is
@@ -4515,6 +4630,14 @@ impl App {
         );
         if writes && let Some(why) = self.readonly.clone() {
             self.refuse(&why);
+            return Action::None;
+        }
+        // Said before any box opens, so nothing typed into one is thrown
+        // away. `e` too: an editor opened on a file cairn is about to change
+        // would write the old one back over it.
+        if (writes || matches!(command, Command::Edit | Command::Accept | Command::Propose))
+            && self.refuse_while_writing()
+        {
             return Action::None;
         }
         // Everything but filing something new acts on the selection or the

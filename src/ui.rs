@@ -313,6 +313,10 @@ fn draw_header(f: &mut Frame, app: &mut App, t: &Theme, area: Rect, tick: usize)
         format!("{} cannot read the backlog ({}×) ", g.warning, fail.count)
     } else if !app.watcher_alive {
         format!("{} watcher stopped ", g.warning)
+    } else if let Some(what) = &app.writing {
+        // For as long as it takes: a write waiting its turn for the lock is
+        // not finished, and the next change will be refused until it is.
+        format!("{} writing — {} ", g.spinner(tick), truncate(what, 40))
     } else if app.loading {
         format!("{} reading ", g.spinner(tick))
     } else {
