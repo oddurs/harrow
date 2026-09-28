@@ -39,6 +39,7 @@ pub enum Command {
     Edit,
     Note,
     History,
+    Prompt,
     Accept,
     Propose,
     Tick,
@@ -71,7 +72,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 55] = [
+    pub const ALL: [Command; 56] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -98,6 +99,7 @@ impl Command {
         Command::Edit,
         Command::Note,
         Command::History,
+        Command::Prompt,
         Command::Accept,
         Command::Propose,
         Command::Tick,
@@ -159,6 +161,7 @@ impl Command {
             Command::Edit => "edit",
             Command::Note => "note",
             Command::History => "history",
+            Command::Prompt => "prompt",
             Command::Accept => "accept",
             Command::Propose => "propose",
             Command::Tick => "tick",
@@ -220,6 +223,7 @@ impl Command {
             Command::Edit => "open the item in your editor",
             Command::Note => "add a line to the item's body — why, what you tried",
             Command::History => "how this item got the way it is",
+            Command::Prompt => "the item as an agent's prompt",
             Command::Accept => "accept the change somebody proposed",
             Command::Propose => "in a picker: ask for the change rather than make it",
             Command::Tick => "tick an acceptance criterion that has come true",
@@ -296,6 +300,7 @@ impl Command {
             &[
                 Command::Read,
                 Command::History,
+                Command::Prompt,
                 Command::Copy,
                 Command::CopyView,
             ],
@@ -346,6 +351,8 @@ impl Command {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Keymap {
     bindings: Vec<(KeyCode, KeyModifiers, Command)>,
+    /// Commands the installed cairn cannot carry out.
+    withheld: Vec<Command>,
 }
 
 impl Default for Keymap {
@@ -421,12 +428,27 @@ impl Default for Keymap {
                 (K::Char('?'), n, C::Help),
                 (K::Char('q'), n, C::Quit),
                 (K::Char('c'), ctrl, C::Quit),
+                (K::Char('P'), n, C::Prompt),
             ],
+            withheld: Vec::new(),
         }
     }
 }
 
 impl Keymap {
+    /// Take a command out of reach: unbound, gone from the help, and not
+    /// offered by the palette. For what the installed cairn cannot do — a key
+    /// that answers `unrecognized subcommand` is worse than no key.
+    pub fn withhold(&mut self, command: Command) {
+        self.bindings.retain(|(_, _, c)| *c != command);
+        self.withheld.push(command);
+    }
+
+    /// Whether a command is on offer at all.
+    pub fn offers(&self, command: Command) -> bool {
+        !self.withheld.contains(&command)
+    }
+
     /// Apply the user's `[keys]` table over the defaults. Returns whatever could
     /// not be understood, so the caller can report it where it will be seen.
     pub fn from_config(keys: &BTreeMap<String, String>) -> (Keymap, Vec<String>) {

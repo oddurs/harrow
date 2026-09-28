@@ -349,6 +349,8 @@ pub enum Action {
     Edit(std::path::PathBuf),
     /// Ask cairn how an item got the way it is.
     History(Id),
+    /// Ask cairn for an item as the prompt it is.
+    Prompt(Id),
     /// Ask cairn whether the project is valid against its own schema.
     Check,
     /// Ask the repository what has changed across the whole backlog.
@@ -554,6 +556,14 @@ impl DetailScroll {
     }
 }
 
+/// An item as a prompt, as cairn compiled it, being read before it is handed
+/// to an agent.
+pub struct Prompt {
+    pub id: Id,
+    pub text: String,
+    pub scroll: u16,
+}
+
 /// What the repository remembers about one item.
 pub struct History {
     pub id: Id,
@@ -624,6 +634,9 @@ impl Palette {
         let needle = self.typed.to_lowercase();
         let mut found: Vec<(u8, usize, Command)> = Vec::new();
         for (n, command) in Command::ALL.into_iter().enumerate() {
+            if !keymap.offers(command) {
+                continue;
+            }
             // The stable name and the sentence are both searchable: nobody
             // remembers that reopening is called `reopen` rather than `open`.
             let name = command.name();
@@ -833,6 +846,10 @@ pub struct App {
     /// How the selected item changed, and where the reader is in it. Read from
     /// the repository, which is the only place that knows.
     pub history: Option<History>,
+    pub prompt: Option<Prompt>,
+    /// Commands the installed cairn cannot carry out, asked once at startup
+    /// and withheld from every keymap this app is given.
+    pub cannot: Vec<Command>,
     pub picker: Option<Picker>,
     /// Every command by name, when it is open.
     pub palette: Option<Palette>,
@@ -1017,6 +1034,8 @@ impl App {
             detail: DetailScroll::default(),
             stats_scroll: 0,
             history: None,
+            prompt: None,
+            cannot: Vec::new(),
             picker: None,
             palette: None,
             dropdown: None,
@@ -1157,6 +1176,7 @@ impl App {
             && self.picker.is_none()
             && self.confirm.is_none()
             && self.history.is_none()
+            && self.prompt.is_none()
             && !self.help
             && matches!(self.pane, Pane::List | Pane::Board)
     }
@@ -3796,6 +3816,43 @@ impl App {
         }));
     }
 
+    /// Take what cairn compiled as an item's prompt. A failure, or nothing
+    /// said, is reported in the footer: an empty overlay would read as an
+    /// empty prompt.
+    pub fn show_prompt(&mut self, id: Id, result: Result<String, String>) {
+        match result {
+            Ok(text) if !text.trim().is_empty() => {
+                self.prompt = Some(Prompt {
+                    id,
+                    text,
+                    scroll: 0,
+                });
+            }
+            Ok(_) => self.toast(format!("cairn prompt {id} said nothing"), ToastKind::Bad),
+            Err(why) => self.toast(format!("cairn prompt: {why}"), ToastKind::Bad),
+        }
+    }
+
+    /// Say what was copied, in a line: a reference as itself, and anything
+    /// longer — a whole prompt — by its first line and its size.
+    pub fn copied(&mut self, text: &str) {
+        let first = text.lines().next().unwrap_or_default().trim();
+        let said = if text.trim().contains('\n') || text.chars().count() > 80 {
+            format!("copied {first} — {} characters", text.chars().count())
+        } else {
+            format!("copied {text}")
+        };
+        self.toast(said, ToastKind::Good);
+    }
+
+    /// Use a keymap, less whatever the installed cairn cannot do.
+    pub fn set_keymap(&mut self, mut keymap: crate::keys::Keymap) {
+        for command in &self.cannot {
+            keymap.withhold(*command);
+        }
+        self.keymap = keymap;
+    }
+
     /// Take what cairn said about an item's history.
     pub fn show_history(&mut self, id: Id, result: Result<String, String>) {
         self.history = Some(match result {
@@ -4205,6 +4262,26 @@ impl App {
             }
             return Action::None;
         }
+        if let Some(prompt) = self.prompt.as_mut() {
+            match code {
+                KeyCode::Down | KeyCode::Char('j') => {
+                    prompt.scroll = prompt.scroll.saturating_add(1)
+                }
+                KeyCode::Up | KeyCode::Char('k') => prompt.scroll = prompt.scroll.saturating_sub(1),
+                KeyCode::PageDown | KeyCode::Char(' ') => {
+                    prompt.scroll = prompt.scroll.saturating_add(10)
+                }
+                KeyCode::PageUp => prompt.scroll = prompt.scroll.saturating_sub(10),
+                // Whole, because a prompt with a layer missing is a different
+                // prompt: what the agent reads is what was read here.
+                KeyCode::Char('y') => {
+                    let text = self.prompt.take().map(|p| p.text).unwrap_or_default();
+                    return Action::Copy(text);
+                }
+                _ => self.prompt = None,
+            }
+            return Action::None;
+        }
         if let Some(history) = self.history.as_mut() {
             match code {
                 KeyCode::Down | KeyCode::Char('j') => {
@@ -4598,6 +4675,18 @@ impl App {
                     return Action::None;
                 };
                 return Action::History(item.id);
+            }
+            // cairn compiles it — the item and everything it rests on — and
+            // harrow shows it. A second compiler here would be a second
+            // answer to what an agent should read.
+            Command::Prompt => {
+                if !self.keymap.offers(Command::Prompt) {
+                    return Action::None;
+                }
+                let Some(item) = self.selected_item() else {
+                    return Action::None;
+                };
+                return Action::Prompt(item.id);
             }
             // On demand, never on load: `check` is a process, harrow reloads
             // on every file change, and a validator on a watch is a validator
@@ -5033,6 +5122,14 @@ impl App {
                 .saturating_add_signed(delta.clamp(-32, 32) as i16);
             return;
         }
+        // The overlay takes the wheel, as the history does; the rows behind it
+        // must not move while it is being read.
+        if let Some(prompt) = self.prompt.as_mut() {
+            prompt.scroll = prompt
+                .scroll
+                .saturating_add_signed(delta.clamp(-32, 32) as i16);
+            return;
+        }
         if self.reading
             && matches!(self.hit_at(column, row), Some(Hit::Reader))
             && let Some(id) = self.selected_item().map(|i| i.id)
@@ -5114,9 +5211,10 @@ impl App {
         // dismissal rather than a gesture meant for the surface it is
         // covering. `any other key closes` on its edge promises as much, and a
         // click was the one gesture that neither closed it nor was ignored.
-        if self.history.is_some() {
+        if self.history.is_some() || self.prompt.is_some() {
             if !matches!(self.hit_at(column, row), Some(Hit::Overlay)) {
                 self.history = None;
+                self.prompt = None;
             }
             return Action::None;
         }

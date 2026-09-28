@@ -179,7 +179,6 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
     let mut app = App::new();
     app.theme = startup.theme.clone();
     app.glyphs = startup.glyphs;
-    app.keymap = startup.keymap.clone();
     app.show_all = startup.config.show_all || args.iter().any(|a| a == "-a" || a == "--all");
     // Every lens by name, and the two that had flags of their own keep them.
     // The needs queue and the log answer *what needs me* and *what changed*,
@@ -215,6 +214,10 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
     app.can_tick = app.writable() && cairn_can(&startup.config.cairn, "tick");
     app.can_record_result =
         app.writable() && cairn_takes(&startup.config.cairn, "close", "--result");
+    if !cairn_can(&startup.config.cairn, "prompt") {
+        app.cannot.push(harrow::keys::Command::Prompt);
+    }
+    app.set_keymap(startup.keymap.clone());
     app
 }
 
@@ -796,7 +799,7 @@ fn dispatch(
             let name = theme.name.clone();
             app.theme = theme;
             app.glyphs = fresh.glyphs;
-            app.keymap = fresh.keymap;
+            app.set_keymap(fresh.keymap);
             app.rebuild();
             // Deliberately no `terminal.clear()`. It issues a cursor-position
             // query and waits for a reply, which stalls for seconds on a
@@ -806,7 +809,7 @@ fn dispatch(
         }
         Action::SetMouse(on) => guard.set_mouse(on)?,
         Action::Copy(text) => match copy_to_clipboard(&text) {
-            Ok(()) => app.toast(format!("copied {text}"), ToastKind::Good),
+            Ok(()) => app.copied(&text),
             Err(e) => app.toast(format!("clipboard unavailable: {e}"), ToastKind::Bad),
         },
         Action::Open(url) => {
@@ -834,6 +837,15 @@ fn dispatch(
                 Ok(_) => handle.refresh(),
                 Err(e) => app.toast(format!("could not open your editor: {e}"), ToastKind::Bad),
             }
+        }
+        Action::Prompt(id) => {
+            let result = harrow::exec::run(
+                &startup.config.cairn,
+                &["prompt", &id.to_string()],
+                startup.config.write_timeout(),
+            )
+            .map_err(|e| e.to_string());
+            app.show_prompt(id, result);
         }
         Action::History(id) => {
             // cairn reads it out of the repository's own history, which is the

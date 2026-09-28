@@ -176,14 +176,13 @@ Documented, tested, and safe to depend on.
 
 ## v0.8 — Read an item as the prompt it is
 
-`####······` 40% · 4 of 10 done
+`#####·····` 50% · 5 of 10 done
 
 Cairn now treats an item as a prompt that outlives the session (cairn 0153,
 
 ### backlog
 
 - [ ] `0122` Advance the Cairn pin to prompt, split and prompt checks <sup>chore · p1 · read</sup>
-- [ ] `0123` Hand an item's prompt to an agent <sup>feature · p1 · chrome</sup>
 - [ ] `0124` Split an item into its steps from harrow <sup>feature · p2 · write</sup>
 - [ ] `0125` Show prompt checks where cairn check is shown <sup>feature · p2 · chrome</sup>
 - [ ] `0126` Say what reading items as prompts added, in the README and the changelog <sup>chore · p1 · docs</sup>
@@ -195,6 +194,7 @@ Cairn now treats an item as a prompt that outlives the session (cairn 0153,
 - [x] `0119` Show what a finished item concluded <sup>feature · p0 · chrome</sup>
 - [x] `0120` Advance the Cairn pin to Results <sup>chore · p1 · read</sup>
 - [x] `0121` Record a Result when closing <sup>feature · p0 · write</sup>
+- [x] `0123` Hand an item's prompt to an agent <sup>feature · p1 · chrome</sup>
 
 ## later — Someday
 
