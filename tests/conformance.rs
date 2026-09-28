@@ -97,6 +97,15 @@ fn every_item_in_cairns_corpus_reads_the_way_cairn_says_it_does() {
             expected(&want, "uid").and_then(text),
             "{name}: uid"
         );
+        // Absent where there is none, like `uid`. Read from the body at load,
+        // so it is compared as a loaded item carries it.
+        let mut loaded = vec![got.clone()];
+        harrow::engine::derive(&mut loaded, &schema, &mut Vec::new());
+        assert_eq!(
+            loaded[0].result.as_deref(),
+            expected(&want, "result").and_then(text),
+            "{name}: result"
+        );
         assert_eq!(
             Some(got.title.as_str()),
             text(&want["title"]),

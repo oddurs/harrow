@@ -144,6 +144,9 @@ pub struct Item {
     pub depth: u32,
     /// Changes waiting for a person to decide.
     pub proposals: Vec<Proposal>,
+    /// What finishing it concluded, where the body says: the part the work
+    /// that depends on it quotes instead of its whole history.
+    pub result: Option<String>,
     /// True when a reference field names this item's type, so it is a thing
     /// work belongs to rather than a piece of work. Kept on the item because
     /// every listing has to ask.
@@ -429,8 +432,14 @@ pub fn criteria_at(body: &str, section: Option<&str>) -> Vec<(usize, bool, Strin
     // Before any heading, with no section named, we are already counting, so
     // a body with no headings at all still works.
     let mut counting = section.is_none();
+    // A box in a Result is part of what the item concluded, not something it
+    // still asks for (§10.1), whatever section the project counts.
+    let result = result_span(body);
 
     for (n, line) in body.lines().enumerate() {
+        if result.is_some_and(|(start, end)| n > start && n < end) {
+            continue;
+        }
         let trimmed = line.trim();
         if let Some(heading) = trimmed.strip_prefix('#') {
             if let Some(want) = section {
@@ -469,6 +478,104 @@ pub fn criteria_at(body: &str, section: Option<&str>) -> Vec<(usize, bool, Strin
             continue;
         }
         out.push((n, ticked, after.trim().to_string()));
+    }
+    out
+}
+
+/// What finishing an item concluded: its `Result` section, as specification
+/// §10.2 reads one, or nothing.
+///
+/// The section under the first heading named `Result` — at any level, without
+/// regard to case — running to the next heading at the same level or above,
+/// or to a heading a note was written under, whatever its level. Trimmed.
+/// Held to cairn's reading rather than to what looks reasonable, because a
+/// dependent quotes this in both tools, and two tools quoting two different
+/// conclusions for one item is worse than either quoting none. So the details
+/// are cairn's: a heading may be indented, needs its `#`s followed by a space,
+/// and is compared with its closing `#`s trimmed off.
+pub fn result_of(body: &str) -> Option<String> {
+    let (start, end) = result_span(body)?;
+    let text = body
+        .lines()
+        .skip(start + 1)
+        .take(end - start - 1)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let text = text.trim();
+    (!text.is_empty()).then(|| text.to_string())
+}
+
+/// The Result section's heading line, and where it ends (exclusive).
+///
+/// A note's heading ends it whatever its level: a note appended after a
+/// hand-written `# Result` is a note, not more of the conclusion.
+fn result_span(body: &str) -> Option<(usize, usize)> {
+    let headings = headings(body);
+    let (start, level) = headings
+        .iter()
+        .find(|(_, _, text)| text.eq_ignore_ascii_case("Result"))
+        .map(|(line, level, _)| (*line, *level))?;
+    let end = headings
+        .iter()
+        .find(|(line, l, text)| *line > start && (*l <= level || is_note_heading(text)))
+        .map_or_else(|| body.lines().count(), |(line, _, _)| *line);
+    Some((start, end))
+}
+
+/// The headings `cairn note`, `release` and `propose` write: a date, a
+/// handoff, a proposal. What a run recorded, rather than what the item says.
+fn is_note_heading(heading: &str) -> bool {
+    let b = heading.as_bytes();
+    let dated = b.len() >= 10
+        && b[..4].iter().all(u8::is_ascii_digit)
+        && b[4] == b'-'
+        && b[5..7].iter().all(u8::is_ascii_digit)
+        && b[7] == b'-'
+        && b[8..10].iter().all(u8::is_ascii_digit);
+    dated || heading.starts_with("Released by") || heading.starts_with("Proposed ")
+}
+
+/// Every Markdown heading in a body, as `(line, level, text)`.
+///
+/// A heading inside a fenced block is code — a `# comment` in a shell example
+/// must not end the section it sits in — and a fence closes only on the
+/// marker that opened it.
+fn headings(body: &str) -> Vec<(usize, usize, String)> {
+    let lines: Vec<&str> = body.lines().collect();
+    headings_from(&lines, 0)
+}
+
+fn headings_from(lines: &[&str], from: usize) -> Vec<(usize, usize, String)> {
+    let mut out = Vec::new();
+    let mut fence: Option<(&str, usize)> = None;
+    for (n, line) in lines.iter().enumerate().skip(from) {
+        let trimmed = line.trim_start();
+        if let Some(marker) = ["```", "~~~"].into_iter().find(|m| trimmed.starts_with(m)) {
+            match fence {
+                Some((open, _)) if open == marker => fence = None,
+                None => fence = Some((marker, n)),
+                Some(_) => {}
+            }
+            continue;
+        }
+        if fence.is_some() {
+            continue;
+        }
+        let level = trimmed.chars().take_while(|c| *c == '#').count();
+        if (1..=6).contains(&level)
+            && let Some(text) = trimmed[level..].strip_prefix(' ')
+        {
+            out.push((
+                n,
+                level,
+                text.trim().trim_end_matches('#').trim().to_string(),
+            ));
+        }
+    }
+    // A fence nobody closed is a stray marker, not a block running to the end
+    // of the body: read as one, it would hide every heading after it.
+    if let Some((_, at)) = fence {
+        out.extend(headings_from(lines, at + 1));
     }
     out
 }
@@ -755,6 +862,128 @@ fn resolve(s: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── Results, as specification §10.2 reads them ──────────────────────────
+
+    #[test]
+    fn a_result_is_found_at_any_level_and_in_any_case() {
+        for heading in ["## Result", "### result", "# RESULT", "  ## Result ##"] {
+            let body = format!("## Problem\n\nWhy.\n\n{heading}\n\nIt is the cache.\n");
+            assert_eq!(
+                result_of(&body).as_deref(),
+                Some("It is the cache."),
+                "{heading:?}"
+            );
+        }
+    }
+
+    /// Cairn's own case (tests/prompts.rs, `a_result_ends_at_the_next_heading_
+    /// and_ignores_code`), byte for byte: a comment in a fence is code, a
+    /// deeper heading stays inside, and a heading at the same level ends it.
+    #[test]
+    fn a_result_ends_at_the_next_heading_and_ignores_code() {
+        let body = "## Result\n\nThe answer.\n\n```sh\n# not a heading\ncairn check\n```\n\n\
+                    ### Detail\n\nStill the result.\n\n## 2026-09-27\n\nA note.\n";
+        assert_eq!(
+            result_of(body).as_deref(),
+            Some(
+                "The answer.\n\n```sh\n# not a heading\ncairn check\n```\n\n\
+                 ### Detail\n\nStill the result."
+            )
+        );
+    }
+
+    #[test]
+    fn a_higher_heading_ends_a_result_too() {
+        let body = "### Result\n\nShort.\n\n## Notes\n\nNot it.\n";
+        assert_eq!(result_of(body).as_deref(), Some("Short."));
+    }
+
+    #[test]
+    fn a_fence_closes_only_on_the_marker_that_opened_it() {
+        let body = "## Result\n\n~~~\n```\n## inside\n~~~\n\nAfter.\n\n## Next\n";
+        assert_eq!(
+            result_of(body).as_deref(),
+            Some("~~~\n```\n## inside\n~~~\n\nAfter.")
+        );
+    }
+
+    #[test]
+    fn an_empty_result_is_no_result() {
+        assert_eq!(result_of("## Result\n\n   \n\n## Next\n"), None);
+        assert_eq!(result_of("## Result\n"), None);
+        assert_eq!(result_of("No headings at all.\n"), None);
+    }
+
+    #[test]
+    fn a_hash_with_no_space_is_not_a_heading() {
+        assert_eq!(result_of("#Result\n\nText.\n"), None);
+        // Nor does one end a section.
+        assert_eq!(
+            result_of("## Result\n\nOne.\n#tag\n").as_deref(),
+            Some("One.\n#tag")
+        );
+    }
+
+    /// Cairn's corpus case `result-above-a-note`: a hand-written top-level
+    /// Result, and a note appended under it by `cairn note` at level two.
+    #[test]
+    fn a_note_ends_a_result_whatever_its_level() {
+        let body = "# Result\n\nThe answer, under a top-level heading.\n\n\
+                    ## 2026-09-27\n\nA note written after, which is not part of it.\n";
+        assert_eq!(
+            result_of(body).as_deref(),
+            Some("The answer, under a top-level heading.")
+        );
+        for note in ["### Released by an agent", "### Proposed priority → p0"] {
+            let body = format!("# Result\n\nIt.\n\n{note}\n\nNot it.\n");
+            assert_eq!(result_of(&body).as_deref(), Some("It."), "{note}");
+        }
+        // A deeper heading that is not a note stays inside.
+        assert_eq!(
+            result_of("# Result\n\nIt.\n\n## Why\n\nStill it.\n").as_deref(),
+            Some("It.\n\n## Why\n\nStill it.")
+        );
+    }
+
+    #[test]
+    fn a_fence_never_closed_is_not_a_fence() {
+        let body = "## Result\n\nOpened ```\n```\nstray\n\n## Next\n\nNot it.\n";
+        assert_eq!(result_of(body).as_deref(), Some("Opened ```\n```\nstray"));
+        // Nor does it hide a Result written after it.
+        assert_eq!(
+            result_of("```\nstray\n\n## Result\n\nFound.\n").as_deref(),
+            Some("Found.")
+        );
+    }
+
+    #[test]
+    fn a_box_in_a_result_is_not_a_criterion() {
+        let body = "## Acceptance criteria\n\n- [x] one\n- [ ] two\n\n\
+                    ## Result\n\n- [x] shipped the cache\n";
+        assert_eq!(count_criteria(body, None), (1, 2), "no section named");
+        assert_eq!(
+            count_criteria(body, Some("Result")),
+            (0, 0),
+            "not even when the project names it"
+        );
+    }
+
+    #[test]
+    fn the_first_result_is_the_one() {
+        let body = "## Result\n\nFirst.\n\n## Result\n\nSecond.\n";
+        assert_eq!(result_of(body).as_deref(), Some("First."));
+    }
+
+    #[test]
+    fn a_loaded_item_carries_its_result() {
+        let mut items = vec![Item {
+            body: "## Problem\n\nWhy.\n\n## Result\n\nIt is the cache.\n".into(),
+            ..crate::testkit::item(1, "t", "done")
+        }];
+        crate::engine::derive(&mut items, &crate::testkit::schema(), &mut Vec::new());
+        assert_eq!(items[0].result.as_deref(), Some("It is the cache."));
+    }
 
     const ITEM: &str = "---\n\
 id: 22\n\
