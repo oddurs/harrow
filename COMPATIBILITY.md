@@ -9,8 +9,7 @@ Harrow **0.2.0-alpha.1** is paired with Cairn **1.0.0-alpha.1**, revision
 development versions, not a stable 1.0 promise. The 66-case corpus covers
 formats 1–5, including frozen older corpora, and a `## Result` section as
 specification §10.2 reads one. Upgrade both tools before
-migrating: released Cairn 0.3.0 and Harrow 0.1.0 do not understand format 4 or
-5.
+migrating: Cairn's latest release, 0.3.0, does not understand format 4 or 5.
 
 Format 5 stores a number under `id`, as formats 1–3 did, and a UUIDv4 `uid`
 tag that never changes. A type may declare its own rendering, and a type's
