@@ -191,6 +191,15 @@ fn states_in(glyphs: &'static Glyphs) -> Vec<State> {
             }),
         ),
         (
+            "reading an item's prompt",
+            build(|app| {
+                app.show_prompt(
+                    3.into(),
+                    Ok("# 0003 Draw the list\n\n## Done when\n\n1. Rows scroll\n- a list\n".into()),
+                );
+            }),
+        ),
+        (
             "on what a finished item concluded",
             build(|app| {
                 app.ingest(testkit::concluded_report());

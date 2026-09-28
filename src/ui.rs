@@ -212,6 +212,9 @@ pub fn draw(f: &mut Frame, app: &mut App, tick: usize) {
     if app.history.is_some() {
         draw_history(f, app, &t, area);
     }
+    if app.prompt.is_some() {
+        draw_prompt(f, app, &t, area);
+    }
     if app.help {
         draw_help(f, app, &t, area);
     }
@@ -3911,6 +3914,50 @@ fn draw_reader(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     f.render_widget(Clear, area);
     f.render_widget(Paragraph::new(lines).scroll((scroll, 0)).block(block), area);
     app.hit(area, Hit::Reader);
+}
+
+/// An item as the prompt cairn compiles, read before it is handed over.
+///
+/// Read first and copied second, rather than copied on the key: a prompt is
+/// seven layers somebody else assembled, and what it says is worth one look
+/// before an agent acts on all of it. Copying is then one key away.
+fn draw_prompt(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
+    let Some(prompt) = &app.prompt else { return };
+    let width = 96u16.min(area.width.saturating_sub(4));
+    let room = width.saturating_sub(6) as usize;
+    let mut lines = vec![Line::from("")];
+    lines.extend(body_lines(&prompt.text, t, app.glyphs, room));
+    let height = ((lines.len() + 2) as u16).min(area.height.saturating_sub(4));
+    let popup = centered(area, width, height);
+    let over = lines
+        .len()
+        .saturating_sub(height.saturating_sub(2) as usize) as u16;
+    let title = format!(" {} · prompt ", app.schema.format_id(prompt.id));
+    let edge = if over > 0 {
+        " y copies it whole · ↑↓ scroll · any other key closes "
+    } else {
+        " y copies it whole · any other key closes "
+    };
+    let scroll = match app.prompt.as_mut() {
+        Some(prompt) => {
+            prompt.scroll = prompt.scroll.min(over);
+            prompt.scroll
+        }
+        None => 0,
+    };
+
+    f.render_widget(Clear, popup);
+    f.render_widget(
+        Paragraph::new(lines).scroll((scroll, 0)).block(
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(t.border_focus))
+                .title(Span::styled(title, Style::default().fg(t.muted)))
+                .title_bottom(Span::styled(edge, Style::default().fg(t.faint))),
+        ),
+        popup,
+    );
+    app.hit(popup, Hit::Overlay);
 }
 
 /// How an item got the way it is.
