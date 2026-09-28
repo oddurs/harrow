@@ -273,6 +273,7 @@ pub fn derive(items: &mut [Item], schema: &Schema, warnings: &mut Vec<String>) {
         let (met, total) = crate::item::count_criteria(&item.body, section);
         item.criteria_met = met;
         item.criteria_total = total;
+        item.result = crate::item::result_of(&item.body);
     }
 
     let mut duplicates: Vec<Id> = Vec::new();

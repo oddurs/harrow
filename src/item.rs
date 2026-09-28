@@ -144,6 +144,9 @@ pub struct Item {
     pub depth: u32,
     /// Changes waiting for a person to decide.
     pub proposals: Vec<Proposal>,
+    /// What finishing it concluded, where the body says: the part the work
+    /// that depends on it quotes instead of its whole history.
+    pub result: Option<String>,
     /// True when a reference field names this item's type, so it is a thing
     /// work belongs to rather than a piece of work. Kept on the item because
     /// every listing has to ask.
@@ -473,6 +476,71 @@ pub fn criteria_at(body: &str, section: Option<&str>) -> Vec<(usize, bool, Strin
     out
 }
 
+/// What finishing an item concluded: its `Result` section, as specification
+/// §10.2 reads one, or nothing.
+///
+/// The section under the first heading named `Result` — at any level, without
+/// regard to case — running to the next heading at the same level or above,
+/// trimmed. Held to cairn's reading rather than to what looks reasonable,
+/// because a dependent quotes this in both tools, and two tools quoting two
+/// different conclusions for one item is worse than either quoting none.
+/// So the details are cairn's: a heading may be indented, needs its `#`s
+/// followed by a space, and is compared with its closing `#`s trimmed off.
+pub fn result_of(body: &str) -> Option<String> {
+    let headings = headings(body);
+    let (start, level) = headings
+        .iter()
+        .find(|(_, _, text)| text.eq_ignore_ascii_case("Result"))
+        .map(|(line, level, _)| (*line, *level))?;
+    let end = headings
+        .iter()
+        .find(|(line, l, _)| *line > start && *l <= level)
+        .map_or_else(|| body.lines().count(), |(line, _, _)| *line);
+    let text = body
+        .lines()
+        .skip(start + 1)
+        .take(end - start - 1)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let text = text.trim();
+    (!text.is_empty()).then(|| text.to_string())
+}
+
+/// Every Markdown heading in a body, as `(line, level, text)`.
+///
+/// A heading inside a fenced block is code — a `# comment` in a shell example
+/// must not end the section it sits in — and a fence closes only on the
+/// marker that opened it.
+fn headings(body: &str) -> Vec<(usize, usize, String)> {
+    let mut out = Vec::new();
+    let mut fence: Option<&str> = None;
+    for (n, line) in body.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if let Some(marker) = ["```", "~~~"].into_iter().find(|m| trimmed.starts_with(m)) {
+            match fence {
+                Some(open) if open == marker => fence = None,
+                None => fence = Some(marker),
+                Some(_) => {}
+            }
+            continue;
+        }
+        if fence.is_some() {
+            continue;
+        }
+        let level = trimmed.chars().take_while(|c| *c == '#').count();
+        if (1..=6).contains(&level)
+            && let Some(text) = trimmed[level..].strip_prefix(' ')
+        {
+            out.push((
+                n,
+                level,
+                text.trim().trim_end_matches('#').trim().to_string(),
+            ));
+        }
+    }
+    out
+}
+
 /// The leading run of digits in a filename, which is how cairn names an item
 /// and the only part of the name anything is allowed to depend on.
 ///
@@ -755,6 +823,84 @@ fn resolve(s: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── Results, as specification §10.2 reads them ──────────────────────────
+
+    #[test]
+    fn a_result_is_found_at_any_level_and_in_any_case() {
+        for heading in ["## Result", "### result", "# RESULT", "  ## Result ##"] {
+            let body = format!("## Problem\n\nWhy.\n\n{heading}\n\nIt is the cache.\n");
+            assert_eq!(
+                result_of(&body).as_deref(),
+                Some("It is the cache."),
+                "{heading:?}"
+            );
+        }
+    }
+
+    /// Cairn's own case (tests/prompts.rs, `a_result_ends_at_the_next_heading_
+    /// and_ignores_code`), byte for byte: a comment in a fence is code, a
+    /// deeper heading stays inside, and a heading at the same level ends it.
+    #[test]
+    fn a_result_ends_at_the_next_heading_and_ignores_code() {
+        let body = "## Result\n\nThe answer.\n\n```sh\n# not a heading\ncairn check\n```\n\n\
+                    ### Detail\n\nStill the result.\n\n## 2026-09-27\n\nA note.\n";
+        assert_eq!(
+            result_of(body).as_deref(),
+            Some(
+                "The answer.\n\n```sh\n# not a heading\ncairn check\n```\n\n\
+                 ### Detail\n\nStill the result."
+            )
+        );
+    }
+
+    #[test]
+    fn a_higher_heading_ends_a_result_too() {
+        let body = "### Result\n\nShort.\n\n## Notes\n\nNot it.\n";
+        assert_eq!(result_of(body).as_deref(), Some("Short."));
+    }
+
+    #[test]
+    fn a_fence_closes_only_on_the_marker_that_opened_it() {
+        let body = "## Result\n\n~~~\n```\n## inside\n~~~\n\nAfter.\n\n## Next\n";
+        assert_eq!(
+            result_of(body).as_deref(),
+            Some("~~~\n```\n## inside\n~~~\n\nAfter.")
+        );
+    }
+
+    #[test]
+    fn an_empty_result_is_no_result() {
+        assert_eq!(result_of("## Result\n\n   \n\n## Next\n"), None);
+        assert_eq!(result_of("## Result\n"), None);
+        assert_eq!(result_of("No headings at all.\n"), None);
+    }
+
+    #[test]
+    fn a_hash_with_no_space_is_not_a_heading() {
+        assert_eq!(result_of("#Result\n\nText.\n"), None);
+        // Nor does one end a section.
+        assert_eq!(
+            result_of("## Result\n\nOne.\n#tag\n").as_deref(),
+            Some("One.\n#tag")
+        );
+    }
+
+    #[test]
+    fn the_first_result_is_the_one() {
+        let body = "## Result\n\nFirst.\n\n## Result\n\nSecond.\n";
+        assert_eq!(result_of(body).as_deref(), Some("First."));
+    }
+
+    #[test]
+    fn a_loaded_item_carries_its_result() {
+        let mut items = vec![Item {
+            body: "## Problem\n\nWhy.\n\n## Result\n\nIt is the cache.\n".into(),
+            ..crate::testkit::item(1, "t", "done")
+        }];
+        crate::engine::derive(&mut items, &crate::testkit::schema(), &mut Vec::new());
+        assert_eq!(items[0].result.as_deref(), Some("It is the cache."));
+    }
 
     const ITEM: &str = "---\n\
 id: 22\n\
