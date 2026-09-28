@@ -134,6 +134,10 @@ fn a_failed_check_shows_every_finding_and_its_summary_first() {
         panic!("a failure: {:?}", app.checked)
     };
     assert_eq!(said[0], "failed: 2 error(s), 0 warning(s) across 6 item(s)");
+    assert!(
+        said[1].contains("already used by 0001"),
+        "the last printed, first: {said:?}"
+    );
     assert_eq!(said.len(), 3, "{said:?}");
     let screen = diagnostics(&mut app);
     assert!(screen.contains("unknown status `nonsense`"), "{screen}");
@@ -156,4 +160,23 @@ fn a_long_check_says_how_many_more_there_are() {
         screen.contains("ok: 12 item(s)"),
         "the summary survives the cut"
     );
+}
+
+/// Eight warnings and one error: the error, printed last, is what failed the
+/// check, and it is on screen however many warnings came before it.
+#[test]
+fn a_failed_check_keeps_its_errors_on_screen_under_many_warnings() {
+    let mut app = testkit::app();
+    let warnings: String = (1..=8)
+        .map(|n| format!("cairn: items/000{n}-x.md:5: field `f{n}` is not declared\n"))
+        .collect();
+    app.show_check(Err(harrow::exec::ExecError::Failed {
+        code: Some(1),
+        stderr: format!(
+            "{warnings}cairn: items/0009-x.md:7: unknown status `nonsense`\n\nfailed: 1 error(s), 8 warning(s) across 9 item(s)\n"
+        ),
+    }));
+    let screen = diagnostics(&mut app);
+    assert!(screen.contains("unknown status `nonsense`"), "{screen}");
+    assert!(screen.contains("failed: 1 error(s)"), "{screen}");
 }

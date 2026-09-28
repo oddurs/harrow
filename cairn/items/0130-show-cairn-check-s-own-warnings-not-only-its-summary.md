@@ -47,3 +47,7 @@ Evidence: tests/prompt_checks.rs a_checks_warnings_are_shown_word_for_word, a_fa
 ## Result
 
 The diagnostics overlay shows what cairn check found, not only its summary: warnings word for word under the summary, and for a failed check every finding with the failure count first, capped with a count of the rest.
+
+## 2026-09-28
+
+Review (/code-review) found one bug, fixed: cairn prints every warning before its errors, so a failed check with eight warnings and one error showed the summary, seven warnings and '…and 2 more', and never the error. A failed check's findings are now listed last-printed first under its summary, so what failed it stays on screen (a_failed_check_keeps_its_errors_on_screen_under_many_warnings).

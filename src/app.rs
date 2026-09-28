@@ -3820,8 +3820,9 @@ impl App {
     ///
     /// A check that fails still says which items will be misread: cairn prints
     /// its warnings, prompt findings among them, before its errors. So the
-    /// findings are kept, and the failure is the first line that is not one —
-    /// advice read as the reason a check failed is the confusion to avoid.
+    /// prompt findings are kept as advice, apart from the check's own lines,
+    /// and those are listed errors first — the last cairn printed — so a list
+    /// cut short keeps what failed it.
     pub fn show_check(&mut self, result: Result<(String, String), crate::exec::ExecError>) {
         use crate::exec::ExecError;
         let said = match &result {
@@ -3849,7 +3850,12 @@ impl App {
                 .chain(findings(&advice))
                 .collect()),
             Err(ExecError::Failed { code, stderr }) => {
-                let said = findings(&stderr);
+                let mut said = findings(&stderr);
+                // Summary first, then the rest newest first: cairn prints its
+                // errors after its warnings, and they are what failed it.
+                if said.len() > 1 {
+                    said[1..].reverse();
+                }
                 if said.is_empty() {
                     Err(vec![match code {
                         Some(c) => format!("exited {c}"),
