@@ -3,12 +3,14 @@ id: 122
 uid: c658bc66-fdb3-4741-b6c0-02e77edcc27b
 title: Advance the Cairn pin to prompt, split and prompt checks
 type: chore
-status: backlog
+status: done
 milestone: v0.8
+assignee: oddurs
 depends_on:
 - 120
 created: 2026-09-27
-updated: 2026-09-27
+updated: 2026-09-28
+closed_at: 2026-09-28
 priority: p1
 effort: s
 area: read
@@ -30,5 +32,13 @@ revision covers which command in COMPATIBILITY.md.
 
 ## Done when
 
-- [ ] CI builds a Cairn with `prompt`, `split` and `check --prompts`
-- [ ] COMPATIBILITY.md says what each needs and how harrow degrades without it
+- [x] CI builds a Cairn with `prompt`, `split` and `check --prompts`
+- [x] COMPATIBILITY.md says what each needs and how harrow degrades without it
+
+## 2026-09-28
+
+The pin that covers prompt, split and check --prompts landed with 0120: Cairn 9c29249, built by CI's agreement job. This adds what COMPATIBILITY.md was missing: for each command harrow now uses, the Cairn merge that first had it and what harrow does without it — and the rule behind all of them, that harrow asks the installed cairn once, from --help, and offers nothing it lacks. Checked each row against the code that implements it (0121 can_record_result, 0123/0124 App::cannot and Keymap::withhold, 0125 can_check_prompts) and each revision against cairn's history (cd547d3 #112 0155, 5569798 #113 0156, f91642a #115 0157, 2fb5f31 #116 0158).
+
+## Result
+
+CI builds Cairn 9c29249, which has prompt, split and check --prompts, and COMPATIBILITY.md says for each command harrow uses the first Cairn that has it and what harrow does without it.
