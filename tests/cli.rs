@@ -264,6 +264,51 @@ fn the_homebrew_formula_is_generated_from_the_checksums() {
     );
 }
 
+/// Homebrew builds the completions by running the binary with the shell's
+/// name appended, unless the formula names another convention. 0.2.0-alpha.1's
+/// named `:none`, which appends nothing, so `harrow completions` exited 2 and
+/// `brew install` failed. The call the formula makes has to be one the binary
+/// answers.
+#[test]
+fn the_formula_asks_for_completions_the_way_the_binary_answers() {
+    let dir = testkit::project();
+    let sums = dir.path().join("SHA256SUMS");
+    let listing: String = [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "aarch64-unknown-linux-musl",
+        "x86_64-unknown-linux-musl",
+    ]
+    .iter()
+    .map(|target| format!("{}  harrow-9.9.9-{target}.tar.gz\n", "0".repeat(64)))
+    .collect();
+    std::fs::write(&sums, listing).expect("write the checksums");
+    let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("scripts/formula");
+    let out = Command::new(&script)
+        .args(["9.9.9", &sums.display().to_string()])
+        .output()
+        .expect("the script runs");
+    let formula = String::from_utf8_lossy(&out.stdout);
+
+    let call = formula
+        .lines()
+        .find(|l| l.contains("generate_completions_from_executable"))
+        .unwrap_or_else(|| panic!("no completions in the formula:\n{formula}"));
+    assert_eq!(
+        call.trim(),
+        r#"generate_completions_from_executable(bin/"harrow", "completions")"#,
+        "Homebrew's default appends the shell as an argument; anything else must \
+         match what `harrow completions` takes"
+    );
+    for shell in ["fish", "bash", "zsh"] {
+        let (_, _, code) = run(&["completions", shell]);
+        assert_eq!(
+            code, 0,
+            "`harrow completions {shell}` is what Homebrew runs"
+        );
+    }
+}
+
 /// A screenshot has no event loop, so whatever the interface still needs has to
 /// be asked for before the frame is drawn. Otherwise the log lens renders the
 /// question it asks before the repository has answered.

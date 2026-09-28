@@ -11,6 +11,12 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ## [Unreleased]
 
+### Fixed
+
+- The Homebrew formula the release generates installs. 0.2.0-alpha.1's asked
+  for completions without naming the shell, so `brew install` failed; the tap
+  was corrected by hand the same day.
+
 ## [0.2.0-alpha.1] - 2026-09-28
 
 The first release. A development version, paired with Cairn 1.0.0-alpha.1:
