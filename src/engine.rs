@@ -311,6 +311,7 @@ pub fn filed(items: &[Item], schema: &Schema, others: &[crate::worktree::Other])
             item.category = schema.category(&item.status);
             (item.criteria_met, item.criteria_total) =
                 crate::item::count_criteria(&item.body, section);
+            item.result = crate::item::result_of(&item.body);
             item.blockers = item
                 .depends_on
                 .iter()
@@ -769,6 +770,17 @@ mod tests {
             ],
         );
         assert_eq!(shown.len(), 1);
+    }
+
+    #[test]
+    fn a_filing_says_what_it_concluded_as_a_recorded_item_does() {
+        let schema = testkit::schema();
+        let theirs = Item {
+            body: "## Result\n\nIt is the cache.\n".into(),
+            ..tagged(2, U2, "done")
+        };
+        let shown = filed(&[], &schema, &[filing(vec![theirs])]);
+        assert_eq!(shown[0].result.as_deref(), Some("It is the cache."));
     }
 
     #[test]
