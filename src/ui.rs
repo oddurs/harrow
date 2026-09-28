@@ -4738,6 +4738,10 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             Editing::NewItem => (" title  ", "   enter to create · esc to cancel"),
             Editing::Note => (" note   ", "   enter to append · esc to cancel"),
             Editing::Reason => (" why?   ", "   enter to hand it back · esc to keep it"),
+            Editing::Result(_) => (
+                " result ",
+                "   what it concluded · enter closes it · esc keeps it open",
+            ),
             Editing::Why => (
                 " why?   ",
                 "   enter to propose it · a proposal with no reason is a preference",
@@ -4791,6 +4795,18 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
                 Style::default().fg(t.faint),
             ));
         } else {
+            // Closing with criteria left is still allowed, and the confirm
+            // this box replaced said so; the box says it too.
+            if let Editing::Result(id) = editing
+                && let Some(item) = app.items.iter().find(|i| i.id == *id)
+                && let (met, total) = item.criteria()
+                && met < total
+            {
+                spans.push(Span::styled(
+                    format!("   {met} of {total} criteria ticked"),
+                    Style::default().fg(t.warn),
+                ));
+            }
             spans.push(Span::styled(hint, Style::default().fg(t.faint)));
         }
         f.render_widget(Line::from(spans), area);

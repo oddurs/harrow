@@ -13,7 +13,7 @@
 │      │  ctrl-v        step to the next arrangement    ctrl-p        in a picker: ask for the chan…  │────  │
 │      │  S             order it by something else      N             add a line to the item's body…  │      │
 │      │  ctrl-s        type an order, in --sort's ow…  e             open the item in your editor    │      │
-│      │  V             look at it the way the projec…  x             close it, with a confirm        │a     │
+│      │  V             look at it the way the projec…  x             close, with what it concluded   │a     │
 │      │  a             show everything — finished, d…  u             reopen it                       │      │
 │      │  Find ──────────────────────────────────────   n             new item                        │      │
 ╰──────╰ ↑↓ scroll ───────────────────────────────────────────────────────────────────────────────────╯──────╯

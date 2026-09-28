@@ -712,7 +712,7 @@ impl Dropdown {
 }
 
 /// A line of text being typed: the filter box, or a new item's title.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Editing {
     Filter,
     /// The sort segment of the view line, in `--sort`'s own syntax.
@@ -725,6 +725,9 @@ pub enum Editing {
     /// Why an item is being handed back, which cairn records as a note and
     /// shows to whoever takes it next.
     Reason,
+    /// What an item being closed concluded, which cairn records as its Result
+    /// and hands to whatever depends on it.
+    Result(Id),
 }
 
 pub struct App {
@@ -875,6 +878,9 @@ pub struct App {
     /// Whether the installed cairn can tick a criterion. Asked once at
     /// startup; an older cairn simply is not offered the gesture.
     pub can_tick: bool,
+    /// Whether the installed cairn records a Result on close. Asked once at
+    /// startup, as `can_tick` is; without it `x` asks only for a yes.
+    pub can_record_result: bool,
     /// The change waiting on a reason before it is proposed.
     proposing: Option<(Id, String, String)>,
     /// What the repository says has happened, most recent first.
@@ -1029,6 +1035,7 @@ impl App {
             me: String::new(),
             actors: Vec::new(),
             can_tick: false,
+            can_record_result: false,
             proposing: None,
             moments: None,
             asking_activity: false,
@@ -3182,6 +3189,19 @@ impl App {
                 self.toast("already closed", ToastKind::Info);
                 return;
             }
+            // What it concluded is the question worth asking, and answering
+            // it is the confirmation: enter closes, esc keeps it open. An
+            // empty answer closes without one, which is cairn's own default.
+            [id] if self.can_record_result => {
+                self.input = self
+                    .by_id
+                    .get(id)
+                    .and_then(|i| self.items.get(*i))
+                    .and_then(|item| item.result.clone())
+                    .unwrap_or_default();
+                self.editing = Some(Editing::Result(*id));
+                return;
+            }
             [id] => {
                 let Some(item) = self.by_id.get(id).and_then(|i| self.items.get(*i)) else {
                     return;
@@ -3644,6 +3664,25 @@ impl App {
                 )
             }
             Some(Editing::Reason) => self.release_with(Some(text.trim()).filter(|t| !t.is_empty())),
+            Some(Editing::Result(id)) => {
+                if let Some(why) = self.readonly.clone() {
+                    self.refuse(&why);
+                    return Action::None;
+                }
+                let reference = self.schema.format_id(id);
+                let mut args = vec!["close".to_string(), id.to_string()];
+                let result = text.trim();
+                // One argument, with `=`: a Result can begin with a dash
+                // ("-5% latency"), and as a separate argument it reads as a flag.
+                if !result.is_empty() {
+                    args.push(format!("--result={result}"));
+                }
+                Action::Write(Change {
+                    args,
+                    describe: format!("{reference} closed"),
+                    undo: Some(format!("cairn reopen {id}")),
+                })
+            }
             Some(Editing::NewItem) => {
                 let title = text.trim().to_string();
                 if title.is_empty() {
@@ -3773,6 +3812,32 @@ impl App {
                 unavailable: Some(why),
             },
         });
+    }
+
+    /// Say that a change was made, and what cairn advised about it.
+    ///
+    /// A hint is cairn telling you something the change left behind — open
+    /// work with no Result to quote, when it closed without one. What it says
+    /// is kept; what it says to *type* is not, because it names a cairn
+    /// command and here the way back is the undo beside it.
+    pub fn done(&mut self, change: &Change, advice: &str) {
+        let hint = advice
+            .lines()
+            .find_map(|line| line.trim().strip_prefix("hint:"))
+            .map(|hint| hint.split(" — ").next().unwrap_or(hint).trim());
+        let mut said = change.describe.clone();
+        if let Some(hint) = hint {
+            said.push_str(&format!(" · {hint}"));
+        }
+        if let Some(undo) = &change.undo {
+            said.push_str(&format!(" · undo: {undo}"));
+        }
+        let kind = if hint.is_some() {
+            ToastKind::Info
+        } else {
+            ToastKind::Good
+        };
+        self.toast(said, kind);
     }
 
     pub fn toast(&mut self, msg: impl Into<String>, kind: ToastKind) {

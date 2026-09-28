@@ -213,6 +213,8 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
     app.readonly = (!on_path(&startup.config.cairn)).then_some(harrow::app::ReadOnly::NoCairn);
     app.me = whoami();
     app.can_tick = app.writable() && cairn_can(&startup.config.cairn, "tick");
+    app.can_record_result =
+        app.writable() && cairn_takes(&startup.config.cairn, "close", "--result");
     app
 }
 
@@ -252,6 +254,16 @@ fn on_path(cairn: &str) -> bool {
 /// than a key that is not offered.
 fn cairn_can(cairn: &str, command: &str) -> bool {
     harrow::exec::run(cairn, &[command, "--help"], Duration::from_secs(5)).is_ok()
+}
+
+/// Whether a command the cairn on this machine knows takes a flag, read off
+/// its own help. A cairn that closes but records no Result is still a cairn
+/// that closes.
+fn cairn_takes(cairn: &str, command: &str, flag: &str) -> bool {
+    harrow::exec::run(cairn, &[command, "--help"], Duration::from_secs(5)).is_ok_and(|help| {
+        help.split_whitespace()
+            .any(|word| word.trim_end_matches(',') == flag)
+    })
 }
 
 enum Colour {
@@ -861,16 +873,12 @@ fn dispatch(
 /// silently reverting.
 fn run_change(app: &mut App, handle: &runtime::Handle, config: &Config, change: Change) {
     let args: Vec<&str> = change.args.iter().map(String::as_str).collect();
-    match harrow::exec::run(&config.cairn, &args, config.write_timeout()) {
-        Ok(_) => {
+    match harrow::exec::run_advised(&config.cairn, &args, config.write_timeout()) {
+        Ok((_, advice)) => {
             // So the re-read this causes is not announced back as somebody
             // else's news.
             app.wrote();
-            let message = match &change.undo {
-                Some(undo) => format!("{} · undo: {undo}", change.describe),
-                None => change.describe.clone(),
-            };
-            app.toast(message, ToastKind::Good);
+            app.done(&change, &advice);
             handle.refresh();
         }
         Err(e) => {

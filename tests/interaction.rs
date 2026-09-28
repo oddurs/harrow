@@ -6,7 +6,7 @@
 
 use crossterm::event::{KeyCode, KeyModifiers};
 
-use harrow::app::{Action, App, Focus};
+use harrow::app::{Action, App, Editing, Focus};
 use harrow::keys::Command;
 use harrow::testkit;
 use harrow::ui;
@@ -95,6 +95,144 @@ fn closing_asks_first_and_only_the_answer_writes() {
     press(&mut app, 'x');
     let action = app.handle_key(KeyCode::Char('y'), KeyModifiers::NONE);
     assert_eq!(args(&action), vec!["close", "3"]);
+}
+
+/// Against a cairn that records a Result on close.
+fn concluding() -> App {
+    let mut app = app();
+    app.can_record_result = true;
+    app
+}
+
+fn type_in(app: &mut App, text: &str) {
+    for c in text.chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+    }
+}
+
+/// What it concluded is the question worth asking on close, and answering it
+/// is the confirmation.
+#[test]
+fn closing_asks_what_it_concluded_where_cairn_records_it() {
+    let mut app = concluding();
+    assert_eq!(press(&mut app, 'x'), Action::None, "the key writes nothing");
+    assert_eq!(app.editing, Some(Editing::Result(3.into())));
+    assert!(app.confirm.is_none(), "one question, not two");
+    type_in(&mut app, "Rows scroll; groups are 0006");
+    assert_eq!(
+        args(&app.handle_key(KeyCode::Enter, KeyModifiers::NONE)),
+        vec!["close", "3", "--result=Rows scroll; groups are 0006"]
+    );
+}
+
+/// As a separate argument, a Result beginning with a dash reads as a flag and
+/// cairn refuses the close.
+#[test]
+fn a_result_that_begins_with_a_dash_is_still_a_result() {
+    let mut app = concluding();
+    press(&mut app, 'x');
+    type_in(&mut app, "-5% latency");
+    assert_eq!(
+        args(&app.handle_key(KeyCode::Enter, KeyModifiers::NONE)),
+        vec!["close", "3", "--result=-5% latency"]
+    );
+}
+
+#[test]
+fn an_empty_answer_closes_without_a_result() {
+    let mut app = concluding();
+    press(&mut app, 'x');
+    assert_eq!(
+        args(&app.handle_key(KeyCode::Enter, KeyModifiers::NONE)),
+        vec!["close", "3"]
+    );
+}
+
+#[test]
+fn esc_keeps_it_open() {
+    let mut app = concluding();
+    press(&mut app, 'x');
+    type_in(&mut app, "half a thought");
+    assert_eq!(
+        app.handle_key(KeyCode::Esc, KeyModifiers::NONE),
+        Action::None
+    );
+    assert!(app.editing.is_none() && app.input.is_empty());
+}
+
+/// Closing again after reopening starts from what it concluded last time.
+#[test]
+fn the_answer_starts_from_the_result_it_has() {
+    let mut app = concluding();
+    let at = app.items.iter().position(|i| i.id == 3).unwrap();
+    app.items[at].result = Some("Rows scroll".into());
+    press(&mut app, 'x');
+    assert_eq!(app.input, "Rows scroll");
+}
+
+/// The confirm this box replaced said how many criteria were left; the box
+/// says it too.
+#[test]
+fn the_result_box_says_what_is_left_unticked() {
+    let mut app = concluding();
+    press(&mut app, 'x');
+    let screen = ui::render_to_string(&mut app, 110, 26, 0);
+    let footer = screen.lines().last().unwrap_or_default();
+    assert!(footer.contains("1 of 2 criteria ticked"), "{footer}");
+}
+
+/// One conclusion for forty items is not a conclusion.
+#[test]
+fn closing_marked_items_never_asks_for_a_result() {
+    let mut app = concluding();
+    app.run(Command::ToggleGroup);
+    app.select_id(5.into());
+    app.run(Command::ToggleGroup);
+    press(&mut app, 'x');
+    assert!(app.editing.is_none(), "no Result box for many");
+    assert!(app.confirm.is_some(), "the confirm it always had");
+}
+
+/// A cairn without `--result` gets the `x` it always had.
+#[test]
+fn without_a_result_to_record_closing_is_the_confirm_it_was() {
+    let mut app = app();
+    assert!(!app.can_record_result);
+    press(&mut app, 'x');
+    assert!(app.editing.is_none());
+    assert!(app.confirm.is_some());
+}
+
+/// Cairn's advice about the close it just made — open work left with nothing
+/// to quote — reaches the footer with the news that it closed.
+#[test]
+fn cairns_advice_about_a_close_reaches_the_footer() {
+    let mut app = app();
+    let change = harrow::app::Change {
+        args: vec!["close".into(), "3".into()],
+        describe: "0003 closed".into(),
+        undo: Some("cairn reopen 3".into()),
+    };
+    // What cairn prints, word for word: what it says is kept, and the command
+    // it says to type — which harrow cannot carry out on a closed item — is not.
+    app.done(
+        &change,
+        "  hint: 0005 depend(s) on 0003, and it has no result for them to quote \
+         — `cairn close 0003 --result \"…\"` records one\n",
+    );
+    let (said, _, _) = app.toast.clone().expect("a toast");
+    assert_eq!(
+        said,
+        "0003 closed · 0005 depend(s) on 0003, and it has no result for them to quote \
+         · undo: cairn reopen 3"
+    );
+
+    app.done(&change, "");
+    let (said, _, _) = app.toast.clone().expect("a toast");
+    assert_eq!(
+        said, "0003 closed · undo: cairn reopen 3",
+        "no advice, no change"
+    );
 }
 
 #[test]

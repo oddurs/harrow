@@ -71,10 +71,23 @@ pub(crate) const GIT_ENV: &[&str] = &[
 /// to get the ordinary behaviour is a worse trade than git having its own way
 /// in. Nothing else harrow spawns is sensitive to where it was launched from.
 pub fn git(args: &[&str], timeout: Duration) -> Result<String, ExecError> {
-    run_with(("git", GIT_ENV), args, timeout)
+    run_with(("git", GIT_ENV), args, timeout).map(|(out, _)| out)
 }
 
 pub fn run(program: &str, args: &[&str], timeout: Duration) -> Result<String, ExecError> {
+    run_with((program, &[]), args, timeout).map(|(out, _)| out)
+}
+
+/// The same, with what it said on stderr as well as stdout.
+///
+/// For a write: cairn reports on stdout and advises on stderr, and advice
+/// about the change just made (open work left with nothing to quote) is worth
+/// the footer's room even though the change succeeded.
+pub fn run_advised(
+    program: &str,
+    args: &[&str],
+    timeout: Duration,
+) -> Result<(String, String), ExecError> {
     run_with((program, &[]), args, timeout)
 }
 
@@ -82,7 +95,7 @@ fn run_with(
     (program, without): (&str, &[&str]),
     args: &[&str],
     timeout: Duration,
-) -> Result<String, ExecError> {
+) -> Result<(String, String), ExecError> {
     let mut command = Command::new(program);
     for name in without {
         command.env_remove(name);
@@ -137,7 +150,7 @@ fn run_with(
             stderr: err,
         });
     }
-    Ok(out)
+    Ok((out, err))
 }
 
 #[cfg(test)]

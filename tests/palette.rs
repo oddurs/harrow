@@ -62,12 +62,12 @@ fn typing_narrows_it_and_a_name_beats_a_description() {
 }
 
 /// The sentence is searchable too, because nobody remembers the stable name.
-/// `close` is described as "close it, with a confirm" and its name says
-/// nothing about confirming.
+/// `close` is described as saying what it concluded, and its name says
+/// nothing about concluding.
 #[test]
 fn a_command_is_findable_by_what_it_does() {
     let mut app = testkit::app();
-    open(&mut app, "confirm");
+    open(&mut app, "concluded");
     assert!(named(&app).contains(&"close"), "{:?}", named(&app));
 }
 
