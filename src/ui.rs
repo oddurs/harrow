@@ -1724,12 +1724,27 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 
     let inner = block.inner(area);
     let id = item.id;
-    let prose = detail_prose(app, item, t, inner.width as usize);
+    let mut prose = detail_prose(app, item, t, inner.width as usize);
 
     // Clamped here because here is where the height of the content is known.
     // Past the end of a short item is not a place the pane can be.
     let over = prose.lines.len().saturating_sub(inner.height as usize);
     app.detail.clamp(over as u16);
+    // A link picked from the keyboard is drawn picked, and the pane moves to
+    // keep it in sight.
+    if let Some(&(line, x, width, _)) = app.picked_link().and_then(|k| prose.links.get(k)) {
+        if std::mem::take(&mut app.link_moved) {
+            let top = app.detail.at(id);
+            if line < top {
+                app.detail.to(id, line);
+            } else if line >= top + inner.height {
+                app.detail.to(id, line + 1 - inner.height);
+            }
+        }
+        if let Some(drawn) = prose.lines.get_mut(line as usize) {
+            *drawn = picked(std::mem::take(drawn), x, width);
+        }
+    }
     let scroll = app.detail.at(id);
 
     // A pane holding more than it shows says so on its own edge, with the keys
@@ -1754,6 +1769,7 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     // the last thing registered wins.
     app.hit(area, Hit::Detail);
     app.links.clear();
+    app.links_of = Some(id);
     for (line, x, w, target) in prose.links {
         let y = inner.y as i32 + line as i32 - scroll as i32;
         if y >= inner.y as i32 && y < (inner.y + inner.height) as i32 {
@@ -1769,6 +1785,37 @@ fn draw_detail(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         }
         app.links.push(target);
     }
+}
+
+/// A line with the columns `from..from + width` drawn reversed: the link
+/// picked from the keyboard.
+fn picked(line: Line<'static>, from: u16, width: u16) -> Line<'static> {
+    let (from, to) = (from as usize, from as usize + width as usize);
+    let mut at = 0;
+    let mut spans = Vec::new();
+    for span in line.spans {
+        let text: Vec<char> = span.content.chars().collect();
+        let (start, end) = (at, at + text.len());
+        at = end;
+        if end <= from || start >= to {
+            spans.push(span);
+            continue;
+        }
+        let a = from.saturating_sub(start);
+        let b = (to - start).min(text.len());
+        let part = |r: std::ops::Range<usize>| text[r].iter().collect::<String>();
+        if a > 0 {
+            spans.push(Span::styled(part(0..a), span.style));
+        }
+        spans.push(Span::styled(
+            part(a..b),
+            span.style.add_modifier(Modifier::REVERSED),
+        ));
+        if b < text.len() {
+            spans.push(Span::styled(part(b..text.len()), span.style));
+        }
+    }
+    Line::from(spans)
 }
 
 /// The body of the detail pane.

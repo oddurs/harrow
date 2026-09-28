@@ -22,10 +22,10 @@
 │      │  Read and copy ─────────────────────────────   ctrl-r        reload the config and theme     │      │
 │      │  ↵/o           read it in the panel, and dri…  ?             this help                       │      │
 │      │  H             how this item got the way it …  q/ctrl-c      quit                            │      │
-│      │  P             the item as an agent's prompt   Pointer ───────────────────────────────────   │      │
-│      │  y             copy the item's reference       click         a tab, a status, a row, a foo…  │      │
-│      │  Y             copy this view as a command l…  double-click  read the item                   │      │
-│      │                                                drag          a card to another column, whi…  │      │
+│      │  [, ]          pick a link; ↵ follows it       Pointer ───────────────────────────────────   │      │
+│      │  P             the item as an agent's prompt   click         a tab, a status, a row, a foo…  │      │
+│      │  y             copy the item's reference       double-click  read the item                   │      │
+│      │  Y             copy this view as a command l…  drag          a card to another column, whi…  │      │
 │      │                                                scroll        move the pane under the point…  │      │
 │      │                                                :toggle-mouse give the pointer back to the …  │      │
 ╰──────╰──────────────────────────────────────────────────────────────────────────────────────────────╯──────╯

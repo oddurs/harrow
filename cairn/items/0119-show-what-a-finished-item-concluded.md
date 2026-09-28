@@ -41,7 +41,7 @@ hands an agent (cairn 0156, layer 3).
 - [x] A closed item with a Result shows it first, above Latest, and Body does not repeat it
 - [x] Each finished dependency shows its Result, else its last dated note, else only its title
 - [x] An unfinished dependency stays under Waiting on and does not appear under Builds on
-- [ ] A dependency's title in Builds on reaches that item by click and by `↵`, as Waiting on does
+- [x] A dependency's title in Builds on reaches that item by click and by `↵`, as Waiting on does
 - [ ] An item with no dependencies and no Result renders unchanged: the existing snapshots pass untouched
 - [x] One recorded screen holds the new sections
 
@@ -64,3 +64,7 @@ Review (/code-review) found no correctness bugs and two low points, both taken. 
 ## Result
 
 A finished item shows what it concluded first, in the detail pane and the reader, and Body no longer repeats it. Under Waiting on, Builds on lists each finished dependency with its Result, else its last dated note, else its title, as cairn prompt does; clicking one reaches it, unfolding finished work where it is folded. Keyboard following of pane links is 0128.
+
+## 2026-09-28
+
+0128 makes the ↵ half of criterion 4 true: a dependency under Builds on is picked with ] and followed with ↵, as one under Waiting on now is, through the same follow a click takes (tests/links.rs following_by_key_and_by_click_reach_the_same_item).
