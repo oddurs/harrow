@@ -40,6 +40,7 @@ pub enum Command {
     Note,
     History,
     Prompt,
+    Split,
     Accept,
     Propose,
     Tick,
@@ -72,7 +73,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 56] = [
+    pub const ALL: [Command; 57] = [
         Command::Down,
         Command::Up,
         Command::PageDown,
@@ -100,6 +101,7 @@ impl Command {
         Command::Note,
         Command::History,
         Command::Prompt,
+        Command::Split,
         Command::Accept,
         Command::Propose,
         Command::Tick,
@@ -162,6 +164,7 @@ impl Command {
             Command::Note => "note",
             Command::History => "history",
             Command::Prompt => "prompt",
+            Command::Split => "split",
             Command::Accept => "accept",
             Command::Propose => "propose",
             Command::Tick => "tick",
@@ -224,6 +227,7 @@ impl Command {
             Command::Note => "add a line to the item's body — why, what you tried",
             Command::History => "how this item got the way it is",
             Command::Prompt => "the item as an agent's prompt",
+            Command::Split => "turn its numbered steps into items of their own",
             Command::Accept => "accept the change somebody proposed",
             Command::Propose => "in a picker: ask for the change rather than make it",
             Command::Tick => "tick an acceptance criterion that has come true",
@@ -323,6 +327,7 @@ impl Command {
                 Command::Close,
                 Command::Reopen,
                 Command::New,
+                Command::Split,
             ],
         ),
         (
@@ -872,6 +877,8 @@ mod tests {
             // what opening the program already does, and this is for after
             // you have wandered.
             Command::Frontier,
+            // Creates items in bulk: asked for by name, never by reflex.
+            Command::Split,
             Command::Diagnostics,
             Command::Check,
             Command::ToggleMouse,

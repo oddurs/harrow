@@ -351,6 +351,8 @@ pub enum Action {
     History(Id),
     /// Ask cairn for an item as the prompt it is.
     Prompt(Id),
+    /// Ask cairn what splitting an item would create, before it does.
+    Split(Id),
     /// Ask cairn whether the project is valid against its own schema.
     Check,
     /// Ask the repository what has changed across the whole backlog.
@@ -3845,6 +3847,48 @@ impl App {
         self.toast(said, ToastKind::Good);
     }
 
+    /// Take what cairn's dry run said splitting an item would create, and ask
+    /// before creating it. A refusal ("no numbered steps", "already split")
+    /// goes to the footer in cairn's words.
+    pub fn show_split(&mut self, id: Id, result: Result<String, String>) {
+        let out = match result {
+            Ok(out) => out,
+            Err(why) => {
+                self.toast(why, ToastKind::Bad);
+                return;
+            }
+        };
+        let children: Vec<&str> = out
+            .lines()
+            .filter(|l| l.starts_with(char::is_whitespace) && !l.trim().is_empty())
+            .collect();
+        let reference = self.schema.format_id(id);
+        if children.is_empty() {
+            self.toast(
+                format!("cairn split {reference} named nothing to create"),
+                ToastKind::Bad,
+            );
+            return;
+        }
+        let n = children.len();
+        self.confirm = Some(Confirm {
+            prompt: format!("Split {reference} into {n} items?"),
+            detail: children
+                .iter()
+                .map(|l| l.trim())
+                .collect::<Vec<_>>()
+                .join("\n"),
+            // Not "into n items": the dry run is cairn's answer at the moment
+            // it was asked, and an agent filing something before `y` moves
+            // the numbers. What was made arrives with the next reading.
+            change: Change {
+                args: vec!["split".into(), id.to_string()],
+                describe: format!("{reference} split"),
+                undo: None,
+            },
+        });
+    }
+
     /// Use a keymap, less whatever the installed cairn cannot do.
     pub fn set_keymap(&mut self, mut keymap: crate::keys::Keymap) {
         for command in &self.cannot {
@@ -4416,6 +4460,7 @@ impl App {
                 | Command::Retreat
                 | Command::Note
                 | Command::Tick
+                | Command::Split
         );
         if writes && let Some(why) = self.readonly.clone() {
             self.refuse(&why);
@@ -4675,6 +4720,23 @@ impl App {
                     return Action::None;
                 };
                 return Action::History(item.id);
+            }
+            // Asked first, with nothing written: the dry run names every child
+            // it would create, and the confirm shows them before `y`. On what
+            // every other write acts on — the one mark, or the cursor — so the
+            // guard above checked the item being split.
+            Command::Split => {
+                if !self.keymap.offers(Command::Split) {
+                    return Action::None;
+                }
+                return match self.targets().as_slice() {
+                    [id] => Action::Split(*id),
+                    [] => Action::None,
+                    _ => {
+                        self.toast("split takes one item at a time", ToastKind::Info);
+                        Action::None
+                    }
+                };
             }
             // cairn compiles it — the item and everything it rests on — and
             // harrow shows it. A second compiler here would be a second

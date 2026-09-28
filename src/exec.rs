@@ -38,6 +38,20 @@ impl std::fmt::Display for ExecError {
 
 impl std::error::Error for ExecError {}
 
+impl ExecError {
+    /// What the program said, in its own words, where it said anything: a
+    /// refusal is the program's sentence, and wrapping it in an exit code
+    /// changes what the reader is told.
+    pub fn said(&self) -> String {
+        match self {
+            ExecError::Failed { stderr, .. } if !first_line(stderr).is_empty() => {
+                first_line(stderr).to_string()
+            }
+            other => other.to_string(),
+        }
+    }
+}
+
 fn first_line(s: &str) -> &str {
     s.lines().next().unwrap_or("").trim()
 }

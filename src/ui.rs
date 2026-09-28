@@ -4715,13 +4715,31 @@ fn draw_diagnostics(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
 
 fn draw_confirm(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
     let Some(c) = &app.confirm else { return };
-    let popup = centered(area, 60.min(area.width.saturating_sub(4)), 7);
+    // One line for most questions; as many as a split has children, so every
+    // item it would create is read before `y`. Capped at what the screen holds.
+    let room = area.height.saturating_sub(10).max(2) as usize;
+    let all: Vec<&str> = c.detail.lines().collect();
+    let more = all.len().saturating_sub(room);
+    // What does not fit is said to be there: `y` makes all of it.
+    let more_line = format!("…and {} more", more + 1);
+    let detail: Vec<&str> = if more > 0 {
+        all.iter()
+            .take(room - 1)
+            .copied()
+            .chain(std::iter::once(more_line.as_str()))
+            .collect()
+    } else {
+        all
+    };
+    let rows = detail.len().max(1) as u16;
+    let popup = centered(area, 60.min(area.width.saturating_sub(4)), 6 + rows);
     // The two answers, where they are drawn on the last line of the box.
+    let answers_at = popup.y + 4 + rows;
     let answers = [
         (
             Rect {
                 x: popup.x + 2,
-                y: popup.y + 5,
+                y: answers_at,
                 width: 10,
                 height: 1,
             },
@@ -4730,26 +4748,30 @@ fn draw_confirm(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
         (
             Rect {
                 x: popup.x + 14,
-                y: popup.y + 5,
+                y: answers_at,
                 width: 14,
                 height: 1,
             },
             false,
         ),
     ];
-    let lines = vec![
+    let mut lines = vec![
         Line::from(""),
         Line::from(vec![
             Span::raw("  "),
             Span::styled(c.prompt.clone(), Style::default().fg(t.heading).bold()),
         ]),
-        Line::from(vec![
+    ];
+    for part in if detail.is_empty() { vec![""] } else { detail } {
+        lines.push(Line::from(vec![
             Span::raw("  "),
             Span::styled(
-                truncate(&c.detail, popup.width.saturating_sub(4) as usize),
+                truncate(part, popup.width.saturating_sub(4) as usize),
                 Style::default().fg(t.faint),
             ),
-        ]),
+        ]));
+    }
+    lines.extend([
         Line::from(""),
         Line::from(vec![
             Span::raw("  "),
@@ -4758,7 +4780,7 @@ fn draw_confirm(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             Span::styled("n / esc", Style::default().fg(t.accent).bold()),
             Span::styled(" cancel", Style::default().fg(t.muted)),
         ]),
-    ];
+    ]);
     f.render_widget(Clear, popup);
     claim(app, popup);
     f.render_widget(
