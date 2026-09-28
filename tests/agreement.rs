@@ -357,3 +357,100 @@ fn migrated_numbers_renderings_and_tags_agree() {
         }
     }
 }
+
+/// Bodies built around the parts of §10.2 that are easy to get wrong: a
+/// heading inside a fence, either kind of fence, level and case, indentation
+/// and closing `#`s, and a note that ends a Result whatever its level.
+const RESULTS: &[(&str, &str)] = &[
+    (
+        "fenced",
+        "## Result\n\nKept.\n\n```sh\n# not a heading\ncairn check\n```\n\nStill kept.\n\n## Next\n\nNot it.\n",
+    ),
+    (
+        "tilde-fenced",
+        "## Result\n\n~~~\n```\n## inside\n~~~\n\nAfter.\n\n## Next\n",
+    ),
+    (
+        "level-and-case",
+        "### result\n\nShort.\n\n## Notes\n\nNot it.\n",
+    ),
+    ("decorated", "  ## Result ##\n\nIndented, closed.\n"),
+    (
+        "above-a-note",
+        "# Result\n\nThe answer.\n\n## 2026-09-27\n\nA note, not part of it.\n",
+    ),
+    ("empty", "## Result\n\n## Next\n\nNothing to quote.\n"),
+    ("none", "## Approach\n\nNo result here.\n"),
+];
+
+/// Each item's Result, as `id → result`, from cairn's machine output.
+fn cairn_results(dir: &Path) -> Vec<(harrow::identity::Id, Option<String>)> {
+    let out = std::process::Command::new("cairn")
+        .args(["-C", &dir.display().to_string(), "list", "--all", "--json"])
+        .output()
+        .expect("cairn runs");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let items: serde_json::Value = serde_json::from_slice(&out.stdout).expect("item JSON");
+    let mut results: Vec<_> = items
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| {
+            (
+                serde_json::from_value(item["id"].clone()).expect("an id"),
+                item["result"].as_str().map(str::to_string),
+            )
+        })
+        .collect();
+    results.sort();
+    results
+}
+
+fn harrow_results(dir: &Path) -> Vec<(harrow::identity::Id, Option<String>)> {
+    let mut project = Project::discover(dir).expect("the project opens");
+    let mut results: Vec<_> = project
+        .load()
+        .expect("it loads")
+        .items
+        .into_iter()
+        .map(|item| (item.id, item.result))
+        .collect();
+    results.sort();
+    results
+}
+
+/// A dependent quotes what its dependency concluded, in both tools, so the
+/// two must find the same conclusion in every item: null for null.
+#[test]
+#[ignore = "needs cairn on PATH and CAIRN_PROJECT_DIR"]
+fn every_item_concludes_the_same_in_both_tools() {
+    let dir = std::env::var_os("CAIRN_PROJECT_DIR")
+        .expect("set CAIRN_PROJECT_DIR to the pinned Cairn checkout; never skip this gate");
+    let pinned = cairn_results(Path::new(&dir));
+    assert!(
+        pinned.iter().any(|(_, result)| result.is_some()),
+        "the pinned Cairn records Results, so this compares some"
+    );
+    assert_eq!(harrow_results(Path::new(&dir)), pinned);
+
+    let built = testkit::project();
+    for (n, (name, body)) in RESULTS.iter().enumerate() {
+        let id = 500 + n;
+        std::fs::write(
+            built.path().join(format!("items/{id:04}-{name}.md")),
+            format!("---\nid: {id}\ntitle: {name}\ntype: feature\nstatus: done\n---\n\n{body}"),
+        )
+        .unwrap();
+    }
+    let theirs = cairn_results(built.path());
+    assert_eq!(
+        theirs.iter().filter(|(_, result)| result.is_some()).count(),
+        5,
+        "cairn finds a Result in every built body but the empty one and the one without: {theirs:?}"
+    );
+    assert_eq!(harrow_results(built.path()), theirs);
+}

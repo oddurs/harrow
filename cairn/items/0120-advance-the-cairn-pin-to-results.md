@@ -3,12 +3,14 @@ id: 120
 uid: d8e9c9ca-af73-484e-917b-32bb2bc180d2
 title: Advance the Cairn pin to Results
 type: chore
-status: backlog
+status: doing
 milestone: v0.8
+assignee: oddurs
+claimed: 2026-09-28
 depends_on:
 - 118
 created: 2026-09-27
-updated: 2026-09-27
+updated: 2026-09-28
 priority: p1
 effort: s
 area: read
@@ -33,5 +35,9 @@ cases, and not against cairn itself.
 ## Done when
 
 - [ ] CI builds the merged Cairn, and COMPATIBILITY.md names it
-- [ ] The agreement gate compares every item's Result and passes
-- [ ] Removing the fence rule from harrow's reader fails that gate
+- [x] The agreement gate compares every item's Result and passes
+- [x] Removing the fence rule from harrow's reader fails that gate
+
+## 2026-09-28
+
+Pinned Cairn 9c29249 (main after cairn#121), which has Result (0155), prompt (0156), split (0157), prompt checks (0158), the broken-pipe exit, and the lock that waits on a moving queue. Corpus refreshed from a clean detached checkout of exactly that revision (git status clean, cairn --version 1.0.0-alpha.1): it gained result.md, result-empty.md and result-above-a-note.md, 66 cases; tests/conformance.rs already compared result and passes. New agreement gate every_item_concludes_the_same_in_both_tools: cairn list --all --json against harrow's loaded items, id by id, over the pinned Cairn checkout (11 items with a Result) and over seven built bodies (fenced, tilde-fenced, level and case, decorated heading, above a note, empty, none; cairn finds 5 Results). Agreement 6/6 against that build. Deleting the fence rule in item::headings_from (the fence.is_some() continue) fails the gate on the built bodies; restoring it passes.

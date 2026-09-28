@@ -183,13 +183,16 @@ Cairn now treats an item as a prompt that outlives the session (cairn 0153,
 ### backlog
 
 - [ ] `0119` Show what a finished item concluded <sup>feature · p0 · chrome</sup>
-- [ ] `0120` Advance the Cairn pin to Results <sup>chore · p1 · read</sup>
 - [ ] `0121` Record a Result when closing <sup>feature · p0 · write</sup>
 - [ ] `0122` Advance the Cairn pin to prompt, split and prompt checks <sup>chore · p1 · read</sup>
 - [ ] `0123` Hand an item's prompt to an agent <sup>feature · p1 · chrome</sup>
 - [ ] `0124` Split an item into its steps from harrow <sup>feature · p2 · write</sup>
 - [ ] `0125` Show prompt checks where cairn check is shown <sup>feature · p2 · chrome</sup>
 - [ ] `0126` Say what reading items as prompts added, in the README and the changelog <sup>chore · p1 · docs</sup>
+
+### in progress
+
+- [ ] `0120` Advance the Cairn pin to Results <sup>chore · p1 · read</sup>
 
 ### done
 
@@ -208,7 +211,7 @@ Good ideas without a date yet.
 
 ## Unscheduled
 
-`##########` 100% · 6 of 6 done
+`##########` 100% · 8 of 8 done
 
 ### done
 
@@ -218,4 +221,6 @@ Good ideas without a date yet.
 - [x] `0113` Read Cairn format 5: numbers, tags and type renderings <sup>feature · p0 · read</sup>
 - [x] `0114` Advance the Cairn pin to worktree-aware claims <sup>chore · p1 · read</sup>
 - [x] `0115` Migrate Harrow's own backlog to format 5 <sup>chore · p1 · read</sup>
+- [x] `0116` Show work filed in other worktrees, and follow what changes <sup>feature · p1 · read</sup>
+- [x] `0127` Draw with Nerd Font icons where the terminal has them <sup>feature · p2 · theme</sup>
 
