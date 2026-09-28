@@ -21,6 +21,9 @@ pub enum ExecError {
     Timeout(Duration),
     /// It exited non-zero with nothing useful on stdout.
     Failed { code: Option<i32>, stderr: String },
+    /// A write ran past its limit and was stopped: all of it, or where the
+    /// group could not be signalled, only cairn.
+    Stopped { after: Duration, whole: bool },
 }
 
 impl std::fmt::Display for ExecError {
@@ -32,6 +35,7 @@ impl std::fmt::Display for ExecError {
                 Some(c) => write!(f, "exited {c}: {}", first_line(stderr)),
                 None => write!(f, "killed by a signal: {}", first_line(stderr)),
             },
+            ExecError::Stopped { after, .. } => write!(f, "stopped after {}s", after.as_secs()),
         }
     }
 }
@@ -92,17 +96,184 @@ pub fn run(program: &str, args: &[&str], timeout: Duration) -> Result<String, Ex
     run_with((program, &[]), args, timeout).map(|(out, _)| out)
 }
 
-/// The same, with what it said on stderr as well as stdout.
-///
-/// For a write: cairn reports on stdout and advises on stderr, and advice
-/// about the change just made (open work left with nothing to quote) is worth
-/// the footer's room even though the change succeeded.
+/// The same, with what it said on stderr as well as stdout: cairn reports on
+/// stdout and advises on stderr.
 pub fn run_advised(
     program: &str,
     args: &[&str],
     timeout: Duration,
 ) -> Result<(String, String), ExecError> {
     run_with((program, &[]), args, timeout)
+}
+
+/// A write: cairn told to change something, waited on for as long as `limit`.
+///
+/// Its output goes to files rather than pipes. Nothing it or a hook prints can
+/// then block on a full pipe, and a harrow that quits or dies does not take
+/// the reading end away mid-write, which would stop cairn, or a hook, at its
+/// next line of output. It runs in a process group of its own, so a Ctrl-C or
+/// a hangup meant for harrow does not reach it, and so that at the limit all
+/// of it — cairn and any hook it started — is stopped, not cairn alone.
+pub fn run_write(
+    program: &str,
+    args: &[&str],
+    limit: Duration,
+) -> Result<(String, String), ExecError> {
+    let mut out = Scratch::new().map_err(ExecError::Spawn)?;
+    let mut err = Scratch::new().map_err(ExecError::Spawn)?;
+    let mut command = Command::new(program);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let mut child = command
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(out.for_child().map_err(ExecError::Spawn)?)
+        .stderr(err.for_child().map_err(ExecError::Spawn)?)
+        .spawn()
+        .map_err(ExecError::Spawn)?;
+    // The child holds its own handles now; the names are no longer needed,
+    // and a harrow that dies from here on leaves nothing behind.
+    out.forget_name();
+    err.forget_name();
+
+    let deadline = Instant::now() + limit;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => {}
+            // Not left running behind a slot that says it has ended.
+            Err(e) => {
+                stop(&mut child);
+                return Err(ExecError::Spawn(e));
+            }
+        }
+        if Instant::now() >= deadline {
+            let whole = stop(&mut child);
+            return Err(ExecError::Stopped {
+                after: limit,
+                whole,
+            });
+        }
+        std::thread::sleep(POLL);
+    };
+
+    let out = out.read().map_err(ExecError::Spawn)?;
+    let err = err.read().map_err(ExecError::Spawn)?;
+    // A write that did not succeed failed, whatever it printed first: a bulk
+    // change that stopped on its third item has said something about two.
+    if !status.success() {
+        return Err(ExecError::Failed {
+            code: status.code(),
+            stderr: err,
+        });
+    }
+    Ok((out, err))
+}
+
+/// Stop a write and everything it started, and say whether that is what
+/// happened. It leads its own process group, so the group is signalled; std
+/// can only signal the process itself, which is the fallback.
+fn stop(child: &mut std::process::Child) -> bool {
+    #[cfg(unix)]
+    let whole = {
+        let group = libc::pid_t::try_from(child.id()).map_or(0, |pid| -pid);
+        // SAFETY: kill(2) with a negated pid signals that process group and
+        // touches no memory. The group is ours: its leader has not been
+        // waited on, so its pid cannot have been reused.
+        #[allow(unsafe_code)]
+        let sent = group != 0 && unsafe { libc::kill(group, libc::SIGKILL) } == 0;
+        sent
+    };
+    #[cfg(not(unix))]
+    let whole = false;
+    // Already gone, where the group went; the leader alone, where it did not.
+    let _ = child.kill();
+    let _ = child.wait();
+    whole
+}
+
+/// Where a write's output goes: a file only this process can read, made
+/// fresh, and named only until the child has it.
+struct Scratch {
+    file: std::fs::File,
+    path: Option<std::path::PathBuf>,
+}
+
+/// More than anything worth showing in a footer; a hook that says more is
+/// not read past this.
+const SCRATCH_CAP: u64 = 1 << 20;
+
+impl Scratch {
+    fn new() -> std::io::Result<Scratch> {
+        static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let dir = std::env::temp_dir();
+        loop {
+            let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.subsec_nanos());
+            let path = dir.join(format!("harrow-write-{}-{nanos}-{n}", std::process::id()));
+            let mut open = std::fs::OpenOptions::new();
+            // Made here or not at all: never a file somebody left, or a link
+            // somebody planted, under a name that can be guessed.
+            open.read(true).write(true).create_new(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                open.mode(0o600);
+            }
+            match open.open(&path) {
+                Ok(file) => {
+                    return Ok(Scratch {
+                        file,
+                        path: Some(path),
+                    });
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    /// A handle of the child's own, appending: a hook left running in the
+    /// background writes after the end, never over what was said, and this
+    /// side reads from its own position.
+    fn for_child(&self) -> std::io::Result<std::fs::File> {
+        let path = self.path.as_ref().ok_or_else(|| {
+            std::io::Error::other("the scratch file has already given up its name")
+        })?;
+        std::fs::OpenOptions::new().append(true).open(path)
+    }
+
+    /// Unix lets an open file lose its name; elsewhere it keeps it until it
+    /// is dropped.
+    fn forget_name(&mut self) {
+        #[cfg(unix)]
+        if let Some(path) = self.path.take() {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    fn read(&mut self) -> std::io::Result<String> {
+        use std::io::{Read, Seek};
+        self.file.seek(std::io::SeekFrom::Start(0))?;
+        let mut bytes = Vec::new();
+        (&self.file).take(SCRATCH_CAP).read_to_end(&mut bytes)?;
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        // Where it still has a name. In the temporary directory if this
+        // fails, which the system clears.
+        if let Some(path) = self.path.take() {
+            let _ = std::fs::remove_file(path);
+        }
+    }
 }
 
 fn run_with(
@@ -217,5 +388,15 @@ mod tests {
         )
         .expect("large output does not deadlock");
         assert_eq!(out.lines().count(), 20000);
+    }
+
+    /// A write's output is nobody else's to read.
+    #[cfg(unix)]
+    #[test]
+    fn a_scratch_file_is_readable_by_its_owner_alone() {
+        use std::os::unix::fs::PermissionsExt;
+        let scratch = Scratch::new().unwrap();
+        let mode = scratch.file.metadata().unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
     }
 }

@@ -42,6 +42,13 @@ the files and needs no particular cairn.
 | `P` shows the item as a prompt | `prompt` | `5569798` (cairn#113, 0156) | `P` is unbound and not offered |
 | `split` in the palette | `split`, `split --dry-run` | `f91642a` (cairn#115, 0157) | the palette does not offer it |
 | `C` shows prompt checks | `check --prompts` | `2fb5f31` (cairn#116, 0158) | `C` runs plain `cairn check`; the overlay is unchanged |
+| a write is waited on, not killed | lock waits that end on their own | `9c29249` (cairn#121, 0161) | an older cairn can wait on a stuck lock for as long as harrow's limit, five minutes |
+
+A write runs in a process group of its own, so a Ctrl-C or a hangup meant for
+harrow does not stop cairn part way. A cairn hook that needs a terminal — a
+passphrase prompt, an interactive signing agent — does not work under harrow,
+which owns the terminal: it waits until the limit and is stopped with the rest.
+Run such writes from a shell.
 
 The pinned revision above has all of them, and CI builds it. A finished item's
 `## Result` is read from the file itself (specification §10.2). Showing one, in

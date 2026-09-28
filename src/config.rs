@@ -41,7 +41,10 @@ pub struct Config {
     /// Watch the filesystem as well as polling it, so a change made elsewhere
     /// shows up at once.
     pub watch: bool,
-    /// How long to give `cairn` to carry out a change before giving up on it.
+    /// How long to wait on `cairn` before saying a change is still going, and
+    /// before giving up on a read of it (history, check, activity, a prompt).
+    /// A change itself is never cut off before `writer::LIMIT`: cairn ends
+    /// its own waits, and stopping it mid-write could strand its lock.
     pub write_ms: u64,
     /// The `cairn` to run for writes. A path, if it is not on `PATH`.
     pub cairn: String,
@@ -262,7 +265,8 @@ watch = {watch}
 # Seconds between those polls.
 refresh_secs = {refresh_secs}
 
-# How long to give `cairn` to carry out a change before giving up on it.
+# How long to wait on cairn before saying a change is still going, and before
+# giving up on a read of it. A change itself is never cut off before {limit} s.
 write_ms = {write_ms}
 
 # The cairn to run for writes. A path, if it is not on PATH. harrow reads the
@@ -294,6 +298,7 @@ editor = "{editor}"
             watch = d.watch,
             refresh_secs = d.refresh_secs,
             write_ms = d.write_ms,
+            limit = crate::writer::LIMIT.as_secs(),
             cairn = d.cairn,
             editor = d.editor,
         )

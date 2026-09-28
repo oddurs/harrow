@@ -1362,3 +1362,198 @@ fn no_other_lens_asks_the_repository_for_anything() {
         assert_eq!(app.pending(), None, "{pane:?} asked for something");
     }
 }
+
+/// A change of ours: 0003's status, moved on.
+fn setting_three() -> harrow::app::Change {
+    harrow::app::Change {
+        args: vec!["set".into(), "3".into(), "status=planned".into()],
+        describe: "0003 status → planned".into(),
+        undo: None,
+    }
+}
+
+fn ended(outcome: Result<(String, String), harrow::exec::ExecError>) -> harrow::writer::Done {
+    harrow::writer::Done {
+        change: setting_three(),
+        outcome,
+    }
+}
+
+fn said(app: &App) -> String {
+    app.toast.clone().map(|t| t.0).unwrap_or_default()
+}
+
+/// One change at a time: a second one is worked out from a screen that has not
+/// caught up with the first, so it is refused with a reason rather than queued
+/// — and taken once the first has landed, however it ended.
+#[test]
+fn a_change_asked_for_while_another_is_being_made_is_refused() {
+    use harrow::exec::ExecError;
+    for outcome in [
+        Ok((String::new(), String::new())),
+        Err(ExecError::Stopped {
+            after: std::time::Duration::from_secs(150),
+            whole: true,
+        }),
+        Err(ExecError::Failed {
+            code: Some(1),
+            stderr: "cairn: no".into(),
+        }),
+        Err(ExecError::Spawn(std::io::Error::other(
+            "the writer stopped",
+        ))),
+    ] {
+        let mut app = app();
+        assert!(app.accept_write(setting_three()).is_some());
+        assert!(
+            app.accept_write(setting_three()).is_none(),
+            "the second waits"
+        );
+        assert!(
+            said(&app).contains("still writing") && said(&app).contains("0003 status"),
+            "{}",
+            said(&app)
+        );
+        app.finished_writing(ended(outcome));
+        assert!(app.writing.is_none(), "every end frees the slot");
+        assert!(
+            app.accept_write(setting_three()).is_some(),
+            "and the next is taken"
+        );
+    }
+}
+
+/// Refused before any box opens, so nothing typed is thrown away — and `e`
+/// with them, because an editor opened on a file cairn is about to change
+/// would write the old one back over it.
+#[test]
+fn while_writing_no_box_opens_and_no_editor_either() {
+    let mut app = app();
+    app.accept_write(setting_three());
+    for key in ['N', 'x', 'C', 'e', 'A', 't'] {
+        app.toast = None;
+        assert_eq!(press(&mut app, key), Action::None, "{key}");
+        assert!(
+            app.editing.is_none() && app.confirm.is_none(),
+            "{key} opened a box"
+        );
+        assert!(
+            said(&app).contains("still writing"),
+            "{key}: {}",
+            said(&app)
+        );
+    }
+    // Reading still works.
+    assert_eq!(press(&mut app, 'j'), Action::None);
+}
+
+#[test]
+fn a_write_stopped_at_the_limit_says_whether_its_hooks_stopped_too() {
+    use harrow::exec::ExecError;
+    let mut app = app();
+    app.accept_write(setting_three());
+    app.finished_writing(ended(Err(ExecError::Stopped {
+        after: std::time::Duration::from_secs(150),
+        whole: true,
+    })));
+    assert_eq!(
+        said(&app),
+        "0003 status → planned: stopped cairn and its hooks after 150s"
+    );
+    app.accept_write(setting_three());
+    app.finished_writing(ended(Err(ExecError::Stopped {
+        after: std::time::Duration::from_secs(150),
+        whole: false,
+    })));
+    assert_eq!(
+        said(&app),
+        "0003 status → planned: stopped cairn; a hook may still be running after 150s"
+    );
+}
+
+/// Harrow's own failure is not cairn refusing.
+#[test]
+fn a_write_harrow_lost_is_not_reported_as_refused() {
+    let mut app = app();
+    app.accept_write(setting_three());
+    app.finished_writing(ended(Err(harrow::exec::ExecError::Spawn(
+        std::io::Error::other("the writer stopped before cairn answered"),
+    ))));
+    assert!(!said(&app).contains("refused"), "{}", said(&app));
+    assert!(said(&app).contains("the writer stopped"), "{}", said(&app));
+}
+
+fn moved(to: &[u32]) -> harrow::engine::Report {
+    let mut report = testkit::report();
+    for item in &mut report.items {
+        if to.iter().any(|n| item.id == *n) {
+            item.status = "done".into();
+            item.category = harrow::schema::Category::Done;
+        }
+    }
+    report
+}
+
+/// However long cairn takes, a re-read of the item our change is being made
+/// to is ours — while somebody else's change to another item is still news,
+/// from the first moment.
+#[test]
+fn during_our_write_only_our_own_item_is_kept_out_of_the_news() {
+    let mut app = app();
+    app.accept_write(setting_three());
+    app.toast = None;
+    app.ingest(moved(&[3]));
+    assert!(app.toast.is_none(), "ours: {}", said(&app));
+
+    app.ingest(moved(&[3, 5]));
+    assert!(
+        said(&app).starts_with("0005"),
+        "somebody else's is news: {:?}",
+        said(&app)
+    );
+}
+
+/// A change that creates items is ours on whatever appears while it is made
+/// — cairn chooses the numbers — and nothing more: somebody else's change to
+/// an item that was already there is still news.
+#[test]
+fn a_creating_write_keeps_only_what_appears_out_of_the_news() {
+    let mut app = app();
+    app.accept_write(harrow::app::Change {
+        args: vec!["new".into(), "A new thing".into()],
+        describe: "created “A new thing”".into(),
+        undo: None,
+    });
+    app.toast = None;
+    let mut report = moved(&[5]);
+    let mut made = testkit::item(99, "A new thing", "backlog");
+    made.category = harrow::schema::Category::Open;
+    report.items.push(made);
+    app.ingest(report);
+    let said = said(&app);
+    assert!(
+        said.starts_with("0005"),
+        "somebody else's is news: {said:?}"
+    );
+    assert!(!said.contains("0099"), "ours is not: {said:?}");
+}
+
+/// For as long as a write takes, the top bar says so.
+#[test]
+fn a_write_in_flight_is_shown_until_it_lands() {
+    let mut app = app();
+    app.loading = false;
+    app.accept_write(setting_three());
+    let screen = harrow::ui::render_to_string(&mut app, 110, 26, 0);
+    let top = screen.lines().next().unwrap_or_default();
+    assert!(top.contains("writing — 0003 status → planned"), "{top}");
+    app.finished_writing(ended(Ok((String::new(), String::new()))));
+    let screen = harrow::ui::render_to_string(&mut app, 110, 26, 0);
+    assert!(
+        !screen
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .contains("writing —")
+    );
+}
