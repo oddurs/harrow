@@ -200,6 +200,16 @@ fn states_in(glyphs: &'static Glyphs) -> Vec<State> {
             }),
         ),
         (
+            "with cairn's prompt checks shown",
+            build(|app| {
+                app.show_check(Ok((
+                    "ok: 6 item(s), 1 warning(s)\n".into(),
+                    "cairn: items/0003-x.md: prompt: no context: nothing\n".into(),
+                )));
+                app.diagnostics = true;
+            }),
+        ),
+        (
             "reading an item's prompt",
             build(|app| {
                 app.show_prompt(
