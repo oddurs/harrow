@@ -915,6 +915,9 @@ pub struct App {
     /// stops saying anything.
     leaving: HashMap<Id, u64>,
     pub toast: Option<(String, ToastKind, Instant)>,
+    /// When a key or a click last came in, on the frame's clock. What tells
+    /// somebody watching the backlog from somebody driving it.
+    pub touched: u64,
     /// Wall-clock seconds, refreshed once per frame rather than read during a
     /// render. Rendering has to be a pure function of state, or a snapshot of
     /// the screen is not reproducible.
@@ -1032,6 +1035,7 @@ impl App {
             shown: HashSet::new(),
             leaving: HashMap::new(),
             toast: None,
+            touched: 0,
             now: unix_seconds(),
             theme: Theme::auto(true),
             keymap: Keymap::default(),
@@ -1071,10 +1075,14 @@ impl App {
     pub fn ingest(&mut self, report: Report) {
         let first = self.last_load.is_none();
         let anchor = self.selected_item().map(|i| i.id);
-        let moved = self.notice_changes(&report.items);
+        // The record, then what other worktrees have filed: rows like any
+        // other from here on, marked with where they live.
+        let mut items = report.items;
+        items.extend(report.filed);
+        let (moved, arrived) = self.notice_changes(&items);
 
         self.schema = report.schema;
-        self.items = report.items;
+        self.items = items;
         self.warnings = report.warnings;
         self.by_id = self
             .items
@@ -1112,9 +1120,58 @@ impl App {
         // watcher arguing with the reader.
         if first {
             self.go_to_the_work();
+        } else {
+            self.follow_the_news(&arrived);
         }
         self.clamp();
         self.announce(moved);
+    }
+
+    /// How long without a key or a click before harrow takes the reader to
+    /// what changes. Long enough that nobody moving through the list has the
+    /// cursor taken from under them; short enough that somebody who sat back
+    /// to watch an agent work sees it happen.
+    pub const IDLE: u64 = 8;
+
+    /// Somebody watching rather than driving: nothing pressed for a while,
+    /// and nothing open that the cursor moving would pull out from under
+    /// them — a reader, an edit, a list, a question.
+    fn watching(&self) -> bool {
+        self.now.saturating_sub(self.touched) >= Self::IDLE
+            && self.focus == Focus::List
+            && !self.reading
+            && self.editing.is_none()
+            && self.dropdown.is_none()
+            && self.palette.is_none()
+            && self.picker.is_none()
+            && self.confirm.is_none()
+            && self.history.is_none()
+            && !self.help
+            && matches!(self.pane, Pane::List | Pane::Board)
+    }
+
+    /// Take the cursor to what just changed, where the reader is watching and
+    /// it is somewhere the cursor can go. The first such row down the list,
+    /// so whatever else moved is below it rather than scrolled away above.
+    /// A change of our own is not news, and is where the cursor already is.
+    fn follow_the_news(&mut self, arrived: &[Id]) {
+        if arrived.is_empty() || !self.watching() || self.wrote_recently() {
+            return;
+        }
+        let Some((row, id)) = self.rows.iter().enumerate().find_map(|(n, r)| match r {
+            Row::Item(i) => self
+                .items
+                .get(*i)
+                .filter(|item| arrived.contains(&item.id))
+                .map(|item| (n, item.id)),
+            _ => None,
+        }) else {
+            return;
+        };
+        self.select_id(id);
+        // A third of the way down, the way the first screen opens, so what
+        // came before it is still there to read it against.
+        self.homing = Some(row);
     }
 
     /// What moved since the last reading, and when we noticed.
@@ -1122,15 +1179,17 @@ impl App {
     /// The first reading marks nothing: everything is new the first time, and a
     /// screen that opened covered in "just changed" would be telling you about
     /// the last six months.
-    fn notice_changes(&mut self, fresh: &[Item]) -> Vec<(Id, String)> {
+    /// Returns what to announce, and every item that changed at all.
+    fn notice_changes(&mut self, fresh: &[Item]) -> (Vec<(Id, String)>, Vec<Id>) {
         if self.items.is_empty() {
-            return Vec::new();
+            return (Vec::new(), Vec::new());
         }
         // The frame's clock, not a fresh reading: everything that asks how
         // long ago this was — the mark, the exit — asks against `now`, and two
         // clocks a second apart would have an item leaving before it arrived.
         let now = self.now;
         let mut moved = Vec::new();
+        let mut arrived = Vec::new();
         for item in fresh {
             let before = self.by_id.get(&item.id).and_then(|i| self.items.get(*i));
             let changed = match before {
@@ -1141,12 +1200,24 @@ impl App {
                         || before.closed_at != item.closed_at
                         || before.assignee != item.assignee
                         || before.elsewhere != item.elsewhere
+                        || before.filed_on != item.filed_on
+                        || before.body != item.body
                 }
             };
             if changed {
                 self.changed.insert(item.id, now);
-                if before.is_none_or(|b| b.status != item.status) {
-                    moved.push((item.id, item.status.clone()));
+                arrived.push(item.id);
+                match (&item.filed_on, before) {
+                    // Filed on a branch: the news is that it exists.
+                    (Some(branch), None) => moved.push((item.id, format!("filed · {branch}"))),
+                    (Some(branch), Some(b)) if b.status != item.status => {
+                        moved.push((item.id, format!("→ {} · {branch}", item.status)));
+                    }
+                    (Some(_), Some(_)) => {}
+                    (None, b) if b.is_none_or(|b| b.status != item.status) => {
+                        moved.push((item.id, format!("→ {}", item.status)));
+                    }
+                    (None, _) => {}
                 }
                 // Somebody picking work up in their own worktree is the news
                 // this checkout would otherwise never hear.
@@ -1157,14 +1228,14 @@ impl App {
                             .any(|e| e.branch == there.branch && e.status == there.status)
                     });
                     if !known {
-                        moved.push((item.id, format!("{} · {}", there.status, there.branch)));
+                        moved.push((item.id, format!("→ {} · {}", there.status, there.branch)));
                     }
                 }
             }
         }
         self.changed
             .retain(|_, at| now.saturating_sub(*at) <= Self::RECENT);
-        moved
+        (moved, arrived)
     }
 
     /// Say what somebody else did. A change harrow made says so already, so
@@ -1174,7 +1245,7 @@ impl App {
             return;
         }
         let message = match moved.as_slice() {
-            [(id, status)] => format!("{} → {status}", self.schema.format_id(*id)),
+            [(id, what)] => format!("{} {what}", self.schema.format_id(*id)),
             many => format!("{} items moved", many.len()),
         };
         self.toast(message, ToastKind::Info);
@@ -2856,7 +2927,13 @@ impl App {
     }
 
     pub fn toggle_mark(&mut self) {
-        let Some(id) = self.selected_item().map(|i| i.id) else {
+        // Marks are what the next change applies to, and nothing here can
+        // change an item filed on another branch.
+        let Some(id) = self
+            .selected_item()
+            .filter(|i| i.filed_on.is_none())
+            .map(|i| i.id)
+        else {
             return;
         };
         if !self.marked.remove(&id) {
@@ -2889,7 +2966,7 @@ impl App {
         };
         for row in from..=to {
             if let Some(Row::Item(i)) = self.rows.get(row)
-                && let Some(item) = self.items.get(*i)
+                && let Some(item) = self.items.get(*i).filter(|i| i.filed_on.is_none())
             {
                 self.marked.insert(item.id);
             }
@@ -2905,6 +2982,10 @@ impl App {
     fn write(&mut self, change: Change, count: usize, what: &str) -> Action {
         if let Some(why) = self.readonly.clone() {
             self.refuse(&why);
+            return Action::None;
+        }
+        if let Some(refusal) = self.elsewhere_only() {
+            self.toast(refusal, ToastKind::Bad);
             return Action::None;
         }
         if count <= 1 {
@@ -2926,6 +3007,19 @@ impl App {
 
     fn refuse(&mut self, why: &ReadOnly) {
         self.toast(why.at_length(), ToastKind::Bad);
+    }
+
+    /// Why the next change cannot be made here, where what it would apply to
+    /// lives only on another branch.
+    fn elsewhere_only(&self) -> Option<String> {
+        self.targets().into_iter().find_map(|id| {
+            let item = self.items.get(*self.by_id.get(&id)?)?;
+            let branch = item.filed_on.as_ref()?;
+            Some(format!(
+                "{} is filed on {branch} — change it there",
+                self.schema.format_id(id)
+            ))
+        })
     }
 
     fn set_field(&mut self, field: &str, value: &str) -> Action {
@@ -3928,6 +4022,7 @@ impl App {
     /// The whole keyboard interface. Modal layers get first refusal, in order,
     /// and only then does the keymap get a look.
     pub fn handle_key(&mut self, code: KeyCode, mods: KeyModifiers) -> Action {
+        self.touched = self.now;
         if self.confirm.is_some() {
             return match code {
                 KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
@@ -4159,6 +4254,16 @@ impl App {
         );
         if writes && let Some(why) = self.readonly.clone() {
             self.refuse(&why);
+            return Action::None;
+        }
+        // Everything but filing something new acts on the selection or the
+        // marks, and an item filed on another branch is one cairn here cannot
+        // see. Said before a picker opens, not after a choice is made in it.
+        if ((writes && command != Command::New)
+            || matches!(command, Command::Accept | Command::Propose))
+            && let Some(refusal) = self.elsewhere_only()
+        {
+            self.toast(refusal, ToastKind::Bad);
             return Action::None;
         }
 
@@ -4770,6 +4875,7 @@ impl App {
     }
 
     pub fn handle_mouse(&mut self, m: MouseEvent) -> Action {
+        self.touched = self.now;
         match m.kind {
             MouseEventKind::ScrollDown => self.scroll(3, m.column, m.row),
             MouseEventKind::ScrollUp => self.scroll(-3, m.column, m.row),

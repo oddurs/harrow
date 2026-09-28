@@ -12,6 +12,11 @@
 //! worktree has changed since it diverged from this one, and reads those.
 //! What was read is attached beside the record by `engine::sight`, never in
 //! place of it.
+//!
+//! And which it has *added*, committed or not. An agent files the item it is
+//! about to do and starts on it a second later, so an item new on a branch is
+//! usually the most visible thing an agent is doing. Those are handed back
+//! as items of their own, for `engine::filed` to show as provisional rows.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -40,6 +45,8 @@ pub struct Other {
     pub items: PathBuf,
     /// Its copies of the items it has changed since it diverged from here.
     pub copies: Vec<Item>,
+    /// Items it has filed that this checkout does not have.
+    pub filed: Vec<Item>,
 }
 
 /// One entry of `git worktree list --porcelain`.
@@ -95,7 +102,7 @@ pub fn survey(schema: &Schema) -> Survey {
     // asking — the schema is not shared across threads, and the reading is a
     // few files.
     let format = schema.format;
-    let changed: Vec<(&Checkout, Vec<PathBuf>)> = std::thread::scope(|scope| {
+    let changed: Vec<(&Checkout, Changed)> = std::thread::scope(|scope| {
         let handles: Vec<_> = all
             .iter()
             .filter(|c| c.path != here.path && c.path.is_dir())
@@ -113,20 +120,24 @@ pub fn survey(schema: &Schema) -> Survey {
             .collect()
     });
 
+    let read = |there: &Checkout, files: &[PathBuf]| -> Vec<Item> {
+        files
+            .iter()
+            .filter_map(|file| {
+                let text = std::fs::read_to_string(file).ok()?;
+                crate::item::parse_for_schema(&text, file, schema)
+                    .map_err(|e| diag::info("worktree", format!("{}: {e}", there.name)))
+                    .ok()
+            })
+            .collect()
+    };
     let others = changed
         .into_iter()
         .map(|(there, files)| Other {
             branch: there.name.clone(),
             items: there.path.join(&items),
-            copies: files
-                .iter()
-                .filter_map(|file| {
-                    let text = std::fs::read_to_string(file).ok()?;
-                    crate::item::parse_for_schema(&text, file, schema)
-                        .map_err(|e| diag::info("worktree", format!("{}: {e}", there.name)))
-                        .ok()
-                })
-                .collect(),
+            copies: read(there, &files.modified),
+            filed: read(there, &files.added),
         })
         .collect();
 
@@ -191,6 +202,13 @@ fn checkouts(porcelain: &str) -> Vec<Checkout> {
     out
 }
 
+/// What one worktree has done to the item files since it diverged.
+#[derive(Default)]
+struct Changed {
+    modified: Vec<PathBuf>,
+    added: Vec<PathBuf>,
+}
+
 /// The item files one other worktree has changed since it diverged from
 /// this one, or `None` where its ids cannot be read as ours.
 fn changed(
@@ -199,7 +217,7 @@ fn changed(
     there: &Checkout,
     within: &Path,
     items: &Path,
-) -> Option<Vec<PathBuf>> {
+) -> Option<Changed> {
     // A worktree on another format spells ids another way, so an id there
     // does not name the item it would name here.
     let theirs = Schema::load(&there.path.join(within).join("cairn.toml")).ok()?;
@@ -219,35 +237,54 @@ fn changed(
     // not work. A branch already merged here has its tip as the merge-base,
     // so all it can show is what is still uncommitted in it.
     //
-    // Modified or renamed, never added: a file that existed at the
+    // Modified or renamed are copies: a file that existed at the
     // merge-base is an item both checkouts have, so its id names the same
     // item in both — even in a format whose ids are counted, where two
-    // branches can each file a different item as 7.
-    let out = exec::git(
-        &[
-            "-C",
-            &there.path.to_string_lossy(),
+    // branches can each file a different item as 7. Added is the other kind
+    // of thing, an item only that branch has, and is kept apart.
+    let dir = there.path.to_string_lossy().into_owned();
+    let git = |args: &[&str]| -> Option<Vec<PathBuf>> {
+        let args: Vec<&str> = ["-C", dir.as_str()]
+            .into_iter()
+            .chain(args.iter().copied())
+            .collect();
+        let out = exec::git(&args, GIT)
+            .map_err(|e| diag::warn("worktree", format!("{}: {e}", there.name)))
+            .ok()?;
+        Some(
+            out.split('\0')
+                .filter(|name| !name.is_empty())
+                .map(|name| there.path.join(name))
+                .filter(|file| crate::engine::is_item_file(file) && file.is_file())
+                .collect(),
+        )
+    };
+    let items = items.to_string_lossy();
+    let diff = |filter: &str| {
+        git(&[
             "diff",
             "--name-only",
             "-z",
-            "--diff-filter=MR",
+            filter,
             "--merge-base",
             head,
             "--",
-            &items.to_string_lossy(),
-        ],
-        GIT,
-    )
-    .map_err(|e| diag::warn("worktree", format!("{}: {e}", there.name)))
-    .ok()?;
-
-    Some(
-        out.split('\0')
-            .filter(|name| !name.is_empty())
-            .map(|name| there.path.join(name))
-            .filter(|file| crate::engine::is_item_file(file) && file.is_file())
-            .collect(),
-    )
+            &items,
+        ])
+    };
+    let modified = diff("--diff-filter=MR")?;
+    let mut added = diff("--diff-filter=A")?;
+    // Not yet committed, which is how `cairn new` leaves an item: the diff
+    // cannot see an untracked file at all.
+    added.extend(git(&[
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "-z",
+        "--",
+        &items,
+    ])?);
+    Some(Changed { modified, added })
 }
 
 #[cfg(test)]

@@ -88,8 +88,12 @@ pub fn run(config: &Config, config_path: Option<&Path>, theme: &Theme, start: &P
                         ok: true,
                         detail: {
                             let others = report.elsewhere.len();
+                            let filed = match report.filed.len() {
+                                0 => String::new(),
+                                n => format!(", {n} filed"),
+                            };
                             format!(
-                                "{others} other{} — {changed} item{} changed there, {underway} under way",
+                                "{others} other{} — {changed} item{} changed there, {underway} under way{filed}",
                                 if others == 1 { "" } else { "s" },
                                 if changed == 1 { "" } else { "s" },
                             )
