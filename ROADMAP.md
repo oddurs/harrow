@@ -176,7 +176,7 @@ Documented, tested, and safe to depend on.
 
 ## v0.8 — Read an item as the prompt it is
 
-`##········` 11% · 1 of 9 done
+`###·······` 22% · 2 of 9 done
 
 Cairn now treats an item as a prompt that outlives the session (cairn 0153,
 
@@ -190,13 +190,10 @@ Cairn now treats an item as a prompt that outlives the session (cairn 0153,
 - [ ] `0125` Show prompt checks where cairn check is shown <sup>feature · p2 · chrome</sup>
 - [ ] `0126` Say what reading items as prompts added, in the README and the changelog <sup>chore · p1 · docs</sup>
 
-### in progress
-
-- [ ] `0120` Advance the Cairn pin to Results <sup>chore · p1 · read</sup>
-
 ### done
 
 - [x] `0118` Read a Result the way the specification does <sup>feature · p0 · read</sup>
+- [x] `0120` Advance the Cairn pin to Results <sup>chore · p1 · read</sup>
 
 ## later — Someday
 
