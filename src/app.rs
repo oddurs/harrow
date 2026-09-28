@@ -921,6 +921,11 @@ pub struct App {
     /// and what is invalid against the project's own rules — and a cairn
     /// complaint read as a harrow bug is the failure mode to avoid.
     pub checked: Option<Result<Vec<String>, String>>,
+    /// What `cairn check --prompts` said will be misread, as cairn said it:
+    /// `(item, finding)`. Advice, drawn as such; harrow evaluates none of it.
+    pub prompt_findings: Vec<(Option<Id>, String)>,
+    /// Whether the installed cairn's `check` takes `--prompts`.
+    pub can_check_prompts: bool,
 
     /// When harrow noticed each item change, by id, in wall-clock seconds.
     ///
@@ -1062,6 +1067,8 @@ impl App {
             asking_activity: false,
             moment: 0,
             checked: None,
+            prompt_findings: Vec::new(),
+            can_check_prompts: false,
             changed: HashMap::new(),
             shown: HashSet::new(),
             leaving: HashMap::new(),
@@ -3808,14 +3815,38 @@ impl App {
     /// Every line kept, including the one that says it passed: an empty
     /// section under a heading that says a validator ran is indistinguishable
     /// from a validator that did not.
-    pub fn show_check(&mut self, result: Result<String, String>) {
-        self.checked = Some(result.map(|out| {
-            out.lines()
+    ///
+    /// A check that fails still says which items will be misread: cairn prints
+    /// its warnings, prompt findings among them, before its errors. So the
+    /// findings are kept, and the failure is the first line that is not one —
+    /// advice read as the reason a check failed is the confusion to avoid.
+    pub fn show_check(&mut self, result: Result<(String, String), crate::exec::ExecError>) {
+        use crate::exec::ExecError;
+        let said = match &result {
+            Ok((_, advice)) | Err(ExecError::Failed { stderr: advice, .. }) => advice.as_str(),
+            Err(_) => "",
+        };
+        self.prompt_findings = prompt_findings(said);
+        self.checked = Some(match result {
+            Ok((out, _)) => Ok(out
+                .lines()
                 .map(str::trim_end)
                 .filter(|l| !l.is_empty())
                 .map(str::to_string)
-                .collect()
-        }));
+                .collect()),
+            Err(ExecError::Failed { code, stderr }) => {
+                let cause = stderr
+                    .lines()
+                    .map(str::trim)
+                    .find(|l| !l.is_empty() && !l.contains(": prompt: "))
+                    .unwrap_or_default();
+                Err(match code {
+                    Some(c) => format!("exited {c}: {cause}"),
+                    None => format!("killed by a signal: {cause}"),
+                })
+            }
+            Err(other) => Err(other.to_string()),
+        });
     }
 
     /// Take what cairn compiled as an item's prompt. A failure, or nothing
@@ -5823,4 +5854,25 @@ mod rollup_tests {
         assert_eq!(rollup.open, 2);
         assert_eq!(rollup.blocked, 1, "C is blocked; B is finished");
     }
+}
+
+/// cairn's prompt findings out of what `check --prompts` said on stderr:
+/// `cairn: <file>: prompt: <finding>`, one to a line. Only those lines, and
+/// only as cairn wrote them; the item is read off the file's name, which is how
+/// cairn names an item and the only part of it anything may depend on.
+fn prompt_findings(advice: &str) -> Vec<(Option<Id>, String)> {
+    advice
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            let (file, finding) = line
+                .strip_prefix("cairn: ")
+                .unwrap_or(line)
+                .split_once(": prompt: ")?;
+            Some((
+                crate::item::id_from_path(std::path::Path::new(file)),
+                finding.trim().to_string(),
+            ))
+        })
+        .collect()
 }

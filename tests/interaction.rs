@@ -976,7 +976,7 @@ fn the_projects_own_check_is_asked_of_cairn_and_kept_apart() {
     assert!(app.diagnostics, "and it opens where the answer will appear");
     assert!(app.checked.is_none(), "nothing said until cairn answers");
 
-    app.show_check(Ok("ok: 6 item(s), 0 warning(s)\n".into()));
+    app.show_check(Ok(("ok: 6 item(s), 0 warning(s)\n".into(), String::new())));
     assert_eq!(
         app.checked,
         Some(Ok(vec!["ok: 6 item(s), 0 warning(s)".to_string()])),
@@ -984,7 +984,9 @@ fn the_projects_own_check_is_asked_of_cairn_and_kept_apart() {
          heading is indistinguishable from a validator that never ran"
     );
 
-    app.show_check(Err("no such file or directory".into()));
+    app.show_check(Err(harrow::exec::ExecError::Spawn(std::io::Error::other(
+        "no such file or directory",
+    ))));
     assert!(matches!(app.checked, Some(Err(_))), "and a failure says so");
     assert!(
         app.warnings.is_empty(),

@@ -214,6 +214,7 @@ fn prepare(startup: &Startup, args: &[String]) -> App {
     app.can_tick = app.writable() && cairn_can(&startup.config.cairn, "tick");
     app.can_record_result =
         app.writable() && cairn_takes(&startup.config.cairn, "close", "--result");
+    app.can_check_prompts = cairn_takes(&startup.config.cairn, "check", "--prompts");
     if !cairn_can(&startup.config.cairn, "prompt") {
         app.cannot.push(harrow::keys::Command::Prompt);
     }
@@ -879,12 +880,17 @@ fn dispatch(
             // The project's own validator, on the project's own rules. harrow
             // reports what it could not read; this reports what cairn will
             // not accept, and the two are different questions.
-            let result = harrow::exec::run(
+            // With `--prompts` where cairn has it: which open items an agent
+            // will misread is cairn's rule, and cairn says it.
+            let mut args = vec!["check", "--color", "never"];
+            if app.can_check_prompts {
+                args.push("--prompts");
+            }
+            let result = harrow::exec::run_advised(
                 &startup.config.cairn,
-                &["check", "--color", "never"],
+                &args,
                 startup.config.write_timeout(),
-            )
-            .map_err(|e| e.to_string());
+            );
             app.show_check(result);
         }
         Action::Write(change) => run_change(app, handle, &startup.config, change),

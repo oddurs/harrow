@@ -4670,6 +4670,40 @@ fn draw_diagnostics(f: &mut Frame, app: &mut App, t: &Theme, area: Rect) {
             }
         }
     }
+    // Advice, under its own heading and in the warning colour: an item an
+    // agent will misread is not a broken backlog, and must not read as one.
+    if !app.prompt_findings.is_empty() {
+        const SHOWN: usize = 8;
+        lines.push(Line::from(""));
+        lines.push(section(
+            app.glyphs.label(app.glyphs.warning),
+            "Prompts",
+            t,
+            width as usize - 2,
+        ));
+        for (id, finding) in app.prompt_findings.iter().take(SHOWN) {
+            let reference = id.map(|id| app.schema.format_id(id)).unwrap_or_default();
+            let room = width.saturating_sub(7 + reference.chars().count() as u16) as usize;
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(reference, Style::default().fg(t.muted).bold()),
+                Span::raw(" "),
+                Span::styled(truncate(finding, room), Style::default().fg(t.warn)),
+            ]));
+        }
+        if app.prompt_findings.len() > SHOWN {
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(
+                    format!(
+                        "…and {} more — cairn check --prompts has them all",
+                        app.prompt_findings.len() - SHOWN
+                    ),
+                    Style::default().fg(t.faint),
+                ),
+            ]));
+        }
+    }
     lines.push(Line::from(""));
 
     let room = height.saturating_sub(lines.len() as u16 + 3) as usize;
