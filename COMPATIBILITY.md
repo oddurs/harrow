@@ -5,9 +5,10 @@ and supplies the human interface. Neither needs a shared runtime library or a
 Cairn process on each read.
 
 Harrow **0.2.0-alpha.1** is paired with Cairn **1.0.0-alpha.1**, revision
-`1a0e46927de717750d28abc5d49f5e68d66f1d06`, which writes format 5. These are
-development versions, not a stable 1.0 promise. The 63-case corpus covers
-formats 1–5, including frozen older corpora. Upgrade both tools before
+`9c29249036cb7d4f062cb7c2d1d89fee6ea38021`, which writes format 5. These are
+development versions, not a stable 1.0 promise. The 66-case corpus covers
+formats 1–5, including frozen older corpora, and a `## Result` section as
+specification §10.2 reads one. Upgrade both tools before
 migrating: released Cairn 0.3.0 and Harrow 0.1.0 do not understand format 4 or
 5.
 
@@ -42,7 +43,9 @@ ignored only in the standalone Rust suite, so a checkout remains testable
 without Cairn. Required CI explicitly runs it; it is not an optional release
 check. It covers Cairn's project views via `cairn list --json` and `harrow --plain`,
 plus query fixtures for dates, categories, dependencies, criteria, hierarchy,
-UUID prefixes, ambiguity and migrated numeric aliases.
+UUID prefixes, ambiguity and migrated numeric aliases. Every item's Result, in
+the pinned Cairn and in bodies built around fences, heading levels and notes,
+must read the same in both tools, null for null: a dependent quotes it.
 
 To advance the pin, inspect Cairn's format/CLI changes, refresh the corpus with
 `CAIRN_REPO=/path/to/cairn scripts/task conformance:refresh`, review every diff,
