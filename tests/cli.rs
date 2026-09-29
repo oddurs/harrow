@@ -264,13 +264,8 @@ fn the_homebrew_formula_is_generated_from_the_checksums() {
     );
 }
 
-/// Homebrew builds the completions by running the binary with the shell's
-/// name appended, unless the formula names another convention. 0.2.0-alpha.1's
-/// named `:none`, which appends nothing, so `harrow completions` exited 2 and
-/// `brew install` failed. The call the formula makes has to be one the binary
-/// answers.
-#[test]
-fn the_formula_asks_for_completions_the_way_the_binary_answers() {
+/// The formula `scripts/formula` writes for a release with every target in it.
+fn generated_formula() -> String {
     let dir = testkit::project();
     let sums = dir.path().join("SHA256SUMS");
     let listing: String = [
@@ -288,7 +283,22 @@ fn the_formula_asks_for_completions_the_way_the_binary_answers() {
         .args(["9.9.9", &sums.display().to_string()])
         .output()
         .expect("the script runs");
-    let formula = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8_lossy(&out.stdout).into_owned()
+}
+
+/// Homebrew builds the completions by running the binary with the shell's
+/// name appended, unless the formula names another convention. 0.2.0-alpha.1's
+/// named `:none`, which appends nothing, so `harrow completions` exited 2 and
+/// `brew install` failed. The call the formula makes has to be one the binary
+/// answers.
+#[test]
+fn the_formula_asks_for_completions_the_way_the_binary_answers() {
+    let formula = generated_formula();
 
     let call = formula
         .lines()
@@ -307,6 +317,18 @@ fn the_formula_asks_for_completions_the_way_the_binary_answers() {
             "`harrow completions {shell}` is what Homebrew runs"
         );
     }
+}
+
+/// The Cairn a Homebrew install offers has to be one that can open the backlogs
+/// this harrow reads. The tap's plain `cairn` is the stable release, which
+/// stops at format 3; the line harrow is paired with is `cairn-next`.
+#[test]
+fn the_formula_offers_the_cairn_harrow_is_paired_with() {
+    let formula = generated_formula();
+    assert!(
+        formula.contains(r#"depends_on "oddurs/cairn/cairn-next" => :optional"#),
+        "{formula}"
+    );
 }
 
 /// A screenshot has no event loop, so whatever the interface still needs has to

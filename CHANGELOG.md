@@ -13,6 +13,9 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ### Fixed
 
+- The Homebrew formula names `oddurs/cairn/cairn-next`, Cairn 1.0.0-alpha.1,
+  as its optional dependency, rather than Cairn 0.3.0, which cannot open a
+  format 4 or 5 backlog.
 - The Homebrew formula the release generates installs. 0.2.0-alpha.1's asked
   for completions without naming the shell, so `brew install` failed; the tap
   was corrected by hand the same day.

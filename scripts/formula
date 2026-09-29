@@ -44,8 +44,10 @@ class Harrow < Formula
   version "${version}"
   license "MIT"
 
-  # harrow reads a cairn backlog without it and changes one with it.
-  depends_on "oddurs/cairn/cairn" => :optional
+  # harrow reads a cairn backlog without it and changes one with it. The line
+  # harrow is paired with: while that is a pre-release, the tap carries it as
+  # cairn-next, and plain cairn is the stable release before it.
+  depends_on "oddurs/cairn/cairn-next" => :optional
 
   on_macos do
     on_arm do

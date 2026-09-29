@@ -118,7 +118,14 @@ is red, and the theme fills in the rest.
 
 ```sh
 brew install oddurs/tap/harrow
+brew install oddurs/cairn/cairn-next    # Cairn 1.0.0-alpha.1, which writes format 5
 ```
+
+harrow reads a backlog with no cairn installed, and changes one through the
+`cairn` on PATH. `oddurs/cairn/cairn-next` is the Cairn this harrow is paired
+with. Plain `oddurs/cairn/cairn` is Cairn 0.3.0, the stable release, which
+cannot open a format 4 or 5 backlog. The two install the same `cairn`, so keep
+one.
 
 Or download a binary from [the latest
 release](https://github.com/oddurs/harrow/releases/latest) — macOS and Linux,
