@@ -1,6 +1,6 @@
 [package]
 name = "harrow"
-version = "0.2.0-alpha.1"
+version = "0.2.0-alpha.2"
 description = "Work a cairn backlog from the terminal"
 edition = "2024"
 rust-version = "1.98"

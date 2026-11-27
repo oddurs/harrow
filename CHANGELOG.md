@@ -11,6 +11,8 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ## [Unreleased]
 
+## [0.2.0-alpha.2] - 2026-11-27
+
 ### Fixed
 
 - An accepted proposal is no longer listed as waiting. harrow applies
@@ -227,5 +229,6 @@ COMPATIBILITY.md.
   including all of Cairn's project views, its conformance corpus and the
   Result of every item. See COMPATIBILITY.md.
 
-[unreleased]: https://github.com/oddurs/harrow/compare/v0.2.0-alpha.1...HEAD
+[unreleased]: https://github.com/oddurs/harrow/compare/v0.2.0-alpha.2...HEAD
+[0.2.0-alpha.2]: https://github.com/oddurs/harrow/compare/v0.2.0-alpha.1...v0.2.0-alpha.2
 [0.2.0-alpha.1]: https://github.com/oddurs/harrow/releases/tag/v0.2.0-alpha.1
