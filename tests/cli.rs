@@ -466,6 +466,31 @@ fn plain_answers_the_needs_queue() {
     );
 }
 
+/// An accepted proposal stays in the body as history. harrow kept asking about
+/// it, while `cairn proposals` had stopped: cairn treats a proposal as open
+/// only while the field differs from the proposed value. 0131.
+#[test]
+fn an_accepted_proposal_is_not_in_the_needs_queue() {
+    let dir = testkit::project();
+    let path = dir.path().join("items/0006-write-the-readme.md");
+    let text = std::fs::read_to_string(&path).unwrap();
+    let accepted = text.replace("priority: p3\n", "priority: p0\n")
+        + "\n## Accepted priority: p0 (a person, 2026-09-06)\n\nProposed by an agent on 2026-09-05.\n";
+    std::fs::write(&path, accepted).unwrap();
+    let (out, err, code) = run(&[
+        "-C",
+        &dir.path().display().to_string(),
+        "--plain",
+        "--lens",
+        "needs",
+    ]);
+    assert_eq!(code, 0, "{err}");
+    assert!(
+        !out.lines().any(|l| l.starts_with("0006\tproposal")),
+        "the field already holds the proposed value:\n{out}"
+    );
+}
+
 /// Nothing needing attention is an answer, not a failure.
 #[test]
 fn an_empty_needs_queue_prints_nothing_and_succeeds() {

@@ -13,6 +13,9 @@ Day-to-day work is tracked as [cairn items](cairn/items) and rendered into
 
 ### Fixed
 
+- An accepted proposal is no longer listed as waiting. harrow applies
+  cairn's rule: a proposal is open only while its field differs from the
+  proposed value, so the needs lens and `cairn proposals` agree.
 - The Homebrew formula names `oddurs/cairn/cairn-next`, Cairn 1.0.0-alpha.1,
   as its optional dependency, rather than Cairn 0.3.0, which cannot open a
   format 4 or 5 backlog.
