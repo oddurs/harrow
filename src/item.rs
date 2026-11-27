@@ -272,6 +272,21 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
     };
     let mut has_id = false;
 
+    // cairn's own rule for what is still open: the heading stays in the body
+    // after `cairn proposals --accept`, so only the field says whether the
+    // change has landed. The last value wins, as it does in the loop below.
+    item.proposals = parse_proposals(&item.body)
+        .into_iter()
+        .filter(|p| {
+            map.iter()
+                .rev()
+                .find(|(key, _)| *key == p.field)
+                .map(|(_, value)| value.display())
+                .unwrap_or_default()
+                != p.to
+        })
+        .collect();
+
     for (key, value) in map {
         match key.as_str() {
             "id" => {
@@ -318,8 +333,6 @@ pub fn parse(text: &str, path: &Path) -> Result<Item, String> {
         item.id = id_from_filename(path)
             .ok_or_else(|| "no id, and the filename does not begin with one either".to_string())?;
     }
-
-    item.proposals = parse_proposals(&item.body);
 
     if item.title.is_empty() {
         item.title = path
@@ -1041,6 +1054,42 @@ priority: p1\n\
         assert_eq!(p.by, "Oddur Sigurdsson");
         assert_eq!(p.when, "2026-09-11");
         assert_eq!(p.why, "it blocks the release");
+    }
+
+    /// cairn's rule, from `cairn proposals`: a proposal is open only while the
+    /// field differs from the value it proposes. The heading stays in the body
+    /// either way, so the heading alone does not say what is waiting.
+    #[test]
+    fn a_proposal_the_field_already_holds_is_not_waiting() {
+        let accepted = parse(
+            "---\nid: 5\ntitle: t\npriority: p0\n---\n\n\
+             ## Proposed priority: p2 -> p0 (an agent, 2026-09-11)\n\nbecause\n\n\
+             ## Accepted priority: p0 (a person, 2026-09-12)\n\nProposed by an agent.\n",
+            Path::new("x.md"),
+        )
+        .expect("parses");
+        assert!(accepted.proposals.is_empty(), "{:?}", accepted.proposals);
+
+        let from_nothing = parse(
+            "---\nid: 5\ntitle: t\nstatus: doing\nrisk: low\n---\n\n\
+             ## Proposed risk:  -> low (an agent, 2026-09-11)\n\n\
+             ## Proposed status: backlog -> doing (an agent, 2026-09-11)\n",
+            Path::new("x.md"),
+        )
+        .expect("parses");
+        assert!(
+            from_nothing.proposals.is_empty(),
+            "{:?}",
+            from_nothing.proposals
+        );
+
+        let still_open = parse(
+            "---\nid: 5\ntitle: t\npriority: p2\n---\n\n\
+             ## Proposed priority: p2 -> p0 (an agent, 2026-09-11)\n",
+            Path::new("x.md"),
+        )
+        .expect("parses");
+        assert_eq!(still_open.proposals.len(), 1);
     }
 
     #[test]

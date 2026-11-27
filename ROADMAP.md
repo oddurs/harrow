@@ -142,7 +142,7 @@ Every question harrow can answer is answerable from a shell.
 
 ## v1.0 — Stable release
 
-`#####·····` 41% · 9 of 22 done
+`#####·····` 43% · 10 of 23 done
 
 Documented, tested, and safe to depend on.
 
@@ -173,6 +173,7 @@ Documented, tested, and safe to depend on.
 - [x] `0098` A dropdown you cannot click out of <sup>bug · p1 · chrome</sup>
 - [x] `0099` Keep completion dates and saved views aligned with Cairn <sup>bug · p1 · read</sup>
 - [x] `0108` Advance the counterpart pin to Cairn 0.3.0 <sup>chore · p2 · testing</sup>
+- [x] `0131` An accepted proposal is no longer waiting <sup>bug · p1 · read</sup>
 
 ## v0.8 — Read an item as the prompt it is
 
